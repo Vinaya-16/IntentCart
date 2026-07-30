@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { User, Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 
-export default function AuthPage() {
+const API_URL = 'http://localhost:5000/api/auth';
+
+export default function Auth() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [formData, setFormData] = useState({
     username: '',
@@ -10,29 +12,69 @@ export default function AuthPage() {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
     });
+    setError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    console.log(isSignUp ? 'Submitted Sign Up:' : 'Submitted Sign In:', formData);
-    setIsLoading(false);
+    setError('');
+    setSuccess('');
+
+    try {
+      const endpoint = isSignUp ? '/signup' : '/signin';
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Authentication failed');
+      }
+
+      // Store token and user data
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+
+      setSuccess(data.message);
+      console.log('Auth successful:', data);
+
+      // Redirect or update app state here
+      // window.location.href = '/dashboard';
+      
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const toggleAuthMode = () => {
     setIsSignUp(!isSignUp);
+    setError('');
+    setSuccess('');
+    setFormData({
+      username: '',
+      email: '',
+      password: '',
+    });
   };
 
   return (
     <div className="min-h-screen w-full flex bg-[#f8f9fc] font-sans overflow-x-hidden">
-      
       {/* Left Column - Branding & Illustration */}
       <div className="hidden lg:flex lg:w-1/2 relative bg-white items-center justify-center p-8 border-r border-gray-100">
         {/* Brand Header - Top Left */}
@@ -86,6 +128,18 @@ export default function AuthPage() {
                 {isSignUp ? 'Create Account' : 'Welcome back'}
               </h2>
             </div>
+
+            {/* Error/Success Messages */}
+            {error && (
+              <div className="bg-red-50 text-red-600 p-3 rounded-xl text-sm">
+                {error}
+              </div>
+            )}
+            {success && (
+              <div className="bg-green-50 text-green-600 p-3 rounded-xl text-sm">
+                {success}
+              </div>
+            )}
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="w-full space-y-5 my-auto py-4">
@@ -164,7 +218,7 @@ export default function AuthPage() {
             {/* Mode Switch Link */}
             <div className="text-center pt-2">
               <p className="text-sm sm:text-base font-semibold text-gray-900">
-                {isSignUp ? 'Already have an account?' : 'Don’t have an account ?'}{' '}
+                {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
                 <button
                   type="button"
                   onClick={toggleAuthMode}
