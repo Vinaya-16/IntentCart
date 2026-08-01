@@ -13,6 +13,10 @@ import ProductM from "./adminPanel/productM.jsx";
 import Profile from "./adminPanel/profile.jsx";
 import Notifications from "./adminPanel/notifications.jsx";
 
+
+// Merchant Panel 
+import MerchantDashboard from "./merchantPanel/dashboard.jsx";
+
 function App() {
 
   return (
@@ -30,6 +34,9 @@ function App() {
           <Route path="/admin-productM" element={<ProductM />}/>
           <Route path="/admin-profile" element={<Profile />}/>
           <Route path="/admin-notifications" element={<Notifications />}/>
+
+          {/* Merchant Panel  */}
+          <Route path="/merchant-dashboard" element={<MerchantDashboard />}/>
 
         </Routes>
       </BrowserRouter>
