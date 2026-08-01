@@ -13,7 +13,16 @@ const generateToken = (id) => {
 // @access  Public
 export const signup = async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { 
+      username, 
+      email, 
+      password, 
+      role, 
+      businessName, 
+      businessDescription, 
+      businessAddress, 
+      businessPhone 
+    } = req.body;
     
     // Check if user already exists
     const userExists = await User.findOne({ $or: [{ email }, { username }] });
@@ -25,12 +34,30 @@ export const signup = async (req, res) => {
       });
     }
     
-    // Create user
-    const user = await User.create({
+    // Prepare user data
+    const userData = {
       username,
       email,
-      password
-    });
+      password,
+      role: role || 'customer'
+    };
+
+    // Add merchant-specific fields if role is merchant
+    if (role === 'merchant') {
+      if (!businessName) {
+        return res.status(400).json({
+          success: false,
+          message: 'Business name is required for merchants'
+        });
+      }
+      userData.businessName = businessName;
+      userData.businessDescription = businessDescription || '';
+      userData.businessAddress = businessAddress || '';
+      userData.businessPhone = businessPhone || '';
+    }
+    
+    // Create user
+    const user = await User.create(userData);
     
     // Generate token
     const token = generateToken(user._id);
@@ -133,14 +160,20 @@ export const logout = (req, res) => {
 export const updateProfile = async (req, res) => {
   try {
     const updates = req.body;
-    const allowedUpdates = ['username', 'email'];
+    const allowedUpdates = ['username', 'email', 'businessName', 'businessDescription', 'businessAddress', 'businessPhone'];
     const updateKeys = Object.keys(updates);
     
-    // Check if trying to update password
+    // Check if trying to update password or role
     if (updateKeys.includes('password')) {
       return res.status(400).json({
         success: false,
         message: 'Use the change password endpoint'
+      });
+    }
+    if (updateKeys.includes('role')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Role cannot be changed'
       });
     }
     
@@ -232,6 +265,30 @@ export const changePassword = async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Password changed successfully'
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+};
+
+// @desc    Get all merchants (for customers)
+// @route   GET /api/auth/merchants
+// @access  Private
+export const getMerchants = async (req, res) => {
+  try {
+    const merchants = await User.find({ 
+      role: 'merchant',
+      isActive: true 
+    }).select('username businessName businessDescription businessAddress businessPhone');
+    
+    res.status(200).json({
+      success: true,
+      count: merchants.length,
+      merchants
     });
   } catch (error) {
     console.error(error);

@@ -23,12 +23,39 @@ const userSchema = new mongoose.Schema({
     required: [true, 'Password is required'],
     minlength: [6, 'Password must be at least 6 characters']
   },
+  role: {
+    type: String,
+    enum: ['customer', 'merchant'],
+    default: 'customer',
+    required: [true, 'Role is required']
+  },
   isActive: {
     type: Boolean,
     default: true
   },
   lastLogin: {
     type: Date
+  },
+  // Merchant specific fields (optional)
+  businessName: {
+    type: String,
+    trim: true,
+    required: function() {
+      return this.role === 'merchant';
+    }
+  },
+  businessDescription: {
+    type: String,
+    trim: true,
+    maxlength: [500, 'Description cannot exceed 500 characters']
+  },
+  businessAddress: {
+    type: String,
+    trim: true
+  },
+  businessPhone: {
+    type: String,
+    trim: true
   }
 }, {
   timestamps: true

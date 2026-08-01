@@ -1,14 +1,20 @@
 import React, { useState } from 'react';
-import { User, Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { User, Mail, Lock, ArrowRight, Eye, EyeOff, Store, ShoppingBag, Briefcase, MapPin, Phone } from 'lucide-react';
 
 const API_URL = 'http://localhost:5000/api/auth';
 
-export default function Auth() {
+export default function AuthPage() {
   const [isSignUp, setIsSignUp] = useState(false);
+  const [role, setRole] = useState('customer');
   const [formData, setFormData] = useState({
     username: '',
     email: '',
     password: '',
+    role: 'customer',
+    businessName: '',
+    businessDescription: '',
+    businessAddress: '',
+    businessPhone: ''
   });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -23,40 +29,117 @@ export default function Auth() {
     setError('');
   };
 
+  const handleRoleChange = (selectedRole) => {
+    setRole(selectedRole);
+    setFormData({
+      ...formData,
+      role: selectedRole
+    });
+    setError('');
+  };
+
+  const validateForm = () => {
+    if (isSignUp) {
+      // Username validation - allow spaces
+      const usernameRegex = /^[a-zA-Z0-9\s]+$/;
+      if (formData.username.length < 3 || formData.username.length > 30) {
+        setError('Username must be 3-30 characters');
+        return false;
+      }
+      if (!usernameRegex.test(formData.username)) {
+        setError('Username can only contain letters, numbers, and spaces');
+        return false;
+      }
+      if (formData.password.length < 6) {
+        setError('Password must be at least 6 characters');
+        return false;
+      }
+      if (!/(?=.*[A-Za-z])(?=.*\d)/.test(formData.password)) {
+        setError('Password must contain at least one letter and one number');
+        return false;
+      }
+      if (role === 'merchant' && !formData.businessName.trim()) {
+        setError('Business name is required for merchants');
+        return false;
+      }
+    }
+    return true;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+
     setIsLoading(true);
     setError('');
     setSuccess('');
 
     try {
       const endpoint = isSignUp ? '/signup' : '/signin';
+      
+      let dataToSend;
+      if (isSignUp) {
+        dataToSend = {
+          username: formData.username.trim(),
+          email: formData.email.trim().toLowerCase(),
+          password: formData.password,
+          role: formData.role
+        };
+        
+        if (formData.role === 'merchant') {
+          dataToSend.businessName = formData.businessName.trim();
+          dataToSend.businessDescription = formData.businessDescription?.trim() || '';
+          dataToSend.businessAddress = formData.businessAddress?.trim() || '';
+          dataToSend.businessPhone = formData.businessPhone?.trim() || '';
+        }
+      } else {
+        dataToSend = {
+          email: formData.email.trim().toLowerCase(),
+          password: formData.password
+        };
+      }
+
+      console.log('Sending data:', dataToSend);
+
       const response = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(dataToSend),
       });
 
       const data = await response.json();
+      console.log('Server response:', data);
 
       if (!response.ok) {
+        if (data.errors) {
+          const errorMessages = data.errors.map(err => `${err.field}: ${err.message}`).join('\n');
+          throw new Error(errorMessages);
+        }
         throw new Error(data.message || 'Authentication failed');
       }
 
-      // Store token and user data
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
 
       setSuccess(data.message);
       console.log('Auth successful:', data);
 
-      // Redirect or update app state here
-      // window.location.href = '/dashboard';
+      setTimeout(() => {
+        if (data.user.role === 'merchant') {
+          alert('Redirecting to Merchant Dashboard');
+        } else {
+          alert('Redirecting to Customer Dashboard');
+        }
+      }, 1000);
       
     } catch (err) {
       setError(err.message);
+      console.error('Error details:', err);
     } finally {
       setIsLoading(false);
     }
@@ -66,10 +149,16 @@ export default function Auth() {
     setIsSignUp(!isSignUp);
     setError('');
     setSuccess('');
+    setRole('customer');
     setFormData({
       username: '',
       email: '',
       password: '',
+      role: 'customer',
+      businessName: '',
+      businessDescription: '',
+      businessAddress: '',
+      businessPhone: ''
     });
   };
 
@@ -77,17 +166,12 @@ export default function Auth() {
     <div className="min-h-screen w-full flex bg-[#f8f9fc] font-sans overflow-x-hidden">
       {/* Left Column - Branding & Illustration */}
       <div className="hidden lg:flex lg:w-1/2 relative bg-white items-center justify-center p-8 border-r border-gray-100">
-        {/* Brand Header - Top Left */}
         <div className="absolute top-8 left-8 flex items-center gap-3">
           <div className="w-10 h-10 bg-[#4B2EC2] rounded-xl flex items-center justify-center shadow-md shadow-[#4B2EC2]/20">
             <span className="text-white font-bold text-lg">IC</span>
           </div>
-          <h1 className="text-xl font-bold text-[#1D1068]">
-            IntentCart
-          </h1>
+          <h1 className="text-xl font-bold text-[#1D1068]">IntentCart</h1>
         </div>
-
-        {/* Illustration */}
         <div className="w-full max-w-lg">
           <img
             src="https://i.pinimg.com/736x/9d/f8/98/9df89840e668b11f0165040513d968b1.jpg"
@@ -96,12 +180,8 @@ export default function Auth() {
             className="w-full h-auto object-contain mix-blend-multiply max-h-[70vh]"
           />
         </div>
-
-        {/* Bottom Text */}
         <div className="absolute bottom-8 left-8 right-8 text-center">
-          <p className="text-sm font-medium text-gray-500">
-            Smart shopping, simplified
-          </p>
+          <p className="text-sm font-medium text-gray-500">Smart shopping, simplified</p>
         </div>
       </div>
 
@@ -114,37 +194,73 @@ export default function Auth() {
             <div className="w-12 h-12 bg-[#4B2EC2] rounded-2xl flex items-center justify-center mb-3 shadow-md shadow-[#4B2EC2]/20">
               <span className="text-white font-bold text-xl">IC</span>
             </div>
-            <h1 className="text-2xl font-bold text-[#1D1068]">
-              IntentCart
-            </h1>
+            <h1 className="text-2xl font-bold text-[#1D1068]">IntentCart</h1>
           </div>
 
           {/* Card Component */}
-          <div className="w-full min-h-[55vh] bg-white rounded-3xl border border-gray-200/80 p-8 sm:p-10 lg:p-12 shadow-xl shadow-slate-200/50 flex flex-col justify-between">
+          <div className="w-full bg-white rounded-3xl border border-gray-200/80 p-8 sm:p-10 lg:p-12 shadow-xl shadow-slate-200/50">
             
             {/* Card Header */}
             <div>
               <h2 className="text-2xl sm:text-3xl font-bold text-[#1D1068] text-center tracking-tight">
                 {isSignUp ? 'Create Account' : 'Welcome back'}
               </h2>
+              <p className="text-gray-500 text-center mt-2 text-sm">
+                {isSignUp ? 'Join as a customer or merchant' : 'Sign in to your account'}
+              </p>
             </div>
 
             {/* Error/Success Messages */}
             {error && (
-              <div className="bg-red-50 text-red-600 p-3 rounded-xl text-sm">
+              <div className="bg-red-50 text-red-600 p-3 rounded-xl text-sm mt-4 whitespace-pre-line">
                 {error}
               </div>
             )}
             {success && (
-              <div className="bg-green-50 text-green-600 p-3 rounded-xl text-sm">
+              <div className="bg-green-50 text-green-600 p-3 rounded-xl text-sm mt-4">
                 {success}
               </div>
             )}
 
             {/* Form */}
-            <form onSubmit={handleSubmit} className="w-full space-y-5 my-auto py-4">
+            <form onSubmit={handleSubmit} className="w-full space-y-5 mt-6">
               
-              {/* Username Field - Only renders when in Sign Up mode */}
+              {/* Role Selection - Only for Sign Up */}
+              {isSignUp && (
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium text-gray-700">
+                    I want to join as:
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleRoleChange('customer')}
+                      className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all ${
+                        role === 'customer'
+                          ? 'border-[#4B2EC2] bg-[#4B2EC2]/5 text-[#4B2EC2]'
+                          : 'border-gray-300 hover:border-gray-400 text-gray-600'
+                      }`}
+                    >
+                      <ShoppingBag className="w-5 h-5" />
+                      <span className="font-medium">Customer</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRoleChange('merchant')}
+                      className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all ${
+                        role === 'merchant'
+                          ? 'border-[#4B2EC2] bg-[#4B2EC2]/5 text-[#4B2EC2]'
+                          : 'border-gray-300 hover:border-gray-400 text-gray-600'
+                      }`}
+                    >
+                      <Store className="w-5 h-5" />
+                      <span className="font-medium">Merchant</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Username Field - Only for Sign Up */}
               {isSignUp && (
                 <div className="relative flex items-center">
                   <User className="absolute left-4 text-gray-400 w-5 h-5 pointer-events-none" />
@@ -153,10 +269,63 @@ export default function Auth() {
                     name="username"
                     value={formData.username}
                     onChange={handleChange}
-                    placeholder="Username"
+                    placeholder="Username (3-30 chars, letters, numbers & spaces)"
                     required={isSignUp}
                     className="w-full pl-12 pr-4 py-3.5 border border-gray-300 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4B2EC2]/20 focus:border-[#4B2EC2] transition-all text-sm sm:text-base bg-gray-50/30 focus:bg-white"
                   />
+                </div>
+              )}
+
+              {/* Merchant Specific Fields */}
+              {isSignUp && role === 'merchant' && (
+                <div className="space-y-4 border-l-4 border-[#4B2EC2] pl-4 bg-gray-50/30 p-4 rounded-r-xl">
+                  <div className="relative flex items-center">
+                    <Briefcase className="absolute left-4 text-gray-400 w-5 h-5 pointer-events-none" />
+                    <input
+                      type="text"
+                      name="businessName"
+                      value={formData.businessName}
+                      onChange={handleChange}
+                      placeholder="Business Name *"
+                      required={role === 'merchant'}
+                      className="w-full pl-12 pr-4 py-3.5 border border-gray-300 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4B2EC2]/20 focus:border-[#4B2EC2] transition-all text-sm sm:text-base bg-white"
+                    />
+                  </div>
+
+                  <div className="relative flex items-center">
+                    <MapPin className="absolute left-4 text-gray-400 w-5 h-5 pointer-events-none" />
+                    <input
+                      type="text"
+                      name="businessAddress"
+                      value={formData.businessAddress}
+                      onChange={handleChange}
+                      placeholder="Business Address"
+                      className="w-full pl-12 pr-4 py-3.5 border border-gray-300 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4B2EC2]/20 focus:border-[#4B2EC2] transition-all text-sm sm:text-base bg-white"
+                    />
+                  </div>
+
+                  <div className="relative flex items-center">
+                    <Phone className="absolute left-4 text-gray-400 w-5 h-5 pointer-events-none" />
+                    <input
+                      type="text"
+                      name="businessPhone"
+                      value={formData.businessPhone}
+                      onChange={handleChange}
+                      placeholder="Business Phone"
+                      className="w-full pl-12 pr-4 py-3.5 border border-gray-300 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4B2EC2]/20 focus:border-[#4B2EC2] transition-all text-sm sm:text-base bg-white"
+                    />
+                  </div>
+
+                  <div className="relative flex items-center">
+                    <textarea
+                      name="businessDescription"
+                      value={formData.businessDescription}
+                      onChange={handleChange}
+                      placeholder="Business Description (Optional)"
+                      rows="3"
+                      className="w-full px-4 py-3.5 border border-gray-300 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4B2EC2]/20 focus:border-[#4B2EC2] transition-all text-sm sm:text-base bg-white resize-none"
+                    />
+                  </div>
                 </div>
               )}
 
@@ -182,7 +351,7 @@ export default function Auth() {
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
-                  placeholder="Password"
+                  placeholder="Password (min 6 chars, 1 letter & 1 number)"
                   required
                   className="w-full pl-12 pr-12 py-3.5 border border-gray-300 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4B2EC2]/20 focus:border-[#4B2EC2] transition-all text-sm sm:text-base bg-gray-50/30 focus:bg-white"
                 />
@@ -216,7 +385,7 @@ export default function Auth() {
             </form>
 
             {/* Mode Switch Link */}
-            <div className="text-center pt-2">
+            <div className="text-center pt-6">
               <p className="text-sm sm:text-base font-semibold text-gray-900">
                 {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
                 <button
