@@ -25,18 +25,37 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['customer', 'merchant'],
+    enum: ['admin', 'merchant', 'customer'],
     default: 'customer',
     required: [true, 'Role is required']
+  },
+  profileImage: {
+    type: String,
+    default: null
+  },
+  phone: {
+    type: String,
+    trim: true
+  },
+  address: {
+    street: String,
+    city: String,
+    state: String,
+    country: String,
+    zipCode: String
   },
   isActive: {
     type: Boolean,
     default: true
   },
+  isEmailVerified: {
+    type: Boolean,
+    default: false
+  },
   lastLogin: {
     type: Date
   },
-  // Merchant specific fields (optional)
+  // Merchant specific fields
   businessName: {
     type: String,
     trim: true,
@@ -56,6 +75,23 @@ const userSchema = new mongoose.Schema({
   businessPhone: {
     type: String,
     trim: true
+  },
+  businessLogo: {
+    type: String,
+    default: null
+  },
+  businessStatus: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: function() {
+      return this.role === 'merchant' ? 'pending' : 'approved';
+    }
+  },
+  // Admin specific fields
+  adminPermissions: {
+    type: [String],
+    default: [],
+    enum: ['users', 'products', 'orders', 'reviews', 'settings', 'analytics']
   }
 }, {
   timestamps: true

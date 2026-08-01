@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import connectDB from './src/config/database.js';
 import authRoutes from './src/routes/authRoute.js';
+import adminRoutes from './src/routes/adminRoutes.js';
 
 // Load environment variables
 dotenv.config();
@@ -34,6 +35,8 @@ app.use('/api/auth', limiter);
 
 // Routes
 app.use('/api/auth', authRoutes);
+
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
