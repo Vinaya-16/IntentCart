@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { Bell, User, ChevronDown, Menu } from "lucide-react";
 
 const Header = ({ onMenuClick }) => {
@@ -21,25 +22,28 @@ const Header = ({ onMenuClick }) => {
 
       {/* Right side: Notifications & Profile */}
       <div className="flex items-center gap-4 sm:gap-6">
-        {/* Notification Bell */}
-        <button
-          type="button"
-          className="p-2 rounded-full hover:bg-[#252c6a] transition-colors relative cursor-pointer"
+        {/* Notification Link */}
+        <Link
+          to="/admin-notifications"
+          className="p-2 rounded-full hover:bg-[#252c6a] transition-colors relative cursor-pointer flex items-center justify-center"
           aria-label="Notifications"
         >
           <Bell className="w-5 h-5 text-gray-200" />
           {/* Notification Badge Dot */}
           <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
-        </button>
+        </Link>
 
-        {/* Admin Profile Dropdown */}
-        <div className="flex items-center gap-2 cursor-pointer hover:opacity-90 py-1">
+        {/* Admin Profile Link */}
+        <Link 
+          to="/admin-profile"
+          className="flex items-center gap-2 cursor-pointer hover:opacity-90 py-1"
+        >
           <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center border border-white/20 shrink-0">
             <User className="w-4 h-4 text-white" />
           </div>
           <span className="text-sm font-medium hidden sm:inline-block">Admin</span>
           <ChevronDown className="w-4 h-4 text-gray-300" />
-        </div>
+        </Link>
       </div>
     </header>
   );

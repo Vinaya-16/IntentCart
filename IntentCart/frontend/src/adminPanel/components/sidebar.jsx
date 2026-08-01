@@ -104,9 +104,9 @@ const Sidebar = ({
                     } else if (item.name === 'Merchant Verification') {
                       navigate('/admin-merchantV');
                     } else if (item.name === 'Product Moderation') {
-                      navigate('/product-moderation');
+                      navigate('/admin-productM');
                     } else {
-                      navigate(`/admin-dashboard?tab=${encodeURIComponent(item.name)}`);
+                      navigate(`/admin-dashboard`);
                     }
                   }}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all cursor-pointer ${
@@ -129,7 +129,7 @@ const Sidebar = ({
             type="button"
             onClick={() => {
               setIsOpen(false);
-              navigate('/login');
+              navigate('/intentcart-auth');
             }}
             className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-gray-300 hover:text-white hover:bg-[#252c6a] rounded-lg transition-colors cursor-pointer"
           >
