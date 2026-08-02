@@ -16,6 +16,13 @@ import Notifications from "./adminPanel/notifications.jsx";
 
 // Merchant Panel 
 import MerchantDashboard from "./merchantPanel/dashboard.jsx";
+import MerchantProductM from "./merchantPanel/productM.jsx";
+import MerchantOrderM from "./merchantPanel/orderM.jsx";
+import MerchantCustomerA from "./merchantPanel/customerA.jsx";
+import MerchantRecoveryD from "./merchantPanel/recoveryD.jsx";
+import MerchantCampM from "./merchantPanel/campaignM.jsx";
+import MerchantNotifications from "./merchantPanel/notifications.jsx";
+import MerchantProfile from "./merchantPanel/profile.jsx";
 
 function App() {
 
@@ -37,6 +44,13 @@ function App() {
 
           {/* Merchant Panel  */}
           <Route path="/merchant-dashboard" element={<MerchantDashboard />}/>
+          <Route path="/merchant-productM" element={<MerchantProductM />}/>
+          <Route path="/merchant-orderM" element={<MerchantOrderM/>} />
+          <Route path="/merchant-customerA" element={<MerchantCustomerA />}/>
+          <Route path="/merchant-recoveryD" element={<MerchantRecoveryD />}/>
+          <Route path="/merchant-campM" element={<MerchantCampM />}/>
+          <Route path="/merchant-notifications" element={<MerchantNotifications />}/>
+          <Route path="/merchant-profile" element={<MerchantProfile />}/>
 
         </Routes>
       </BrowserRouter>
