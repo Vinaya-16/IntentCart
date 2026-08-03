@@ -8,6 +8,16 @@ const generateToken = (id) => {
   });
 };
 
+// Get redirect URL based on role
+const getRedirectUrl = (role) => {
+  const redirectMap = {
+    admin: '/admin-dashboard',
+    merchant: '/merchant-dashboard',
+    customer: '/'
+  };
+  return redirectMap[role] || '/';
+};
+
 // @desc    Register user
 // @route   POST /api/auth/signup
 // @access  Public
@@ -23,7 +33,7 @@ export const signup = async (req, res) => {
       businessAddress, 
       businessPhone 
     } = req.body;
-    
+
     // Check if user already exists
     const userExists = await User.findOne({ $or: [{ email }, { username }] });
     if (userExists) {
@@ -33,16 +43,18 @@ export const signup = async (req, res) => {
         message: `${field} already registered`
       });
     }
-    
+
     // Prepare user data
     const userData = {
       username,
       email,
       password,
-      role: role || 'customer'
+      role: role || 'customer',
+      isApproved: role === 'admin' ? true : false,
+      isActive: true
     };
 
-    // Add merchant-specific fields if role is merchant
+    // Add merchant fields if role is merchant
     if (role === 'merchant') {
       if (!businessName) {
         return res.status(400).json({
@@ -55,18 +67,25 @@ export const signup = async (req, res) => {
       userData.businessAddress = businessAddress || '';
       userData.businessPhone = businessPhone || '';
     }
-    
+
     // Create user
     const user = await User.create(userData);
     
     // Generate token
     const token = generateToken(user._id);
-    
+
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
       token,
-      user
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        businessName: user.businessName,
+        redirectUrl: getRedirectUrl(user.role)
+      }
     });
   } catch (error) {
     console.error(error);
@@ -78,23 +97,70 @@ export const signup = async (req, res) => {
   }
 };
 
-// @desc    Login user
+// @desc    Login user - Decides which panel to redirect
 // @route   POST /api/auth/signin
 // @access  Public
 export const signin = async (req, res) => {
   try {
     const { email, password } = req.body;
-    
-    // Find user by email
+
+    // CHECK 1: Is this the SUPER ADMIN from .env?
+    const superAdminEmail = process.env.SUPER_ADMIN_EMAIL;
+    const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD;
+    const superAdminUsername = process.env.SUPER_ADMIN_USERNAME || 'admin';
+
+    if (email === superAdminEmail && password === superAdminPassword) {
+      console.log('Super Admin login detected!');
+      
+      let adminUser = await User.findOne({ email: superAdminEmail });
+      
+      if (!adminUser) {
+        adminUser = await User.create({
+          username: superAdminUsername,
+          email: superAdminEmail,
+          password: superAdminPassword,
+          role: 'admin',
+          isApproved: true,
+          isActive: true
+        });
+        console.log('Super Admin created in database');
+      }
+
+      const token = generateToken(adminUser._id);
+      adminUser.lastLogin = new Date();
+      await adminUser.save();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Admin login successful',
+        token,
+        user: {
+          id: adminUser._id,
+          username: adminUser.username,
+          email: adminUser.email,
+          role: 'admin',
+          redirectUrl: '/admin-dashboard'
+        }
+      });
+    }
+
+    // CHECK 2: Regular user login
     const user = await User.findOne({ email });
+    
     if (!user) {
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password'
       });
     }
-    
-    // Check password
+
+    if (!user.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been blocked. Please contact support.'
+      });
+    }
+
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
       return res.status(401).json({
@@ -102,19 +168,27 @@ export const signin = async (req, res) => {
         message: 'Invalid email or password'
       });
     }
-    
-    // Update last login
+
     user.lastLogin = new Date();
     await user.save();
-    
-    // Generate token
+
     const token = generateToken(user._id);
-    
+
+    // Decide redirect URL based on role
+    const redirectUrl = getRedirectUrl(user.role);
+
     res.status(200).json({
       success: true,
       message: 'Login successful',
       token,
-      user
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        businessName: user.businessName,
+        redirectUrl: redirectUrl
+      }
     });
   } catch (error) {
     console.error(error);
@@ -133,7 +207,10 @@ export const getCurrentUser = async (req, res) => {
   try {
     res.status(200).json({
       success: true,
-      user: req.user
+      user: {
+        ...req.user.toJSON(),
+        redirectUrl: getRedirectUrl(req.user.role)
+      }
     });
   } catch (error) {
     console.error(error);
@@ -163,7 +240,6 @@ export const updateProfile = async (req, res) => {
     const allowedUpdates = ['username', 'email', 'businessName', 'businessDescription', 'businessAddress', 'businessPhone'];
     const updateKeys = Object.keys(updates);
     
-    // Check if trying to update password or role
     if (updateKeys.includes('password')) {
       return res.status(400).json({
         success: false,
@@ -177,7 +253,6 @@ export const updateProfile = async (req, res) => {
       });
     }
     
-    // Check if all updates are allowed
     const isValidOperation = updateKeys.every(key => allowedUpdates.includes(key));
     if (!isValidOperation) {
       return res.status(400).json({
@@ -186,7 +261,6 @@ export const updateProfile = async (req, res) => {
       });
     }
     
-    // Check if email/username already exists
     if (updates.email || updates.username) {
       const existingUser = await User.findOne({
         $or: [
@@ -204,7 +278,6 @@ export const updateProfile = async (req, res) => {
       }
     }
     
-    // Update user
     const user = await User.findByIdAndUpdate(
       req.user._id,
       updates,
@@ -214,7 +287,10 @@ export const updateProfile = async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Profile updated successfully',
-      user
+      user: {
+        ...user.toJSON(),
+        redirectUrl: getRedirectUrl(user.role)
+      }
     });
   } catch (error) {
     console.error(error);
@@ -246,10 +322,8 @@ export const changePassword = async (req, res) => {
       });
     }
     
-    // Get user with password
     const user = await User.findById(req.user._id);
     
-    // Verify current password
     const isPasswordValid = await user.comparePassword(currentPassword);
     if (!isPasswordValid) {
       return res.status(401).json({
@@ -258,37 +332,12 @@ export const changePassword = async (req, res) => {
       });
     }
     
-    // Update password
     user.password = newPassword;
     await user.save();
     
     res.status(200).json({
       success: true,
       message: 'Password changed successfully'
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
-  }
-};
-
-// @desc    Get all merchants (for customers)
-// @route   GET /api/auth/merchants
-// @access  Private
-export const getMerchants = async (req, res) => {
-  try {
-    const merchants = await User.find({ 
-      role: 'merchant',
-      isActive: true 
-    }).select('username businessName businessDescription businessAddress businessPhone');
-    
-    res.status(200).json({
-      success: true,
-      count: merchants.length,
-      merchants
     });
   } catch (error) {
     console.error(error);

@@ -40,7 +40,6 @@ export default function AuthPage() {
 
   const validateForm = () => {
     if (isSignUp) {
-      // Username validation - allow spaces
       const usernameRegex = /^[a-zA-Z0-9\s]+$/;
       if (formData.username.length < 3 || formData.username.length > 30) {
         setError('Username must be 3-30 characters');
@@ -102,7 +101,7 @@ export default function AuthPage() {
         };
       }
 
-      console.log('Sending data:', dataToSend);
+      // console.log('Sending login request...');
 
       const response = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
@@ -113,7 +112,7 @@ export default function AuthPage() {
       });
 
       const data = await response.json();
-      console.log('Server response:', data);
+      // console.log('Server response:', data);
 
       if (!response.ok) {
         if (data.errors) {
@@ -123,23 +122,34 @@ export default function AuthPage() {
         throw new Error(data.message || 'Authentication failed');
       }
 
+      // Store token and user data
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
+      
+      // console.log('Login successful!');
+      // console.log('User role:', data.user.role);
+      // console.log('Redirect URL:', data.user.redirectUrl);
 
-      setSuccess(data.message);
-      console.log('Auth successful:', data);
+      setSuccess(`Welcome ${data.user.username}!`);
 
+      // REDIRECT - Using window.location.replace for cleaner navigation
       setTimeout(() => {
-        if (data.user.role === 'merchant') {
-          alert('Redirecting to Merchant Dashboard');
-        } else {
-          alert('Redirecting to Customer Dashboard');
-        }
-      }, 1000);
+        const roleRedirects = {
+          admin: '/admin-dashboard',
+          merchant: '/merchant-dashboard',
+          customer: '/'
+        };
+        
+        const redirectUrl = data.user.redirectUrl || roleRedirects[data.user.role] || '/';
+        // console.log('Redirecting to:', redirectUrl);
+        
+        // Use replace to prevent back button issues
+        window.location.replace(redirectUrl);
+      }, 800);
       
     } catch (err) {
+      console.error('Error:', err);
       setError(err.message);
-      console.error('Error details:', err);
     } finally {
       setIsLoading(false);
     }

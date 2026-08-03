@@ -6,12 +6,15 @@ import dotenv from 'dotenv';
 import connectDB from './src/config/database.js';
 import authRoutes from './src/routes/authRoute.js';
 import adminRoutes from './src/routes/adminRoutes.js';
+import seedSuperAdmin from './src/utils/seeder.js';
 
 // Load environment variables
 dotenv.config();
 
 // Connect to database
 connectDB();
+
+seedSuperAdmin();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
