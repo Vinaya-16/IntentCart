@@ -3,7 +3,7 @@ import User from '../models/User.js';
 
 // Generate JWT Token
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'your_secret_key', {
+  return jwt.sign({ id }, process.env.JWT_SECRET || 'IntentCart1028', {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d'
   });
 };
@@ -100,47 +100,69 @@ export const signup = async (req, res) => {
 // @desc    Login user - Decides which panel to redirect
 // @route   POST /api/auth/signin
 // @access  Public
+// src/controllers/authController.js - Updated signin function
+
 export const signin = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // CHECK 1: Is this the SUPER ADMIN from .env?
-    const superAdminEmail = process.env.SUPER_ADMIN_EMAIL;
-    const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD;
-    const superAdminUsername = process.env.SUPER_ADMIN_USERNAME || 'admin';
+    // console.log('Login attempt:', { email });
 
+    // CHECK 1: Is this the SUPER ADMIN from .env?
+    const superAdminEmail = process.env.SUPER_ADMIN_EMAIL?.trim();
+    const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD?.trim();
+    const superAdminUsername = process.env.SUPER_ADMIN_USERNAME?.trim() || 'admin';
+
+    // Check if email matches super admin AND password matches
     if (email === superAdminEmail && password === superAdminPassword) {
-      console.log('Super Admin login detected!');
+      // console.log('Super Admin login detected!');
       
+      // Check if super admin exists in DB
       let adminUser = await User.findOne({ email: superAdminEmail });
       
       if (!adminUser) {
+        // console.log('Creating Super Admin in database...');
         adminUser = await User.create({
           username: superAdminUsername,
           email: superAdminEmail,
           password: superAdminPassword,
-          role: 'admin',
+          role: 'admin',  
           isApproved: true,
           isActive: true
         });
-        console.log('Super Admin created in database');
+        // console.log('Super Admin created successfully');
+      } else {
+        // console.log('Super Admin found in database');
+        // Ensure the role is set to admin
+        if (adminUser.role !== 'admin') {
+          adminUser.role = 'admin';
+          await adminUser.save();
+          // console.log('Updated user role to admin');
+        }
       }
 
+      // Generate token
       const token = generateToken(adminUser._id);
+      
+      // Update last login
       adminUser.lastLogin = new Date();
       await adminUser.save();
+
+      const userResponse = {
+        id: adminUser._id,
+        username: adminUser.username,
+        email: adminUser.email,
+        role: 'admin', 
+        redirectUrl: '/admin-dashboard'
+      };
+
+      // console.log('Admin login successful:', userResponse);
 
       return res.status(200).json({
         success: true,
         message: 'Admin login successful',
         token,
-        user: {
-          id: adminUser._id,
-          username: adminUser.username,
-          email: adminUser.email,
-          role: 'admin',
-          redirectUrl: '/admin-dashboard'
-        }
+        user: userResponse
       });
     }
 
@@ -191,7 +213,7 @@ export const signin = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error(error);
+    console.error('Login error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',

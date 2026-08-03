@@ -1,17 +1,29 @@
 import User from '../models/User.js';
 
-// @desc    Get all users
-// @route   GET /api/admin/users
+// ==================== USER MANAGEMENT ====================
+
+// @desc    Get all users (with optional role filter)
+// @route   GET /api/admin/users?role=merchant
 // @access  Admin only
 export const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().select('-password');
+    const { role } = req.query;
+    let query = {};
+    
+    // If role is provided in query params, filter by it
+    if (role) {
+      query.role = role;
+    }
+    
+    const users = await User.find(query).select('-password');
+    
     res.status(200).json({
       success: true,
       count: users.length,
       users
     });
   } catch (error) {
+    console.error('Error fetching users:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -37,6 +49,33 @@ export const getUserById = async (req, res) => {
       user
     });
   } catch (error) {
+    console.error('Error fetching user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Delete user
+// @route   DELETE /api/admin/users/:id
+// @access  Admin only
+export const deleteUser = async (req, res) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'User deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting user:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -76,6 +115,7 @@ export const toggleBlockUser = async (req, res) => {
       user
     });
   } catch (error) {
+    console.error('Error blocking/unblocking user:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -83,6 +123,8 @@ export const toggleBlockUser = async (req, res) => {
     });
   }
 };
+
+// ==================== MERCHANT MANAGEMENT ====================
 
 // @desc    Get pending merchant applications
 // @route   GET /api/admin/merchants/pending
@@ -100,6 +142,7 @@ export const getPendingMerchants = async (req, res) => {
       merchants
     });
   } catch (error) {
+    console.error('Error fetching pending merchants:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -115,6 +158,27 @@ export const approveMerchant = async (req, res) => {
   try {
     const { id } = req.params;
     
+    // console.log('Approving merchant with ID:', id);
+    
+    // Check if user exists
+    const existingUser = await User.findById(id);
+    if (!existingUser) {
+      console.log('Merchant not found');
+      return res.status(404).json({
+        success: false,
+        message: 'Merchant not found'
+      });
+    }
+    
+    // Check if user is actually a merchant
+    if (existingUser.role !== 'merchant') {
+      console.log('User is not a merchant. Role:', existingUser.role);
+      return res.status(400).json({
+        success: false,
+        message: 'User is not a merchant'
+      });
+    }
+    
     const user = await User.findByIdAndUpdate(
       id,
       { 
@@ -124,12 +188,7 @@ export const approveMerchant = async (req, res) => {
       { new: true }
     ).select('-password');
     
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'Merchant not found'
-      });
-    }
+    // console.log('Merchant approved successfully:', user.email);
     
     res.status(200).json({
       success: true,
@@ -137,6 +196,7 @@ export const approveMerchant = async (req, res) => {
       user
     });
   } catch (error) {
+    console.error('Error approving merchant:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -153,6 +213,27 @@ export const rejectMerchant = async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body;
     
+    console.log('Rejecting merchant with ID:', id);
+    
+    // Check if user exists
+    const existingUser = await User.findById(id);
+    if (!existingUser) {
+      console.log('Merchant not found');
+      return res.status(404).json({
+        success: false,
+        message: 'Merchant not found'
+      });
+    }
+    
+    // Check if user is actually a merchant
+    if (existingUser.role !== 'merchant') {
+      console.log('User is not a merchant. Role:', existingUser.role);
+      return res.status(400).json({
+        success: false,
+        message: 'User is not a merchant'
+      });
+    }
+    
     const user = await User.findByIdAndUpdate(
       id,
       { 
@@ -163,12 +244,7 @@ export const rejectMerchant = async (req, res) => {
       { new: true }
     ).select('-password');
     
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'Merchant not found'
-      });
-    }
+    // console.log('Merchant rejected successfully:', user.email);
     
     res.status(200).json({
       success: true,
@@ -176,6 +252,7 @@ export const rejectMerchant = async (req, res) => {
       user
     });
   } catch (error) {
+    console.error('Error rejecting merchant:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -183,6 +260,8 @@ export const rejectMerchant = async (req, res) => {
     });
   }
 };
+
+// ==================== SYSTEM STATISTICS ====================
 
 // @desc    Get system statistics
 // @route   GET /api/admin/stats
@@ -195,6 +274,7 @@ export const getSystemStats = async (req, res) => {
     const totalCustomers = await User.countDocuments({ role: 'customer' });
     const pendingMerchants = await User.countDocuments({ role: 'merchant', isApproved: false });
     const blockedUsers = await User.countDocuments({ isActive: false });
+    const approvedMerchants = await User.countDocuments({ role: 'merchant', isApproved: true });
     
     res.status(200).json({
       success: true,
@@ -204,36 +284,13 @@ export const getSystemStats = async (req, res) => {
         totalMerchants,
         totalCustomers,
         pendingMerchants,
+        approvedMerchants,
         blockedUsers,
         activeUsers: totalUsers - blockedUsers
       }
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error.message
-    });
-  }
-};
-
-// @desc    Delete user
-// @route   DELETE /api/admin/users/:id
-// @access  Admin only
-export const deleteUser = async (req, res) => {
-  try {
-    const user = await User.findByIdAndDelete(req.params.id);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-    res.status(200).json({
-      success: true,
-      message: 'User deleted successfully'
-    });
-  } catch (error) {
+    console.error('Error fetching stats:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',

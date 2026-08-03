@@ -29,6 +29,10 @@ const userSchema = new mongoose.Schema({
     default: 'customer',
     required: [true, 'Role is required']
   },
+  isApproved: {
+    type: Boolean,
+    default: false
+  },
   profileImage: {
     type: String,
     default: null
