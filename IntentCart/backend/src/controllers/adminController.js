@@ -1,4 +1,22 @@
 import User from '../models/User.js';
+import Notification from '../models/Notifications.js';
+
+// ==================== HELPER: Create Notification ====================
+
+const createNotification = async (title, message, type, category, metadata = {}) => {
+  try {
+    await Notification.create({
+      title,
+      message,
+      type: type || 'info',
+      category: category || 'General',
+      isGlobal: true,
+      metadata
+    });
+  } catch (error) {
+    console.error('❌ Error creating notification:', error);
+  }
+};
 
 // ==================== USER MANAGEMENT ====================
 
@@ -60,6 +78,16 @@ export const deleteUser = async (req, res) => {
         message: 'User not found'
       });
     }
+    
+    // ✅ Create notification for user deletion
+    await createNotification(
+      `User Deleted: ${user.username}`,
+      `User ${user.username} (${user.email}) was deleted from the system.`,
+      'alert',
+      'System',
+      { userId: user._id, email: user.email }
+    );
+    
     res.status(200).json({
       success: true,
       message: 'User deleted successfully'
@@ -94,6 +122,25 @@ export const toggleBlockUser = async (req, res) => {
         success: false,
         message: 'User not found'
       });
+    }
+
+    // ✅ Create notification for block/unblock
+    if (!isActive) {
+      await createNotification(
+        `User Blocked: ${user.username}`,
+        `User ${user.username} (${user.email}) has been blocked. Reason: ${reason || 'No reason provided'}`,
+        'alert',
+        'Alerts',
+        { userId: user._id, email: user.email, reason }
+      );
+    } else {
+      await createNotification(
+        `User Unblocked: ${user.username}`,
+        `User ${user.username} (${user.email}) has been unblocked.`,
+        'success',
+        'Updates',
+        { userId: user._id, email: user.email }
+      );
     }
 
     res.status(200).json({
@@ -139,8 +186,6 @@ export const approveMerchant = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // console.log('Approving merchant with ID:', id);
-
     const existingUser = await User.findById(id);
     if (!existingUser) {
       console.log('Merchant not found');
@@ -168,7 +213,14 @@ export const approveMerchant = async (req, res) => {
       { new: true }
     ).select('-password');
 
-    // console.log('Merchant approved successfully:', user.email);
+    // ✅ Create notification for merchant approval
+    await createNotification(
+      `Merchant Approved: ${user.businessName || user.username}`,
+      `Merchant ${user.businessName || user.username} (${user.email}) has been approved and can now sell products.`,
+      'success',
+      'Updates',
+      { merchantId: user._id, email: user.email, businessName: user.businessName }
+    );
 
     res.status(200).json({
       success: true,
@@ -189,9 +241,6 @@ export const rejectMerchant = async (req, res) => {
   try {
     const { id } = req.params;
     const { reason } = req.body;
-
-    // console.log('Rejecting merchant with ID:', id);
-    // console.log('Rejection reason:', reason);
 
     const existingUser = await User.findById(id);
     if (!existingUser) {
@@ -221,6 +270,15 @@ export const rejectMerchant = async (req, res) => {
       { new: true }
     ).select('-password');
 
+    // ✅ Create notification for merchant rejection
+    await createNotification(
+      `Merchant Rejected: ${user.businessName || user.username}`,
+      `Merchant ${user.businessName || user.username} (${user.email}) has been rejected. Reason: ${reason || 'No reason provided'}`,
+      'alert',
+      'Alerts',
+      { merchantId: user._id, email: user.email, reason }
+    );
+
     console.log('Merchant rejected successfully:', user.email);
 
     res.status(200).json({
@@ -241,8 +299,6 @@ export const rejectMerchant = async (req, res) => {
 export const resetMerchantStatus = async (req, res) => {
   try {
     const { id } = req.params;
-
-    // console.log('Resetting merchant status with ID:', id);
 
     const existingUser = await User.findById(id);
     if (!existingUser) {
@@ -273,7 +329,14 @@ export const resetMerchantStatus = async (req, res) => {
       { new: true }
     ).select('-password');
 
-    // console.log('Merchant reset to pending:', user.email);
+    // ✅ Create notification for merchant status reset
+    await createNotification(
+      `Merchant Reset: ${user.businessName || user.username}`,
+      `Merchant ${user.businessName || user.username} (${user.email}) has been reset to pending status for re-review.`,
+      'info',
+      'Updates',
+      { merchantId: user._id, email: user.email }
+    );
 
     res.status(200).json({
       success: true,
@@ -329,9 +392,6 @@ export const getSystemStats = async (req, res) => {
 
 // ==================== ADMIN PROFILE MANAGEMENT ====================
 
-// @desc    Get admin profile
-// @route   GET /api/admin/profile
-// @access  Admin only
 export const getAdminProfile = async (req, res) => {
   try {
     const admin = await User.findById(req.user._id).select('-password');
@@ -346,11 +406,9 @@ export const getAdminProfile = async (req, res) => {
     let totalRevenue = 0;
     let avgRevenueSize = 0;
 
-    // Get total merchants count
     const totalMerchants = await User.countDocuments({ role: 'merchant' });
     const totalCustomers = await User.countDocuments({ role: 'customer' });
 
-    // Format response for frontend
     const profileData = {
       id: admin._id,
       firstName: admin.firstName || admin.username || 'Admin',
@@ -393,9 +451,6 @@ export const getAdminProfile = async (req, res) => {
   }
 };
 
-// @desc    Update admin profile
-// @route   PUT /api/admin/profile
-// @access  Admin only
 export const updateAdminProfile = async (req, res) => {
   try {
     const {
@@ -412,9 +467,6 @@ export const updateAdminProfile = async (req, res) => {
       avatarUrl
     } = req.body;
 
-    // console.log('Updating admin profile:', req.user._id);
-
-    // Build update object
     const updates = {};
     if (firstName) updates.firstName = firstName;
     if (lastName) updates.lastName = lastName;
@@ -441,7 +493,13 @@ export const updateAdminProfile = async (req, res) => {
       });
     }
 
-    // console.log('Admin profile updated successfully');
+    // ✅ Create notification for profile update
+    await createNotification(
+      'Profile Updated',
+      `Admin profile was updated successfully.`,
+      'success',
+      'Updates'
+    );
 
     res.status(200).json({
       success: true,
@@ -480,14 +538,10 @@ export const updateAdminProfile = async (req, res) => {
   }
 };
 
-// @desc    Change admin password
-// @route   PUT /api/admin/change-password
-// @access  Admin only
 export const changeAdminPassword = async (req, res) => {
   try {
     const { currentPassword, newPassword, confirmPassword } = req.body;
 
-    // Validate inputs
     if (!currentPassword || !newPassword || !confirmPassword) {
       return res.status(400).json({
         success: false,
@@ -509,7 +563,6 @@ export const changeAdminPassword = async (req, res) => {
       });
     }
 
-    // Get admin with password
     const admin = await User.findById(req.user._id);
     if (!admin) {
       return res.status(404).json({
@@ -518,7 +571,6 @@ export const changeAdminPassword = async (req, res) => {
       });
     }
 
-    // Verify current password
     const isPasswordValid = await admin.comparePassword(currentPassword);
     if (!isPasswordValid) {
       return res.status(401).json({
@@ -527,11 +579,16 @@ export const changeAdminPassword = async (req, res) => {
       });
     }
 
-    // Update password
     admin.password = newPassword;
     await admin.save();
 
-    // console.log('Admin password changed successfully');
+    // ✅ Create notification for password change
+    await createNotification(
+      'Password Changed',
+      `Admin password was changed successfully.`,
+      'success',
+      'System'
+    );
 
     res.status(200).json({
       success: true,
@@ -547,9 +604,6 @@ export const changeAdminPassword = async (req, res) => {
   }
 };
 
-// @desc    Update admin avatar
-// @route   PUT /api/admin/avatar
-// @access  Admin only
 export const updateAdminAvatar = async (req, res) => {
   try {
     const { avatarUrl } = req.body;
@@ -574,8 +628,6 @@ export const updateAdminAvatar = async (req, res) => {
       });
     }
 
-    // console.log('Admin avatar updated successfully');
-
     res.status(200).json({
       success: true,
       message: 'Avatar updated successfully',
@@ -593,12 +645,8 @@ export const updateAdminAvatar = async (req, res) => {
 
 // ==================== DASHBOARD STATISTICS ====================
 
-// @desc    Get admin dashboard statistics
-// @route   GET /api/admin/dashboard-stats
-// @access  Admin only
 export const getDashboardStats = async (req, res) => {
   try {
-    // Get user counts
     const totalUsers = await User.countDocuments();
     const totalAdmins = await User.countDocuments({ role: 'admin' });
     const totalMerchants = await User.countDocuments({ role: 'merchant' });
@@ -609,12 +657,10 @@ export const getDashboardStats = async (req, res) => {
     const blockedUsers = await User.countDocuments({ isActive: false });
     const activeUsers = totalUsers - blockedUsers;
 
-    // Get monthly user growth (last 6 months)
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
     const now = new Date();
     const currentMonth = now.getMonth();
     
-    // Generate monthly data from database
     const userGrowth = [];
     const merchantGrowth = [];
     const monthlyRevenue = [];
@@ -623,30 +669,22 @@ export const getDashboardStats = async (req, res) => {
       const month = new Date(now.getFullYear(), currentMonth - i, 1);
       const nextMonth = new Date(now.getFullYear(), currentMonth - i + 1, 1);
       
-      // Count users created in this month
       const userCount = await User.countDocuments({
         createdAt: { $gte: month, $lt: nextMonth }
       });
       userGrowth.push(userCount);
 
-      // Count merchants created in this month
       const merchantCount = await User.countDocuments({
         role: 'merchant',
         createdAt: { $gte: month, $lt: nextMonth }
       });
       merchantGrowth.push(merchantCount);
 
-      // Revenue data (will come from orders when implemented)
       monthlyRevenue.push(0);
     }
 
-    // Get total products (placeholder - will come from Product model)
     const totalProducts = 0;
-
-    // Get total orders (placeholder - will come from Order model)
     const totalOrders = 0;
-
-    // Get total revenue (placeholder - will come from Order model)
     const totalRevenue = 0;
 
     res.status(200).json({
@@ -681,6 +719,186 @@ export const getDashboardStats = async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching dashboard stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// ==================== NOTIFICATION MANAGEMENT ====================
+
+export const getNotifications = async (req, res) => {
+  try {
+    const { limit = 50, page = 1, read, type } = req.query;
+    
+    let query = { isGlobal: true };
+    
+    if (read !== undefined) {
+      query.read = read === 'true';
+    }
+    
+    if (type) {
+      query.type = type;
+    }
+    
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const notifications = await Notification.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+    
+    const total = await Notification.countDocuments(query);
+    const unreadCount = await Notification.countDocuments({ read: false, isGlobal: true });
+    
+    res.status(200).json({
+      success: true,
+      count: notifications.length,
+      total,
+      unreadCount,
+      notifications
+    });
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+export const markNotificationAsRead = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const notification = await Notification.findByIdAndUpdate(
+      id,
+      { 
+        read: true,
+        readAt: new Date()
+      },
+      { new: true }
+    );
+    
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notification not found'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      message: 'Notification marked as read',
+      notification
+    });
+  } catch (error) {
+    console.error('Error marking notification as read:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+export const markAllNotificationsAsRead = async (req, res) => {
+  try {
+    await Notification.updateMany(
+      { read: false, isGlobal: true },
+      { 
+        read: true,
+        readAt: new Date()
+      }
+    );
+    
+    res.status(200).json({
+      success: true,
+      message: 'All notifications marked as read'
+    });
+  } catch (error) {
+    console.error('Error marking all notifications as read:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+export const deleteNotification = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const notification = await Notification.findByIdAndDelete(id);
+    
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notification not found'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      message: 'Notification deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting notification:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Create notification (manual)
+// @route   POST /api/admin/notifications
+// @access  Admin only
+export const createManualNotification = async (req, res) => {
+  try {
+    const { title, message, type, category, actionLink, actionLabel, metadata } = req.body;
+    
+    const notification = await Notification.create({
+      title,
+      message,
+      type: type || 'info',
+      category: category || 'General',
+      isGlobal: true,
+      actionLink,
+      actionLabel,
+      metadata
+    });
+    
+    res.status(201).json({
+      success: true,
+      message: 'Notification created successfully',
+      notification
+    });
+  } catch (error) {
+    console.error('Error creating notification:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+export const getUnreadCount = async (req, res) => {
+  try {
+    const count = await Notification.countDocuments({ read: false, isGlobal: true });
+    
+    res.status(200).json({
+      success: true,
+      unreadCount: count
+    });
+  } catch (error) {
+    console.error('Error getting unread count:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',

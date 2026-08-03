@@ -14,7 +14,12 @@ import {
   updateAdminProfile,
   changeAdminPassword,
   updateAdminAvatar,
-  getDashboardStats
+  getDashboardStats,
+  getNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  deleteNotification,
+  createManualNotification  
 } from '../controllers/adminController.js';
 
 const router = express.Router();
@@ -60,7 +65,15 @@ router.put('/change-password', changeAdminPassword);
 router.put('/avatar', updateAdminAvatar);
 
 // ==================== DASHBOARD STATISTICS ====================
-router.get('/dashboard-stats', getDashboardStats); 
+router.get('/dashboard-stats', getDashboardStats);
+
+// ==================== NOTIFICATIONS ====================
+router.get('/notifications', getNotifications);
+// router.get('/notifications/unread-count', getUnreadCount);
+router.put('/notifications/:id/read', markNotificationAsRead);
+router.put('/notifications/read-all', markAllNotificationsAsRead);
+router.delete('/notifications/:id', deleteNotification);
+router.post('/notifications', createManualNotification);
 
 // ==================== STATISTICS ====================
 router.get('/stats', getSystemStats);
