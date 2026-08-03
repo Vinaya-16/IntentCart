@@ -7,13 +7,18 @@ import {
   getPendingMerchants,
   approveMerchant,
   rejectMerchant,
+  resetMerchantStatus,
   getSystemStats,
-  deleteUser
+  deleteUser,
+  getAdminProfile,
+  updateAdminProfile,
+  changeAdminPassword,
+  updateAdminAvatar,
+  getDashboardStats
 } from '../controllers/adminController.js';
 
 const router = express.Router();
 
-// Admin middleware
 const isAdmin = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({
@@ -33,19 +38,31 @@ const isAdmin = (req, res, next) => {
 };
 
 // Apply middleware to all routes
-router.use(protect);  // First: Check if user is logged in
-router.use(isAdmin);  // Second: Check if user is admin
+router.use(protect);
+router.use(isAdmin);
 
-// ==================== MERCHANT MANAGEMENT ROUTES ====================
-router.get('/users', getAllUsers);                    // GET /api/admin/users?role=merchant
-router.put('/merchants/:id/approve', approveMerchant); // PUT /api/admin/merchants/:id/approve
-router.put('/merchants/:id/reject', rejectMerchant);   // PUT /api/admin/merchants/:id/reject
-router.get('/merchants/pending', getPendingMerchants); // GET /api/admin/merchants/pending
-
-// ==================== USER MANAGEMENT ROUTES ====================
+// ==================== USER MANAGEMENT ====================
+router.get('/users', getAllUsers);
 router.get('/users/:id', getUserById);
 router.delete('/users/:id', deleteUser);
 router.put('/users/:id/block', toggleBlockUser);
+
+// ==================== MERCHANT MANAGEMENT ====================
+router.get('/merchants/pending', getPendingMerchants);
+router.put('/merchants/:id/approve', approveMerchant);
+router.put('/merchants/:id/reject', rejectMerchant);
+router.put('/merchants/:id/reset', resetMerchantStatus);
+
+// ==================== ADMIN PROFILE ====================
+router.get('/profile', getAdminProfile);
+router.put('/profile', updateAdminProfile);
+router.put('/change-password', changeAdminPassword);
+router.put('/avatar', updateAdminAvatar);
+
+// ==================== DASHBOARD STATISTICS ====================
+router.get('/dashboard-stats', getDashboardStats); 
+
+// ==================== STATISTICS ====================
 router.get('/stats', getSystemStats);
 
 export default router;

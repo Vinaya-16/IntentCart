@@ -1,27 +1,16 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-    LayoutGrid,
-    Users,
-    ShieldCheck,
-    Package,
-    UserCheck,
-    LogOut,
-    Bell,
-    ChevronDown,
     Search,
-    Edit2,
-    Trash2,
-    TrendingUp,
-    UserPlus,
-    DollarSign,
-    UserX,
-    ChevronLeft,
-    ChevronRight,
     CheckCircle2,
     XCircle,
     WifiOff,
     RefreshCw,
-    Cross,
+    RotateCcw,
+    Users,
+    UserCheck,
+    UserX,
+    TrendingUp,
+    DollarSign,
     MoveRight,
 } from 'lucide-react';
 import Sidebar from './components/sidebar.jsx';
@@ -57,7 +46,7 @@ const MerchantManagement = () => {
                 return;
             }
 
-            console.log('🔄 Fetching merchants...');
+            // console.log('Fetching merchants...');
 
             const response = await fetch(`${API_URL}/users?role=merchant`, {
                 method: 'GET',
@@ -87,7 +76,6 @@ const MerchantManagement = () => {
             // console.log('Merchants fetched:', data);
 
             if (data.success) {
-                // Filter only merchants
                 const merchantUsers = data.users.filter(user => user.role === 'merchant');
                 // console.log('Merchants found:', merchantUsers.length);
                 
@@ -100,22 +88,22 @@ const MerchantManagement = () => {
                         month: 'short',
                         day: '2-digit'
                     }),
-                    // Use isApproved field from database
+                    merchantStatus: user.merchantStatus || 'pending',
                     isApproved: user.isApproved || false,
                     isActive: user.isActive,
                     businessDescription: user.businessDescription || '',
                     businessAddress: user.businessAddress || '',
                     businessPhone: user.businessPhone || '',
-                    username: user.username
+                    username: user.username,
+                    rejectionReason: user.rejectionReason || ''
                 }));
                 
-                // console.log('Formatted merchants:', formattedMerchants);
                 setMerchants(formattedMerchants);
                 setError('');
                 setIsServerDown(false);
             }
         } catch (err) {
-            console.error('Error fetching merchants:', err);
+            // console.error('Error fetching merchants:', err);
             
             if (err.message === 'Failed to fetch' || err.message.includes('ERR_CONNECTION_REFUSED')) {
                 setIsServerDown(true);
@@ -160,14 +148,13 @@ const MerchantManagement = () => {
             const data = await response.json();
             // console.log('Merchant approved:', data);
             
-            // Update local state immediately
             setMerchants(prevMerchants => 
                 prevMerchants.map(merchant => 
                     merchant.id === id 
                         ? { 
                             ...merchant, 
-                            isApproved: true,
-                            approvedAt: new Date().toISOString()
+                            merchantStatus: 'approved',
+                            isApproved: true
                         } 
                         : merchant
                 )
@@ -223,14 +210,13 @@ const MerchantManagement = () => {
             const data = await response.json();
             // console.log('Merchant rejected:', data);
             
-            // Update local state immediately
             setMerchants(prevMerchants => 
                 prevMerchants.map(merchant => 
                     merchant.id === id 
                         ? { 
                             ...merchant, 
+                            merchantStatus: 'rejected',
                             isApproved: false,
-                            rejectedAt: new Date().toISOString(),
                             rejectionReason: reason || 'No reason provided'
                         } 
                         : merchant
@@ -248,22 +234,82 @@ const MerchantManagement = () => {
         }
     };
 
+    // Reset merchant to pending
+    const handleReset = async (id) => {
+        try {
+            setActionLoading(id);
+            setError('');
+            setSuccess('');
+
+            const token = getToken();
+            if (!token) {
+                setError('Please login first');
+                setActionLoading(null);
+                return;
+            }
+
+            if (!window.confirm('Reset this merchant to pending status for re-review?')) {
+                setActionLoading(null);
+                return;
+            }
+
+            // console.log(`Resetting merchant: ${id}`);
+
+            const response = await fetch(`${API_URL}/merchants/${id}/reset`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to reset merchant');
+            }
+
+            const data = await response.json();
+            // console.log('Merchant reset:', data);
+            
+            setMerchants(prevMerchants => 
+                prevMerchants.map(merchant => 
+                    merchant.id === id 
+                        ? { 
+                            ...merchant, 
+                            merchantStatus: 'pending',
+                            isApproved: false,
+                            rejectionReason: ''
+                        } 
+                        : merchant
+                )
+            );
+
+            setSuccess(`Merchant reset to pending!`);
+            setTimeout(() => setSuccess(''), 3000);
+            
+        } catch (err) {
+            console.error('Error resetting merchant:', err);
+            setError(err.message);
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
     useEffect(() => {
         fetchMerchants();
     }, []);
 
-    // Filter based on isApproved field
+    // Filter based on merchantStatus
     const filteredMerchants = useMemo(() => {
         return merchants.filter((merchant) => {
-            // Determine status based on isApproved
-            const status = merchant.isApproved ? 'Approved' : 'Pending';
+            const status = merchant.merchantStatus || 'pending';
             
             const matchesFilter =
                 activeFilter === 'All'
                     ? true
                     : activeFilter === 'New Merchant'
-                    ? status === 'Pending'
-                    : status === activeFilter;
+                    ? status === 'pending'
+                    : status === activeFilter.toLowerCase();
 
             const matchesSearch =
                 merchant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -277,13 +323,63 @@ const MerchantManagement = () => {
 
     const filterButtons = ['All', 'New Merchant', 'Approved', 'Rejected'];
 
-    const getStatusColor = (isApproved) => {
-        return isApproved ? 'text-emerald-600' : 'text-amber-500';
+    const getStatusColor = (status) => {
+        switch(status) {
+            case 'approved':
+                return 'text-emerald-600';
+            case 'rejected':
+                return 'text-red-500';
+            case 'pending':
+                return 'text-amber-500';
+            default:
+                return 'text-gray-500';
+        }
     };
 
-    const getStatusText = (isApproved) => {
-        return isApproved ? 'Approved' : 'Pending';
+    const getStatusText = (status) => {
+        switch(status) {
+            case 'approved':
+                return 'Approved';
+            case 'rejected':
+                return 'Rejected';
+            case 'pending':
+                return 'Pending';
+            default:
+                return 'Unknown';
+        }
     };
+
+    // Stats
+    const stats = [
+        { 
+            label: 'Total Merchants', 
+            value: merchants.length, 
+            change: '+0%', 
+            isPositive: true, 
+            icon: Users 
+        },
+        { 
+            label: 'Approved', 
+            value: merchants.filter(m => m.merchantStatus === 'approved').length, 
+            change: '+0%', 
+            isPositive: true, 
+            icon: UserCheck 
+        },
+        { 
+            label: 'Pending', 
+            value: merchants.filter(m => m.merchantStatus === 'pending').length, 
+            change: '0%', 
+            isPositive: false, 
+            icon: Users 
+        },
+        { 
+            label: 'Rejected', 
+            value: merchants.filter(m => m.merchantStatus === 'rejected').length, 
+            change: '0%', 
+            isPositive: false, 
+            icon: UserX 
+        },
+    ];
 
     return (
         <div className="flex h-screen bg-gray-50 text-slate-800 font-sans">
@@ -310,6 +406,38 @@ const MerchantManagement = () => {
                                 day: 'numeric'
                             })}
                         </span>
+                    </div>
+
+                    {/* Stats Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                        {stats.map((stat, index) => {
+                            const Icon = stat.icon;
+                            return (
+                                <div
+                                    key={index}
+                                    className="p-5 rounded-xl border border-slate-200/80 bg-white shadow-sm hover:shadow-md transition-shadow"
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                                {stat.label}
+                                            </p>
+                                            <p className="text-2xl font-bold text-[#1e2356] mt-1">{stat.value}</p>
+                                        </div>
+                                        <div className="p-3 bg-sky-50 rounded-xl text-sky-600">
+                                            <Icon className="w-6 h-6" />
+                                        </div>
+                                    </div>
+                                    <div className="mt-3 flex items-center text-xs font-medium">
+                                        <span className={`inline-flex items-center ${stat.isPositive ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                            <TrendingUp className="w-3.5 h-3.5 mr-1" />
+                                            {stat.change}
+                                        </span>
+                                        <span className="text-slate-400 ml-1.5">vs last month</span>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
 
                     {isServerDown && (
@@ -375,7 +503,7 @@ const MerchantManagement = () => {
 
                                 <div className="bg-white rounded-xl shadow-xs overflow-hidden border border-gray-100">
                                     <div className="overflow-x-auto">
-                                        <table className="w-full text-left text-xs sm:text-sm border-collapse min-w-[600px]">
+                                        <table className="w-full text-left text-xs sm:text-sm border-collapse min-w-[700px]">
                                             <thead>
                                                 <tr className="bg-[#1d2258] text-white font-semibold">
                                                     <th className="py-3.5 px-6">ID</th>
@@ -389,66 +517,85 @@ const MerchantManagement = () => {
 
                                             <tbody className="divide-y divide-gray-200">
                                                 {filteredMerchants.length > 0 ? (
-                                                    filteredMerchants.map((merchant) => (
-                                                        <tr key={merchant.id} className="hover:bg-slate-50/80 transition-colors">
-                                                            <td className="py-4 px-6 font-medium text-gray-700">
-                                                                {merchant.id.substring(0, 8)}
-                                                            </td>
-                                                            <td className="py-4 px-6 font-semibold text-gray-800">
-                                                                {merchant.name}
-                                                            </td>
-                                                            <td className="py-4 px-6">
-                                                                <a
-                                                                    href={`mailto:${merchant.email}`}
-                                                                    className="text-gray-800 hover:text-blue-600 font-medium hover:underline"
-                                                                >
-                                                                    {merchant.email}
-                                                                </a>
-                                                            </td>
-                                                            <td className="py-4 px-6 text-gray-600 font-medium">
-                                                                {merchant.date}
-                                                            </td>
-                                                            <td className="py-4 px-6 font-bold">
-                                                                <span className={getStatusColor(merchant.isApproved)}>
-                                                                    {getStatusText(merchant.isApproved)}
-                                                                </span>
-                                                            </td>
-                                                            <td className="py-4 px-6">
-                                                                <div className="flex items-center justify-center gap-2">
-                                                                    {!merchant.isApproved ? (
-                                                                        <>
+                                                    filteredMerchants.map((merchant) => {
+                                                        const status = merchant.merchantStatus || 'pending';
+                                                        return (
+                                                            <tr key={merchant.id} className="hover:bg-slate-50/80 transition-colors">
+                                                                <td className="py-4 px-6 font-medium text-gray-700">
+                                                                    {merchant.id.substring(0, 8)}
+                                                                </td>
+                                                                <td className="py-4 px-6 font-semibold text-gray-800">
+                                                                    {merchant.name}
+                                                                </td>
+                                                                <td className="py-4 px-6">
+                                                                    <a
+                                                                        href={`mailto:${merchant.email}`}
+                                                                        className="text-gray-800 hover:text-blue-600 font-medium hover:underline"
+                                                                    >
+                                                                        {merchant.email}
+                                                                    </a>
+                                                                </td>
+                                                                <td className="py-4 px-6 text-gray-600 font-medium">
+                                                                    {merchant.date}
+                                                                </td>
+                                                                <td className="py-4 px-6 font-bold">
+                                                                    <span className={getStatusColor(status)}>
+                                                                        {getStatusText(status)}
+                                                                    </span>
+                                                                    {status === 'rejected' && merchant.rejectionReason && (
+                                                                        <div className="text-xs text-gray-400 font-normal mt-0.5">
+                                                                            Reason: {merchant.rejectionReason}
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                                <td className="py-4 px-6">
+                                                                    <div className="flex items-center justify-center gap-2">
+                                                                        {status === 'pending' && (
+                                                                            <>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => handleApprove(merchant.id)}
+                                                                                    disabled={actionLoading === merchant.id}
+                                                                                    className="text-emerald-500 hover:text-emerald-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                                    title="Approve Merchant"
+                                                                                >
+                                                                                    {actionLoading === merchant.id ? (
+                                                                                        <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                                                                                    ) : (
+                                                                                        <CheckCircle2 className="w-5 h-5" />
+                                                                                    )}
+                                                                                </button>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => handleReject(merchant.id)}
+                                                                                    disabled={actionLoading === merchant.id}
+                                                                                    className="text-red-500 hover:text-red-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                                    title="Reject Merchant"
+                                                                                >
+                                                                                    <XCircle className="w-5 h-5" />
+                                                                                </button>
+                                                                            </>
+                                                                        )}
+                                                                        {(status === 'approved' || status === 'rejected') && (
                                                                             <button
                                                                                 type="button"
-                                                                                onClick={() => handleApprove(merchant.id)}
+                                                                                onClick={() => handleReset(merchant.id)}
                                                                                 disabled={actionLoading === merchant.id}
-                                                                                className="text-emerald-500 hover:text-emerald-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                                                                title="Approve Merchant"
+                                                                                className="text-blue-500 hover:text-blue-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                                title="Reset to Pending"
                                                                             >
                                                                                 {actionLoading === merchant.id ? (
-                                                                                    <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                                                                                    <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                                                                                 ) : (
-                                                                                    <CheckCircle2 className="w-5 h-5 fill-emerald-100" />
+                                                                                    <RotateCcw className="w-5 h-5" />
                                                                                 )}
                                                                             </button>
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => handleReject(merchant.id)}
-                                                                                disabled={actionLoading === merchant.id}
-                                                                                className="text-red-500 hover:text-red-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                                                                title="Reject Merchant"
-                                                                            >
-                                                                                <XCircle className="w-5 h-5 fill-red-100" />
-                                                                            </button>
-                                                                        </>
-                                                                    ) : (
-                                                                        <span className="text-emerald-600 text-xs font-semibold">
-                                                                             Approved
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    ))
+                                                                        )}
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })
                                                 ) : (
                                                     <tr>
                                                         <td colSpan={6} className="py-8 text-center text-gray-500 font-medium">
@@ -468,11 +615,15 @@ const MerchantManagement = () => {
                                     <div className="flex gap-4">
                                         <span className="flex items-center gap-1">
                                             <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                                            Approved: {merchants.filter(m => m.isApproved === true).length}
+                                            Approved: {merchants.filter(m => m.merchantStatus === 'approved').length}
                                         </span>
                                         <span className="flex items-center gap-1">
                                             <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                                            Pending: {merchants.filter(m => m.isApproved === false).length}
+                                            Pending: {merchants.filter(m => m.merchantStatus === 'pending').length}
+                                        </span>
+                                        <span className="flex items-center gap-1">
+                                            <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                                            Rejected: {merchants.filter(m => m.merchantStatus === 'rejected').length}
                                         </span>
                                     </div>
                                 </div>

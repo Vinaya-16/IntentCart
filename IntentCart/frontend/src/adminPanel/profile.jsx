@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     User,
     CheckCircle2,
@@ -7,34 +7,41 @@ import {
     X,
     Camera,
     Lock,
-    Check
+    Check,
+    Loader2,
+    Cross,
+    MoveRight
 } from 'lucide-react';
 import Sidebar from './components/sidebar.jsx';
 import Header from './components/header.jsx';
 
+const API_URL = 'http://localhost:5000/api/admin';
+
 const Profile = () => {
     const [activeTab, setActiveTab] = useState('Profile');
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
 
     // Profile data state
     const [profileData, setProfileData] = useState({
-        firstName: 'Arjun',
-        lastName: 'Sharma',
-        email: 'arjunSharma@gmail.com',
-        address: '55 Road Wai1',
-        city: 'Mumbai',
-        stateZip: 'Maharashtra, 400075',
-        country: 'India',
-        mobile: '99656788765',
-        phone: '456789878',
-        dob: '10/04/2008',
-        gender: 'Male',
-        created: 'June 21, 2026',
-        account: 'Donor',
-        totalRevenue: '$ 37,450',
-        avgRevenueSize: '$ 12,850',
-        avatarUrl:
-            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250',
+        firstName: '',
+        lastName: '',
+        email: '',
+        address: '',
+        city: '',
+        stateZip: '',
+        country: '',
+        mobile: '',
+        phone: '',
+        dob: '',
+        gender: '',
+        created: '',
+        account: '',
+        totalRevenue: '$ 0',
+        avgRevenueSize: '$ 0',
+        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250',
     });
 
     // Modal States
@@ -49,6 +56,209 @@ const Profile = () => {
         confirmPassword: '',
     });
     const [toastMessage, setToastMessage] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+
+    // Get token from localStorage
+    const getToken = () => localStorage.getItem('token');
+
+    // Fetch admin profile
+    const fetchProfile = async () => {
+        try {
+            setLoading(true);
+            setError('');
+
+            const token = getToken();
+            if (!token) {
+                setError('Please login first');
+                setLoading(false);
+                return;
+            }
+
+            const response = await fetch(`${API_URL}/profile`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.status === 401) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                window.location.href = '/intentCart-auth';
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch profile');
+            }
+
+            const data = await response.json();
+            // console.log('Profile fetched:', data);
+
+            if (data.success) {
+                setProfileData(data.profile);
+                setEditFormData(data.profile);
+            }
+        } catch (err) {
+            console.error('Error fetching profile:', err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Update profile
+    const handleSaveProfile = async (e) => {
+        e.preventDefault();
+        setIsSaving(true);
+        setError('');
+        setSuccess('');
+
+        try {
+            const token = getToken();
+            if (!token) {
+                setError('Please login first');
+                setIsSaving(false);
+                return;
+            }
+
+            const response = await fetch(`${API_URL}/profile`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    firstName: editFormData.firstName,
+                    lastName: editFormData.lastName,
+                    address: editFormData.address,
+                    city: editFormData.city,
+                    stateZip: editFormData.stateZip,
+                    country: editFormData.country,
+                    mobile: editFormData.mobile,
+                    phone: editFormData.phone,
+                    dob: editFormData.dob,
+                    gender: editFormData.gender
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to update profile');
+            }
+
+            const data = await response.json();
+            // console.log('Profile updated:', data);
+
+            if (data.success) {
+                setProfileData(data.profile);
+                setEditFormData(data.profile);
+                setIsEditModalOpen(false);
+                showToast('Profile updated successfully!');
+                setSuccess('Profile updated successfully!');
+            }
+        } catch (err) {
+            console.error('Error updating profile:', err);
+            setError(err.message);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    // Change password
+    const handleSavePassword = async (e) => {
+        e.preventDefault();
+        setIsSaving(true);
+        setError('');
+        setSuccess('');
+
+        if (passwordData.newPassword !== passwordData.confirmPassword) {
+            setError("New passwords don't match!");
+            setIsSaving(false);
+            return;
+        }
+
+        try {
+            const token = getToken();
+            if (!token) {
+                setError('Please login first');
+                setIsSaving(false);
+                return;
+            }
+
+            const response = await fetch(`${API_URL}/change-password`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    currentPassword: passwordData.currentPassword,
+                    newPassword: passwordData.newPassword,
+                    confirmPassword: passwordData.confirmPassword
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to change password');
+            }
+
+            const data = await response.json();
+            // console.log('Password changed:', data);
+
+            if (data.success) {
+                setIsPasswordModalOpen(false);
+                setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                showToast('Password changed successfully!');
+                setSuccess('Password changed successfully!');
+            }
+        } catch (err) {
+            console.error('Error changing password:', err);
+            setError(err.message);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    // Update avatar
+    const handleChangeAvatar = async () => {
+        const newUrl = prompt('Enter image URL:', profileData.avatarUrl);
+        if (!newUrl) return;
+
+        try {
+            const token = getToken();
+            if (!token) {
+                setError('Please login first');
+                return;
+            }
+
+            const response = await fetch(`${API_URL}/avatar`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ avatarUrl: newUrl })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to update avatar');
+            }
+
+            const data = await response.json();
+            // console.log('Avatar updated:', data);
+
+            if (data.success) {
+                setProfileData(prev => ({ ...prev, avatarUrl: data.avatarUrl }));
+                showToast('Profile picture updated!');
+            }
+        } catch (err) {
+            console.error('Error updating avatar:', err);
+            setError(err.message);
+        }
+    };
 
     // Handle Toast notification
     const showToast = (msg) => {
@@ -56,38 +266,24 @@ const Profile = () => {
         setTimeout(() => setToastMessage(''), 3000);
     };
 
-    // Save Profile Edits
-    const handleSaveProfile = (e) => {
-        e.preventDefault();
-        setProfileData(editFormData);
-        setIsEditModalOpen(false);
-        showToast('Profile updated successfully!');
-    };
+    // Fetch profile on mount
+    useEffect(() => {
+        fetchProfile();
+    }, []);
 
-    // Save New Password
-    const handleSavePassword = (e) => {
-        e.preventDefault();
-        if (passwordData.newPassword !== passwordData.confirmPassword) {
-            alert("New passwords don't match!");
-            return;
-        }
-        setIsPasswordModalOpen(false);
-        setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-        showToast('Password changed successfully!');
-    };
-
-    // Change Profile Picture
-    const handleChangeAvatar = () => {
-        const newUrl = prompt('Enter image URL:', profileData.avatarUrl);
-        if (newUrl) {
-            setProfileData((prev) => ({ ...prev, avatarUrl: newUrl }));
-            showToast('Profile picture updated!');
-        }
-    };
+    if (loading) {
+        return (
+            <div className="flex h-screen bg-gray-50">
+                <Sidebar activeTab="Profile" />
+                <div className="flex-1 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#1e2356] border-t-transparent"></div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex h-screen bg-gray-50 text-slate-800 font-sans">
-
             {/* Sidebar */}
             <Sidebar
                 activeTab="Profile"
@@ -98,12 +294,30 @@ const Profile = () => {
 
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-
                 {/* Header Section */}
                 <Header onMenuClick={() => setIsSidebarOpen(true)} />
 
                 {/* Main Dashboard Body */}
                 <main className="p-8 flex-1 bg-white space-y-6">
+                    {/* Toast Notification */}
+                    {toastMessage && (
+                        <div className="fixed top-4 right-4 bg-emerald-50 text-emerald-700 px-4 py-3 rounded-lg border border-emerald-200 shadow-lg z-50 animate-slide-in">
+                            {toastMessage}
+                        </div>
+                    )}
+
+                    {/* Error/Success Messages */}
+                    {error && (
+                        <div className="p-3 bg-red-50 text-red-600 rounded-lg border border-red-200">
+                            <Cross /> {error}
+                        </div>
+                    )}
+                    {success && (
+                        <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-200">
+                            <MoveRight /> {success}
+                        </div>
+                    )}
+
                     <div className="max-w-6xl mx-auto space-y-6">
                         {/* Top Bar inside Card */}
                         <div className="flex justify-between items-center">
@@ -145,7 +359,7 @@ const Profile = () => {
                             <div className="flex items-center gap-12">
                                 <div>
                                     <span className="text-xl font-bold text-gray-900 block">
-                                        {profileData.totalRevenue}
+                                        {profileData.totalRevenue || '$ 0'}
                                     </span>
                                     <span className="text-xs font-medium text-gray-400">
                                         Total Revenue
@@ -153,10 +367,26 @@ const Profile = () => {
                                 </div>
                                 <div>
                                     <span className="text-xl font-bold text-gray-900 block">
-                                        {profileData.avgRevenueSize}
+                                        {profileData.totalMerchants || 0}
                                     </span>
                                     <span className="text-xs font-medium text-gray-400">
-                                        Avg Revenue Size
+                                        Total Merchants
+                                    </span>
+                                </div>
+                                <div>
+                                    <span className="text-xl font-bold text-gray-900 block">
+                                        {profileData.totalCustomers || 0}
+                                    </span>
+                                    <span className="text-xs font-medium text-gray-400">
+                                        Total Customers
+                                    </span>
+                                </div>
+                                <div>
+                                    <span className="text-xl font-bold text-gray-900 block">
+                                        {profileData.avgRevenueSize || '$ 0'}
+                                    </span>
+                                    <span className="text-xs font-medium text-gray-400">
+                                        Avg Revenue
                                     </span>
                                 </div>
                             </div>
@@ -375,6 +605,22 @@ const Profile = () => {
                                 </div>
                             </div>
 
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-gray-500 mb-1 font-medium">Gender</label>
+                                    <select
+                                        value={editFormData.gender}
+                                        onChange={(e) => setEditFormData({ ...editFormData, gender: e.target.value })}
+                                        className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-[#1d2258]/30 focus:outline-none"
+                                    >
+                                        <option value="">Select</option>
+                                        <option value="Male">Male</option>
+                                        <option value="Female">Female</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                            </div>
+
                             <div className="pt-4 flex justify-end gap-3 border-t mt-4">
                                 <button
                                     type="button"
@@ -385,9 +631,17 @@ const Profile = () => {
                                 </button>
                                 <button
                                     type="submit"
-                                    className="px-5 py-2 bg-[#1d2258] text-white rounded-lg font-semibold hover:bg-[#161a44]"
+                                    disabled={isSaving}
+                                    className="px-5 py-2 bg-[#1d2258] text-white rounded-lg font-semibold hover:bg-[#161a44] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                                 >
-                                    Save Changes
+                                    {isSaving ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            Saving...
+                                        </>
+                                    ) : (
+                                        'Save Changes'
+                                    )}
                                 </button>
                             </div>
                         </form>
@@ -439,8 +693,7 @@ const Profile = () => {
                                 <label className="block text-gray-500 mb-1 font-medium">Confirm New Password</label>
                                 <input
                                     type="password"
-                                    required
-                                    placeholder="••••••••"
+                                    required placeholder="••••••••"
                                     value={passwordData.confirmPassword}
                                     onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
                                     className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-[#1d2258]/30 focus:outline-none"
@@ -457,9 +710,17 @@ const Profile = () => {
                                 </button>
                                 <button
                                     type="submit"
-                                    className="px-5 py-2 bg-[#1d2258] text-white rounded-lg font-semibold hover:bg-[#161a44]"
+                                    disabled={isSaving}
+                                    className="px-5 py-2 bg-[#1d2258] text-white rounded-lg font-semibold hover:bg-[#161a44] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                                 >
-                                    Update Password
+                                    {isSaving ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            Updating...
+                                        </>
+                                    ) : (
+                                        'Update Password'
+                                    )}
                                 </button>
                             </div>
                         </form>

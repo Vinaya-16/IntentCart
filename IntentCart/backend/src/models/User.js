@@ -29,6 +29,11 @@ const userSchema = new mongoose.Schema({
     default: 'customer',
     required: [true, 'Role is required']
   },
+  merchantStatus: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending'
+  },
   isApproved: {
     type: Boolean,
     default: false
@@ -63,7 +68,7 @@ const userSchema = new mongoose.Schema({
   businessName: {
     type: String,
     trim: true,
-    required: function() {
+    required: function () {
       return this.role === 'merchant';
     }
   },
@@ -87,7 +92,7 @@ const userSchema = new mongoose.Schema({
   businessStatus: {
     type: String,
     enum: ['pending', 'approved', 'rejected'],
-    default: function() {
+    default: function () {
       return this.role === 'merchant' ? 'pending' : 'approved';
     }
   },
@@ -96,15 +101,61 @@ const userSchema = new mongoose.Schema({
     type: [String],
     default: [],
     enum: ['users', 'products', 'orders', 'reviews', 'settings', 'analytics']
+  },
+  // Add these to your userSchema
+  firstName: {
+    type: String,
+    trim: true
+  },
+  lastName: {
+    type: String,
+    trim: true
+  },
+  address: {
+    type: String,
+    trim: true
+  },
+  city: {
+    type: String,
+    trim: true
+  },
+  stateZip: {
+    type: String,
+    trim: true
+  },
+  country: {
+    type: String,
+    trim: true
+  },
+  mobile: {
+    type: String,
+    trim: true
+  },
+  phone: {
+    type: String,
+    trim: true
+  },
+  dob: {
+    type: String,
+    trim: true
+  },
+  gender: {
+    type: String,
+    enum: ['Male', 'Female', 'Other', ''],
+    default: ''
+  },
+  avatarUrl: {
+    type: String,
+    trim: true
   }
 }, {
   timestamps: true
 });
 
 // Hash password before saving
-userSchema.pre('save', async function(next) {
+userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
-  
+
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
@@ -115,12 +166,12 @@ userSchema.pre('save', async function(next) {
 });
 
 // Compare password method
-userSchema.methods.comparePassword = async function(candidatePassword) {
+userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
 // Remove sensitive data when converting to JSON
-userSchema.methods.toJSON = function() {
+userSchema.methods.toJSON = function () {
   const user = this.toObject();
   delete user.password;
   delete user.__v;
