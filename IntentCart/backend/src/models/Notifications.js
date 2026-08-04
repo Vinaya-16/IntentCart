@@ -15,13 +15,32 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['user', 'alert', 'success', 'info', 'system'],
+    enum: ['user', 'alert', 'success', 'info', 'system', 'order', 'product', 'payment'],
     default: 'info'
   },
   category: {
     type: String,
-    enum: ['Under Review', 'Alerts', 'Updates', 'System', 'General'],
+    enum: ['Under Review', 'Alerts', 'Updates', 'System', 'General', 'Orders', 'Products', 'Payments'],
     default: 'General'
+  },
+  panel: {
+    type: String,
+    enum: ['admin', 'merchant', 'customer'],
+    required: [true, 'Panel is required']
+  },
+  merchantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    index: true
+  },
+  customerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    index: true
+  },
+  isGlobal: {
+    type: Boolean,
+    default: false
   },
   read: {
     type: Boolean,
@@ -30,21 +49,10 @@ const notificationSchema = new mongoose.Schema({
   readAt: {
     type: Date
   },
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  },
-  // For admin notifications (system-wide)
-  isGlobal: {
-    type: Boolean,
-    default: true
-  },
-  // Additional metadata
   metadata: {
     type: mongoose.Schema.Types.Mixed,
     default: {}
   },
-  // For actions (e.g., link to merchant, product, etc.)
   actionLink: {
     type: String,
     trim: true
@@ -57,14 +65,15 @@ const notificationSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for faster queries
-notificationSchema.index({ createdAt: -1 });
+// Indexes for faster queries
+notificationSchema.index({ panel: 1 });
+notificationSchema.index({ merchantId: 1 });
+notificationSchema.index({ customerId: 1 });
 notificationSchema.index({ read: 1 });
-notificationSchema.index({ userId: 1 });
-notificationSchema.index({ isGlobal: 1 });
+notificationSchema.index({ createdAt: -1 });
 
 // Update readAt when read status changes
-notificationSchema.pre('save', function(next) {
+notificationSchema.pre('save', function (next) {
   if (this.isModified('read') && this.read === true) {
     this.readAt = new Date();
   }

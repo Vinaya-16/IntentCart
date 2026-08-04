@@ -15,11 +15,12 @@ import {
   changeAdminPassword,
   updateAdminAvatar,
   getDashboardStats,
-  getNotifications,
-  markNotificationAsRead,
-  markAllNotificationsAsRead,
-  deleteNotification,
-  createManualNotification  
+  getAdminNotifications,
+  createAdminNotification,
+  markAdminNotificationAsRead,
+  markAllAdminNotificationsAsRead,
+  deleteAdminNotification,
+  getAdminUnreadCount  
 } from '../controllers/adminController.js';
 
 const router = express.Router();
@@ -67,13 +68,13 @@ router.put('/avatar', updateAdminAvatar);
 // ==================== DASHBOARD STATISTICS ====================
 router.get('/dashboard-stats', getDashboardStats);
 
-// ==================== NOTIFICATIONS ====================
-router.get('/notifications', getNotifications);
-// router.get('/notifications/unread-count', getUnreadCount);
-router.put('/notifications/:id/read', markNotificationAsRead);
-router.put('/notifications/read-all', markAllNotificationsAsRead);
-router.delete('/notifications/:id', deleteNotification);
-router.post('/notifications', createManualNotification);
+// ==================== ADMIN NOTIFICATIONS ====================
+router.get('/notifications', protect, isAdmin, getAdminNotifications);
+router.get('/notifications/unread-count', protect, isAdmin, getAdminUnreadCount);
+router.post('/notifications', protect, isAdmin, createAdminNotification);
+router.put('/notifications/:id/read', protect, isAdmin, markAdminNotificationAsRead);
+router.put('/notifications/read-all', protect, isAdmin, markAllAdminNotificationsAsRead);
+router.delete('/notifications/:id', protect, isAdmin, deleteAdminNotification);
 
 // ==================== STATISTICS ====================
 router.get('/stats', getSystemStats);

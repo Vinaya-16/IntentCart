@@ -7,6 +7,7 @@ import connectDB from './src/config/database.js';
 import authRoutes from './src/routes/authRoute.js';
 import adminRoutes from './src/routes/adminRoutes.js';
 import seedSuperAdmin from './src/utils/seeder.js';
+import merchantRoute from './src/routes/merchantRoute.js';
 
 // Load environment variables
 dotenv.config();
@@ -40,6 +41,8 @@ app.use('/api/auth', limiter);
 app.use('/api/auth', authRoutes);
 
 app.use('/api/admin', adminRoutes);
+
+app.use('/api/merchant', merchantRoute);
 
 // Health check
 app.get('/health', (req, res) => {

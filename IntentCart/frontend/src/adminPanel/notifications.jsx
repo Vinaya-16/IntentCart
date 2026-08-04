@@ -12,7 +12,9 @@ import {
   Search,
   WifiOff,
   RefreshCw,
-  Loader2
+  Loader2,
+  Cross,
+  MoveRight
 } from 'lucide-react';
 import Sidebar from './components/sidebar.jsx';
 import Header from './components/header.jsx';
@@ -75,7 +77,7 @@ const Notifications = () => {
         setTotalCount(data.total || data.notifications.length);
       }
     } catch (err) {
-      console.error('❌ Error fetching notifications:', err);
+      console.error('Error fetching notifications:', err);
       if (err.message === 'Failed to fetch' || err.message.includes('ERR_CONNECTION_REFUSED')) {
         setIsServerDown(true);
         setError('Cannot connect to server. Please make sure the backend is running.');
@@ -124,7 +126,7 @@ const Notifications = () => {
       setSuccess('Notification marked as read');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      console.error('❌ Error marking as read:', err);
+      console.error('Error marking as read:', err);
       setError(err.message);
     } finally {
       setActionLoading(null);
@@ -168,7 +170,7 @@ const Notifications = () => {
       setSuccess('All notifications marked as read');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      console.error('❌ Error marking all as read:', err);
+      console.error('Error marking all as read:', err);
       setError(err.message);
     } finally {
       setActionLoading(null);
@@ -217,7 +219,7 @@ const Notifications = () => {
       setSuccess('Notification deleted successfully');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      console.error('❌ Error deleting notification:', err);
+      console.error('Error deleting notification:', err);
       setError(err.message);
     } finally {
       setActionLoading(null);
@@ -354,12 +356,12 @@ const Notifications = () => {
           {/* Error/Success Messages */}
           {error && (
             <div className="p-3 bg-red-50 text-red-600 rounded-lg border border-red-200">
-              ❌ {error}
+              <Cross /> {error}
             </div>
           )}
           {success && (
             <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-200">
-              ✅ {success}
+              <MoveRight /> {success}
             </div>
           )}
 

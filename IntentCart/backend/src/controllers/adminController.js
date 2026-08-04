@@ -14,7 +14,7 @@ const createNotification = async (title, message, type, category, metadata = {})
       metadata
     });
   } catch (error) {
-    console.error('❌ Error creating notification:', error);
+    console.error('Error creating notification:', error);
   }
 };
 
@@ -78,8 +78,8 @@ export const deleteUser = async (req, res) => {
         message: 'User not found'
       });
     }
-    
-    // ✅ Create notification for user deletion
+
+    // Create notification for user deletion
     await createNotification(
       `User Deleted: ${user.username}`,
       `User ${user.username} (${user.email}) was deleted from the system.`,
@@ -87,7 +87,7 @@ export const deleteUser = async (req, res) => {
       'System',
       { userId: user._id, email: user.email }
     );
-    
+
     res.status(200).json({
       success: true,
       message: 'User deleted successfully'
@@ -124,7 +124,7 @@ export const toggleBlockUser = async (req, res) => {
       });
     }
 
-    // ✅ Create notification for block/unblock
+    // Create notification for block/unblock
     if (!isActive) {
       await createNotification(
         `User Blocked: ${user.username}`,
@@ -213,7 +213,7 @@ export const approveMerchant = async (req, res) => {
       { new: true }
     ).select('-password');
 
-    // ✅ Create notification for merchant approval
+    // Create notification for merchant approval
     await createNotification(
       `Merchant Approved: ${user.businessName || user.username}`,
       `Merchant ${user.businessName || user.username} (${user.email}) has been approved and can now sell products.`,
@@ -270,7 +270,7 @@ export const rejectMerchant = async (req, res) => {
       { new: true }
     ).select('-password');
 
-    // ✅ Create notification for merchant rejection
+    // Create notification for merchant rejection
     await createNotification(
       `Merchant Rejected: ${user.businessName || user.username}`,
       `Merchant ${user.businessName || user.username} (${user.email}) has been rejected. Reason: ${reason || 'No reason provided'}`,
@@ -279,7 +279,7 @@ export const rejectMerchant = async (req, res) => {
       { merchantId: user._id, email: user.email, reason }
     );
 
-    console.log('Merchant rejected successfully:', user.email);
+    // console.log('Merchant rejected successfully:', user.email);
 
     res.status(200).json({
       success: true,
@@ -329,7 +329,7 @@ export const resetMerchantStatus = async (req, res) => {
       { new: true }
     ).select('-password');
 
-    // ✅ Create notification for merchant status reset
+    // Create notification for merchant status reset
     await createNotification(
       `Merchant Reset: ${user.businessName || user.username}`,
       `Merchant ${user.businessName || user.username} (${user.email}) has been reset to pending status for re-review.`,
@@ -493,7 +493,7 @@ export const updateAdminProfile = async (req, res) => {
       });
     }
 
-    // ✅ Create notification for profile update
+    // Create notification for profile update
     await createNotification(
       'Profile Updated',
       `Admin profile was updated successfully.`,
@@ -582,7 +582,7 @@ export const changeAdminPassword = async (req, res) => {
     admin.password = newPassword;
     await admin.save();
 
-    // ✅ Create notification for password change
+    // Create notification for password change
     await createNotification(
       'Password Changed',
       `Admin password was changed successfully.`,
@@ -660,7 +660,7 @@ export const getDashboardStats = async (req, res) => {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
     const now = new Date();
     const currentMonth = now.getMonth();
-    
+
     const userGrowth = [];
     const merchantGrowth = [];
     const monthlyRevenue = [];
@@ -668,7 +668,7 @@ export const getDashboardStats = async (req, res) => {
     for (let i = 5; i >= 0; i--) {
       const month = new Date(now.getFullYear(), currentMonth - i, 1);
       const nextMonth = new Date(now.getFullYear(), currentMonth - i + 1, 1);
-      
+
       const userCount = await User.countDocuments({
         createdAt: { $gte: month, $lt: nextMonth }
       });
@@ -727,32 +727,36 @@ export const getDashboardStats = async (req, res) => {
   }
 };
 
-// ==================== NOTIFICATION MANAGEMENT ====================
+// ==================== ADMIN NOTIFICATIONS ====================
 
-export const getNotifications = async (req, res) => {
+// @desc    Get admin notifications
+// @route   GET /api/admin/notifications
+// @access  Admin only
+export const getAdminNotifications = async (req, res) => {
   try {
-    const { limit = 50, page = 1, read, type } = req.query;
-    
-    let query = { isGlobal: true };
-    
+    const { limit = 50, page = 1, read } = req.query;
+
+    let query = {
+      panel: 'admin'
+    };
+
     if (read !== undefined) {
       query.read = read === 'true';
     }
-    
-    if (type) {
-      query.type = type;
-    }
-    
+
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    
+
     const notifications = await Notification.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
-    
+
     const total = await Notification.countDocuments(query);
-    const unreadCount = await Notification.countDocuments({ read: false, isGlobal: true });
-    
+    const unreadCount = await Notification.countDocuments({
+      panel: 'admin',
+      read: false
+    });
+
     res.status(200).json({
       success: true,
       count: notifications.length,
@@ -761,7 +765,7 @@ export const getNotifications = async (req, res) => {
       notifications
     });
   } catch (error) {
-    console.error('Error fetching notifications:', error);
+    console.error('Error fetching admin notifications:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -770,33 +774,70 @@ export const getNotifications = async (req, res) => {
   }
 };
 
-export const markNotificationAsRead = async (req, res) => {
+// @desc    Create admin notification
+// @route   POST /api/admin/notifications
+// @access  Admin only
+export const createAdminNotification = async (req, res) => {
+  try {
+    const { title, message, type, category, actionLink, actionLabel, metadata } = req.body;
+
+    const notification = await Notification.create({
+      title,
+      message,
+      type: type || 'info',
+      category: category || 'General',
+      panel: 'admin',
+      isGlobal: true,
+      actionLink,
+      actionLabel,
+      metadata
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Admin notification created successfully',
+      notification
+    });
+  } catch (error) {
+    console.error('Error creating admin notification:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Mark admin notification as read
+// @route   PUT /api/admin/notifications/:id/read
+// @access  Admin only
+export const markAdminNotificationAsRead = async (req, res) => {
   try {
     const { id } = req.params;
-    
-    const notification = await Notification.findByIdAndUpdate(
-      id,
-      { 
+
+    const notification = await Notification.findOneAndUpdate(
+      { _id: id, panel: 'admin' },
+      {
         read: true,
         readAt: new Date()
       },
       { new: true }
     );
-    
+
     if (!notification) {
       return res.status(404).json({
         success: false,
-        message: 'Notification not found'
+        message: 'Admin notification not found'
       });
     }
-    
+
     res.status(200).json({
       success: true,
       message: 'Notification marked as read',
       notification
     });
   } catch (error) {
-    console.error('Error marking notification as read:', error);
+    console.error('Error marking admin notification as read:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -805,22 +846,25 @@ export const markNotificationAsRead = async (req, res) => {
   }
 };
 
-export const markAllNotificationsAsRead = async (req, res) => {
+// @desc    Mark all admin notifications as read
+// @route   PUT /api/admin/notifications/read-all
+// @access  Admin only
+export const markAllAdminNotificationsAsRead = async (req, res) => {
   try {
     await Notification.updateMany(
-      { read: false, isGlobal: true },
-      { 
+      { panel: 'admin', read: false },
+      {
         read: true,
         readAt: new Date()
       }
     );
-    
+
     res.status(200).json({
       success: true,
-      message: 'All notifications marked as read'
+      message: 'All admin notifications marked as read'
     });
   } catch (error) {
-    console.error('Error marking all notifications as read:', error);
+    console.error('Error marking all admin notifications as read:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -829,25 +873,31 @@ export const markAllNotificationsAsRead = async (req, res) => {
   }
 };
 
-export const deleteNotification = async (req, res) => {
+// @desc    Delete admin notification
+// @route   DELETE /api/admin/notifications/:id
+// @access  Admin only
+export const deleteAdminNotification = async (req, res) => {
   try {
     const { id } = req.params;
-    
-    const notification = await Notification.findByIdAndDelete(id);
-    
+
+    const notification = await Notification.findOneAndDelete({
+      _id: id,
+      panel: 'admin'
+    });
+
     if (!notification) {
       return res.status(404).json({
         success: false,
-        message: 'Notification not found'
+        message: 'Admin notification not found'
       });
     }
-    
+
     res.status(200).json({
       success: true,
-      message: 'Notification deleted successfully'
+      message: 'Admin notification deleted successfully'
     });
   } catch (error) {
-    console.error('Error deleting notification:', error);
+    console.error('Error deleting admin notification:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -856,49 +906,22 @@ export const deleteNotification = async (req, res) => {
   }
 };
 
-// @desc    Create notification (manual)
-// @route   POST /api/admin/notifications
+// @desc    Get admin unread count
+// @route   GET /api/admin/notifications/unread-count
 // @access  Admin only
-export const createManualNotification = async (req, res) => {
+export const getAdminUnreadCount = async (req, res) => {
   try {
-    const { title, message, type, category, actionLink, actionLabel, metadata } = req.body;
-    
-    const notification = await Notification.create({
-      title,
-      message,
-      type: type || 'info',
-      category: category || 'General',
-      isGlobal: true,
-      actionLink,
-      actionLabel,
-      metadata
+    const count = await Notification.countDocuments({
+      panel: 'admin',
+      read: false
     });
-    
-    res.status(201).json({
-      success: true,
-      message: 'Notification created successfully',
-      notification
-    });
-  } catch (error) {
-    console.error('Error creating notification:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error.message
-    });
-  }
-};
 
-export const getUnreadCount = async (req, res) => {
-  try {
-    const count = await Notification.countDocuments({ read: false, isGlobal: true });
-    
     res.status(200).json({
       success: true,
       unreadCount: count
     });
   } catch (error) {
-    console.error('Error getting unread count:', error);
+    console.error('Error getting admin unread count:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',

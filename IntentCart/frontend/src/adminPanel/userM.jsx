@@ -52,7 +52,7 @@ const UserManagement = () => {
                 return;
             }
 
-            console.log('🔄 Fetching all users...');
+            // console.log('Fetching all users...');
 
             const response = await fetch(`${API_URL}/users`, {
                 method: 'GET',
