@@ -26,7 +26,7 @@ const categorySchema = new mongoose.Schema({
     },
     level: {
         type: Number,
-        default: 0 // 0: Top level, 1: Subcategory, 2: Micro-category
+        default: 0 
     },
     icon: {
         type: String,

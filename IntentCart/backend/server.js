@@ -5,9 +5,14 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import connectDB from './src/config/database.js';
 import authRoutes from './src/routes/authRoute.js';
+
 import adminRoutes from './src/routes/adminRoutes.js';
+
 import seedSuperAdmin from './src/utils/seeder.js';
+
 import merchantRoute from './src/routes/merchantRoute.js';
+
+import categoryRoute from './src/routes/categoryRoute.js';
 
 // Load environment variables
 dotenv.config();
@@ -43,6 +48,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 
 app.use('/api/merchant', merchantRoute);
+
+app.use('/api', categoryRoute);
 
 // Health check
 app.get('/health', (req, res) => {

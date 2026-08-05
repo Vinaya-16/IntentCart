@@ -12,7 +12,7 @@ import Header from '../components/Header.jsx';
 import Categories from '../components/CategoryBar.jsx';
 import Footer from '../components/Footer.jsx';
 
-export default function EcommerceLanding() {
+export default function HomePage() {
   const saleHighlights = [
     { title: 'US Polo ASSN.', subtitle: 'Since 1980', offer: 'Buy 2 Get 2', discount: 'Free', bg: 'bg-indigo-500' },
     { title: 'Levis', offer: 'Buy 2 Get', discount: '40 % Off', bg: 'bg-indigo-400' },

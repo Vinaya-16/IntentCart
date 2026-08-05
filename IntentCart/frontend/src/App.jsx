@@ -1,7 +1,11 @@
 import { Routes, Route, BrowserRouter } from "react-router-dom";
 import './App.css';
-import HomePage from './Categories/HomePage.jsx';
+
+// Main Panel 
+import HomePage from './mainPanel/HomePage.jsx';
+import CategoryPage from "./mainPanel/CategoryPage.jsx";
 import Auth from "./components/Auth.jsx";
+import NotificationsPage from "./mainPanel/Notifications.jsx";
 
 // Admin Panel
 import AdminDashboard from "./adminPanel/dashboard.jsx";
@@ -29,25 +33,29 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<HomePage />} />
-          <Route path="/intentCart-auth" element={<Auth />}/>
+          <Route path="/intentCart-auth" element={<Auth />} />
 
           {/* Admin Panel  */}
-          <Route path="/admin-dashboard" element={<AdminDashboard />}/>
-          <Route path="/admin-userM" element={<UserM />}/>
-          <Route path="/admin-merchantV" element={<MerchantManagement />}/>
-          <Route path="/admin-productM" element={<ProductM />}/>
-          <Route path="/admin-profile" element={<Profile />}/>
-          <Route path="/admin-notifications" element={<Notifications />}/>
+          <Route path="/admin-dashboard" element={<AdminDashboard />} />
+          <Route path="/admin-userM" element={<UserM />} />
+          <Route path="/admin-merchantV" element={<MerchantManagement />} />
+          <Route path="/admin-productM" element={<ProductM />} />
+          <Route path="/admin-profile" element={<Profile />} />
+          <Route path="/admin-notifications" element={<Notifications />} />
 
           {/* Merchant Panel  */}
-          <Route path="/merchant-dashboard" element={<MerchantDashboard />}/>
-          <Route path="/merchant-productM" element={<MerchantProductM />}/>
-          <Route path="/merchant-orderM" element={<MerchantOrderM/>} />
-          <Route path="/merchant-customerA" element={<MerchantCustomerA />}/>
-          <Route path="/merchant-recoveryD" element={<MerchantRecoveryD />}/>
-          <Route path="/merchant-campM" element={<MerchantCampM />}/>
-          <Route path="/merchant-notifications" element={<MerchantNotifications />}/>
-          <Route path="/merchant-profile" element={<MerchantProfile />}/>
+          <Route path="/merchant-dashboard" element={<MerchantDashboard />} />
+          <Route path="/merchant-productM" element={<MerchantProductM />} />
+          <Route path="/merchant-orderM" element={<MerchantOrderM />} />
+          <Route path="/merchant-customerA" element={<MerchantCustomerA />} />
+          <Route path="/merchant-recoveryD" element={<MerchantRecoveryD />} />
+          <Route path="/merchant-campM" element={<MerchantCampM />} />
+          <Route path="/merchant-notifications" element={<MerchantNotifications />} />
+          <Route path="/merchant-profile" element={<MerchantProfile />} />
+
+          {/* Main Panel Paths  */}
+          <Route path="/category/:path*" element={<CategoryPage />} />
+          <Route path="/main-notifications" element={<NotificationsPage />}/>
 
         </Routes>
       </BrowserRouter>
