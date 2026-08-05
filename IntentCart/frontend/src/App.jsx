@@ -1,9 +1,7 @@
 import { Routes, Route, BrowserRouter } from "react-router-dom";
 import './App.css';
-import HomePage from './HomePage.jsx';
+import HomePage from './Categories/HomePage.jsx';
 import Auth from "./components/Auth.jsx";
-
-import WomensPage from "./Categories/WomensPage.jsx";
 
 // Admin Panel
 import AdminDashboard from "./adminPanel/dashboard.jsx";
@@ -31,7 +29,6 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<HomePage />} />
-          <Route path="/category-women" element={<WomensPage />}/>
           <Route path="/intentCart-auth" element={<Auth />}/>
 
           {/* Admin Panel  */}

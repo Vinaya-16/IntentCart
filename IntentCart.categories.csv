@@ -1,0 +1,54 @@
+_id,name,parentId,level,isActive,order,merchantCount,productCount,createdAt,updatedAt,slug,__v
+6a71aaecb4323dda529a4bdb,Electronics & Gadgets,,0,true,1,0,5,2026-08-04T09:03:40.337Z,2026-08-04T15:01:54.788Z,electronics-gadgets,0
+6a71aaecb4323dda529a4bde,Smartphones & Accessories,6a71aaecb4323dda529a4bdb,1,true,1,0,0,2026-08-04T09:03:40.357Z,2026-08-04T09:03:40.357Z,smartphones-accessories,0
+6a71aaecb4323dda529a4bec,"Cases, Covers & Screen Protectors",6a71aaecb4323dda529a4bde,2,true,2,0,0,2026-08-04T09:03:40.431Z,2026-08-04T09:03:40.431Z,cases-covers-screen-protectors,0
+6a71aaecb4323dda529a4bf0,Smartwatches & Fitness Bands,6a71aaecb4323dda529a4bde,2,true,4,0,0,2026-08-04T09:03:40.460Z,2026-08-04T09:03:40.460Z,smartwatches-fitness-bands,0
+6a71aaecb4323dda529a4bf6,Computer Components,6a71aaecb4323dda529a4be0,2,true,3,0,0,2026-08-04T09:03:40.493Z,2026-08-04T09:03:40.493Z,computer-components,0
+6a71aaecb4323dda529a4bfa,Wireless Earbuds & In-Ear Headphones,6a71aaecb4323dda529a4be3,2,true,1,0,0,2026-08-04T09:03:40.520Z,2026-08-04T09:03:40.520Z,wireless-earbuds-inear-headphones,0
+6a71aaecb4323dda529a4c0a,Fashion & Apparel,,0,true,2,0,15,2026-08-04T09:03:40.610Z,2026-08-04T11:08:53.609Z,fashion-apparel,0
+6a71aaecb4323dda529a4c0c,Men's Clothing,6a71aaecb4323dda529a4c0a,1,true,1,0,0,2026-08-04T09:03:40.622Z,2026-08-04T09:03:40.622Z,mens-clothing,0
+6a71aaecb4323dda529a4c0e,Women's Clothing,6a71aaecb4323dda529a4c0a,1,true,2,0,0,2026-08-04T09:03:40.641Z,2026-08-04T09:03:40.641Z,womens-clothing,0
+6a71aaecb4323dda529a4c10,Footwear,6a71aaecb4323dda529a4c0a,1,true,3,0,0,2026-08-04T09:03:40.652Z,2026-08-04T09:03:40.652Z,footwear,0
+6a71aaecb4323dda529a4c12,Accessories,6a71aaecb4323dda529a4c0a,1,true,4,0,0,2026-08-04T09:03:40.666Z,2026-08-04T09:03:40.666Z,accessories,0
+6a71aaecb4323dda529a4c14,"Shirts, T-Shirts & Polo Shirts",6a71aaecb4323dda529a4c0c,2,true,1,0,0,2026-08-04T09:03:40.677Z,2026-08-04T09:03:40.677Z,shirts-tshirts-polo-shirts,0
+6a71aaecb4323dda529a4c16,"Jeans, Trousers & Shorts",6a71aaecb4323dda529a4c0c,2,true,2,0,0,2026-08-04T09:03:40.689Z,2026-08-04T09:03:40.689Z,jeans-trousers-shorts,0
+6a71aaecb4323dda529a4c1c,"Dresses, Tops & Blouses",6a71aaecb4323dda529a4c0e,2,true,1,0,0,2026-08-04T09:03:40.724Z,2026-08-04T09:03:40.724Z,dresses-tops-blouses,0
+6a71aaecb4323dda529a4c1e,"Jeans, Pants & Skirts",6a71aaecb4323dda529a4c0e,2,true,2,0,0,2026-08-04T09:03:40.735Z,2026-08-04T09:03:40.735Z,jeans-pants-skirts,0
+6a71aaecb4323dda529a4c20,"Jackets, Blazers & Knitwear",6a71aaecb4323dda529a4c0e,2,true,3,0,0,2026-08-04T09:03:40.747Z,2026-08-04T09:03:40.747Z,jackets-blazers-knitwear,0
+6a71aaecb4323dda529a4c22,Activewear & Shapewear,6a71aaecb4323dda529a4c0e,2,true,4,0,0,2026-08-04T09:03:40.756Z,2026-08-04T09:03:40.756Z,activewear-shapewear,0
+6a71aaecb4323dda529a4c24,Men's Shoes,6a71aaecb4323dda529a4c10,2,true,1,0,0,2026-08-04T09:03:40.768Z,2026-08-04T09:03:40.768Z,mens-shoes,0
+6a71aaecb4323dda529a4c26,Women's Shoes,6a71aaecb4323dda529a4c10,2,true,2,0,0,2026-08-04T09:03:40.794Z,2026-08-04T09:03:40.794Z,womens-shoes,0
+6a71aaecb4323dda529a4c28,Kids' Shoes,6a71aaecb4323dda529a4c10,2,true,3,0,0,2026-08-04T09:03:40.804Z,2026-08-04T09:03:40.804Z,kids-shoes,0
+6a71aaecb4323dda529a4c2a,"Bags, Backpacks & Luggage",6a71aaecb4323dda529a4c12,2,true,1,0,0,2026-08-04T09:03:40.815Z,2026-08-04T09:03:40.815Z,bags-backpacks-luggage,0
+6a71aaecb4323dda529a4c2c,Watches & Jewelry,6a71aaecb4323dda529a4c12,2,true,2,0,0,2026-08-04T09:03:40.826Z,2026-08-04T09:03:40.826Z,watches-jewelry,0
+6a71aaecb4323dda529a4c2e,Sunglasses & Eyewear,6a71aaecb4323dda529a4c12,2,true,3,0,0,2026-08-04T09:03:40.838Z,2026-08-04T09:03:40.838Z,sunglasses-eyewear,0
+6a71aaecb4323dda529a4c30,"Belts, Hats & Scarves",6a71aaecb4323dda529a4c12,2,true,4,0,0,2026-08-04T09:03:40.848Z,2026-08-04T09:03:40.848Z,belts-hats-scarves,0
+6a71aaecb4323dda529a4c32,"Home, Kitchen & Living",,0,true,3,0,1,2026-08-04T09:03:40.858Z,2026-08-04T10:23:59.178Z,home-kitchen-living,0
+6a71aaecb4323dda529a4c34,Furniture,6a71aaecb4323dda529a4c32,1,true,1,0,0,2026-08-04T09:03:40.870Z,2026-08-04T09:03:40.870Z,furniture,0
+6a71aaecb4323dda529a4c36,Home Decor,6a71aaecb4323dda529a4c32,1,true,2,0,0,2026-08-04T09:03:40.881Z,2026-08-04T09:03:40.881Z,home-decor,0
+6a71aaecb4323dda529a4c38,Kitchen & Dining,6a71aaecb4323dda529a4c32,1,true,3,0,0,2026-08-04T09:03:40.893Z,2026-08-04T09:03:40.893Z,kitchen-dining,0
+6a71aaecb4323dda529a4c3a,Bedding & Bath,6a71aaecb4323dda529a4c32,1,true,4,0,0,2026-08-04T09:03:40.903Z,2026-08-04T09:03:40.903Z,bedding-bath,0
+6a71aaecb4323dda529a4c3c,Living Room,6a71aaecb4323dda529a4c34,2,true,1,0,0,2026-08-04T09:03:40.916Z,2026-08-04T09:03:40.916Z,living-room,0
+6a71aaecb4323dda529a4c3e,Bedroom,6a71aaecb4323dda529a4c34,2,true,2,0,0,2026-08-04T09:03:40.927Z,2026-08-04T09:03:40.927Z,bedroom,0
+6a71aaecb4323dda529a4c40,Office Furniture,6a71aaecb4323dda529a4c34,2,true,3,0,0,2026-08-04T09:03:40.938Z,2026-08-04T09:03:40.938Z,office-furniture,0
+6a71aaecb4323dda529a4c44,Lighting,6a71aaecb4323dda529a4c36,2,true,2,0,0,2026-08-04T09:03:40.959Z,2026-08-04T09:03:40.959Z,lighting,0
+6a71aaecb4323dda529a4c46,"Rugs, Curtains & Cushion Covers",6a71aaecb4323dda529a4c36,2,true,3,0,0,2026-08-04T09:03:40.970Z,2026-08-04T09:03:40.970Z,rugs-curtains-cushion-covers,0
+6a71aaecb4323dda529a4c4a,Kitchen Appliances,6a71aaecb4323dda529a4c38,2,true,2,0,0,2026-08-04T09:03:40.989Z,2026-08-04T09:03:40.989Z,kitchen-appliances,0
+6a71aaedb4323dda529a4c52,Beauty & Personal Care,,0,true,4,0,0,2026-08-04T09:03:41.029Z,2026-08-04T09:03:41.029Z,beauty-personal-care,0
+6a71aaedb4323dda529a4c54,Skincare,6a71aaedb4323dda529a4c52,1,true,1,0,0,2026-08-04T09:03:41.039Z,2026-08-04T09:03:41.039Z,skincare,0
+6a71aaedb4323dda529a4c56,Makeup,6a71aaedb4323dda529a4c52,1,true,2,0,0,2026-08-04T09:03:41.050Z,2026-08-04T09:03:41.050Z,makeup,0
+6a71aaedb4323dda529a4c58,Hair Care,6a71aaedb4323dda529a4c52,1,true,3,0,0,2026-08-04T09:03:41.060Z,2026-08-04T09:03:41.060Z,hair-care,0
+6a71aaedb4323dda529a4c5a,Personal Care & Fragrance,6a71aaedb4323dda529a4c52,1,true,4,0,0,2026-08-04T09:03:41.070Z,2026-08-04T09:03:41.070Z,personal-care-fragrance,0
+6a71aaedb4323dda529a4c70,Men's Grooming & Trimmers,6a71aaedb4323dda529a4c5a,2,true,2,0,0,2026-08-04T09:03:41.185Z,2026-08-04T09:03:41.185Z,mens-grooming-trimmers,0
+6a71aaedb4323dda529a4c74,Health & Wellness,,0,true,5,0,0,2026-08-04T09:03:41.207Z,2026-08-04T09:03:41.207Z,health-wellness,0
+6a71aaedb4323dda529a4c78,Personal Medical Devices,6a71aaedb4323dda529a4c74,1,true,2,0,0,2026-08-04T09:03:41.230Z,2026-08-04T09:03:41.230Z,personal-medical-devices,0
+6a71aaedb4323dda529a4c7a,Multivitamins & Minerals,6a71aaedb4323dda529a4c76,2,true,1,0,0,2026-08-04T09:03:41.243Z,2026-08-04T09:03:41.243Z,multivitamins-minerals,0
+6a71aaedb4323dda529a4c82,"Sports, Fitness & Outdoors",,0,true,6,0,0,2026-08-04T09:03:41.288Z,2026-08-04T09:03:41.288Z,sports-fitness-outdoors,0
+6a71aaedb4323dda529a4c84,Fitness & Gym Equipment,6a71aaedb4323dda529a4c82,1,true,1,0,0,2026-08-04T09:03:41.298Z,2026-08-04T09:03:41.298Z,fitness-gym-equipment,0
+6a71aaedb4323dda529a4c92,"Toys, Baby & Kids",,0,true,7,0,0,2026-08-04T09:03:41.369Z,2026-08-04T09:03:41.369Z,toys-baby-kids,0
+6a71aaedb4323dda529a4c94,Baby Care,6a71aaedb4323dda529a4c92,1,true,1,0,0,2026-08-04T09:03:41.380Z,2026-08-04T09:03:41.380Z,baby-care,0
+6a71aaedb4323dda529a4c96,Toys & Games,6a71aaedb4323dda529a4c92,1,true,2,0,0,2026-08-04T09:03:41.390Z,2026-08-04T09:03:41.390Z,toys-games,0
+6a71aaedb4323dda529a4ca2,"Books, Media & Hobbies",,0,true,8,0,0,2026-08-04T09:03:41.472Z,2026-08-04T09:03:41.472Z,books-media-hobbies,0
+6a71aaedb4323dda529a4ca4,Books,6a71aaedb4323dda529a4ca2,1,true,1,0,0,2026-08-04T09:03:41.481Z,2026-08-04T09:03:41.481Z,books,0
+6a71aaedb4323dda529a4cac,Children's Books & Educational,6a71aaedb4323dda529a4ca4,2,true,2,0,0,2026-08-04T09:03:41.529Z,2026-08-04T09:03:41.529Z,childrens-books-educational,0
+6a71aaedb4323dda529a4cb2,"Notebooks, Pens & Art Supplies",6a71aaedb4323dda529a4ca8,2,true,1,0,0,2026-08-04T09:03:41.559Z,2026-08-04T09:03:41.559Z,notebooks-pens-art-supplies,0
