@@ -1,5 +1,7 @@
 import User from '../models/User.js';
 import Notification from '../models/Notifications.js';
+import Product from '../models/Product.js';
+import Category from '../models/Category.js';
 
 // ==================== HELPER: Create Admin Notification ====================
 
@@ -927,4 +929,480 @@ export const getAdminUnreadCount = async (req, res) => {
       error: error.message
     });
   }
+};
+
+// ==================== HELPER: Notification Triggers ====================
+
+// Trigger: Product Approved Notification (to merchant)
+const triggerProductApprovedNotification = async (merchantId, productName, productId) => {
+    try {
+        await Notification.create({
+            title: 'Product Approved!',
+            message: `Your product "${productName}" has been approved and is now live in the marketplace.`,
+            type: 'success',
+            category: 'Products',
+            panel: 'merchant',
+            merchantId: merchantId,
+            isGlobal: false,
+            actionLink: `/merchant/products/${productId}`,
+            actionLabel: 'View Product',
+            metadata: { productId, productName }
+        });
+        // console.log(`Product approval notification sent to merchant: ${merchantId}`);
+    } catch (error) {
+        console.error('Error creating product approval notification:', error);
+    }
+};
+
+// Trigger: Product Rejected Notification (to merchant)
+const triggerProductRejectedNotification = async (merchantId, productName, productId, reason) => {
+    try {
+        await Notification.create({
+            title: 'Product Rejected',
+            message: `Your product "${productName}" was rejected. Reason: ${reason || 'No reason provided'}`,
+            type: 'alert',
+            category: 'Products',
+            panel: 'merchant',
+            merchantId: merchantId,
+            isGlobal: false,
+            actionLink: `/merchant/products/${productId}`,
+            actionLabel: 'View Details',
+            metadata: { productId, productName, reason }
+        });
+        // console.log(`Product rejection notification sent to merchant: ${merchantId}`);
+    } catch (error) {
+        console.error('Error creating product rejection notification:', error);
+    }
+};
+
+// Trigger: Admin Notification for new product
+const triggerAdminNewProductNotification = async (productName, merchantName) => {
+    try {
+        await Notification.create({
+            title: 'New Product Pending Approval',
+            message: `Product "${productName}" from ${merchantName} is pending approval.`,
+            type: 'info',
+            category: 'Products',
+            panel: 'admin',
+            isGlobal: true,
+            metadata: { productName, merchantName }
+        });
+        // console.log(`Admin notification sent for new product: ${productName}`);
+    } catch (error) {
+        console.error('Error creating admin notification:', error);
+    }
+};
+
+// ==================== PRODUCT MODERATION ====================
+
+// @desc    Get all products for admin moderation
+// @route   GET /api/admin/products
+// @access  Admin only
+export const getAdminProducts = async (req, res) => {
+    try {
+        const { status, page = 1, limit = 20, search } = req.query;
+
+        let query = {};
+
+        // Filter by approval status
+        if (status) {
+            if (status === 'pending') {
+                query.approvalStatus = 'pending';
+            } else if (status === 'approved') {
+                query.approvalStatus = 'approved';
+            } else if (status === 'rejected') {
+                query.approvalStatus = 'rejected';
+            }
+        }
+
+        // Search by product name
+        if (search) {
+            query.name = { $regex: search, $options: 'i' };
+        }
+
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+
+        const products = await Product.find(query)
+            .populate('merchantId', 'username businessName email')
+            .populate('categoryId', 'name')
+            .populate('subcategoryId', 'name')
+            .populate('microCategoryId', 'name')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        const total = await Product.countDocuments(query);
+        const pendingCount = await Product.countDocuments({ approvalStatus: 'pending' });
+        const approvedCount = await Product.countDocuments({ approvalStatus: 'approved' });
+        const rejectedCount = await Product.countDocuments({ approvalStatus: 'rejected' });
+
+        // Format products for frontend
+        const formattedProducts = products.map(product => ({
+            id: product._id,
+            productId: product._id.toString().slice(-6).toUpperCase(),
+            name: product.name,
+            image: product.images && product.images.length > 0 
+                ? product.images.find(img => img.isPrimary)?.url || product.images[0]?.url 
+                : null,
+            merchant: product.merchantId?.businessName || product.merchantId?.username || 'Unknown',
+            merchantId: product.merchantId?._id,
+            date: new Date(product.createdAt).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: '2-digit'
+            }),
+            status: product.approvalStatus || 'pending',
+            category: product.categoryId?.name || 'Uncategorized',
+            price: product.price,
+            stock: product.stock,
+            approvalReason: product.approvalReason || ''
+        }));
+
+        res.status(200).json({
+            success: true,
+            count: products.length,
+            total,
+            pendingCount,
+            approvedCount,
+            rejectedCount,
+            pages: Math.ceil(total / parseInt(limit)),
+            currentPage: parseInt(page),
+            products: formattedProducts
+        });
+    } catch (error) {
+        console.error('Error fetching admin products:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Get single product for moderation
+// @route   GET /api/admin/products/:id
+// @access  Admin only
+export const getAdminProductById = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const product = await Product.findById(id)
+            .populate('merchantId', 'username businessName email phone businessAddress')
+            .populate('categoryId', 'name')
+            .populate('subcategoryId', 'name')
+            .populate('microCategoryId', 'name');
+
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                message: 'Product not found'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            product
+        });
+    } catch (error) {
+        console.error('Error fetching product:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Approve product
+// @route   PUT /api/admin/products/:id/approve
+// @access  Admin only
+export const approveProduct = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { notes } = req.body;
+
+        const product = await Product.findById(id).populate('merchantId', 'username businessName email');
+
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                message: 'Product not found'
+            });
+        }
+
+        // Update product status
+        product.approvalStatus = 'approved';
+        product.status = 'active';
+        product.approvalReason = notes || '';
+        await product.save();
+
+        // TRIGGER: Notify merchant that product is approved
+        await triggerProductApprovedNotification(
+            product.merchantId._id,
+            product.name,
+            product._id
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'Product approved successfully',
+            product
+        });
+    } catch (error) {
+        console.error('Error approving product:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Reject product
+// @route   PUT /api/admin/products/:id/reject
+// @access  Admin only
+export const rejectProduct = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { reason, notes } = req.body;
+
+        if (!reason) {
+            return res.status(400).json({
+                success: false,
+                message: 'Rejection reason is required'
+            });
+        }
+
+        const product = await Product.findById(id).populate('merchantId', 'username businessName email');
+
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                message: 'Product not found'
+            });
+        }
+
+        // Update product status
+        product.approvalStatus = 'rejected';
+        product.status = 'inactive';
+        product.approvalReason = reason;
+        await product.save();
+
+        // TRIGGER: Notify merchant that product is rejected
+        await triggerProductRejectedNotification(
+            product.merchantId._id,
+            product.name,
+            product._id,
+            reason
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'Product rejected successfully',
+            product
+        });
+    } catch (error) {
+        console.error('Error rejecting product:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Get product statistics for admin dashboard
+// @route   GET /api/admin/products/stats
+// @access  Admin only
+export const getProductStats = async (req, res) => {
+    try {
+        const totalProducts = await Product.countDocuments();
+        const pendingProducts = await Product.countDocuments({ approvalStatus: 'pending' });
+        const approvedProducts = await Product.countDocuments({ approvalStatus: 'approved' });
+        const rejectedProducts = await Product.countDocuments({ approvalStatus: 'rejected' });
+        const activeProducts = await Product.countDocuments({ status: 'active', approvalStatus: 'approved' });
+        const outOfStock = await Product.countDocuments({ stock: 0, status: 'active' });
+
+        // Get products by category
+        const categoryStats = await Product.aggregate([
+            {
+                $group: {
+                    _id: '$categoryId',
+                    count: { $sum: 1 }
+                }
+            },
+            {
+                $lookup: {
+                    from: 'categories',
+                    localField: '_id',
+                    foreignField: '_id',
+                    as: 'category'
+                }
+            },
+            {
+                $project: {
+                    categoryName: { $arrayElemAt: ['$category.name', 0] },
+                    count: 1
+                }
+            }
+        ]);
+
+        res.status(200).json({
+            success: true,
+            stats: {
+                total: totalProducts,
+                pending: pendingProducts,
+                approved: approvedProducts,
+                rejected: rejectedProducts,
+                active: activeProducts,
+                outOfStock: outOfStock,
+                byCategory: categoryStats
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching product stats:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Bulk approve products
+// @route   PUT /api/admin/products/bulk-approve
+// @access  Admin only
+export const bulkApproveProducts = async (req, res) => {
+    try {
+        const { productIds } = req.body;
+
+        if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Product IDs are required'
+            });
+        }
+
+        const products = await Product.find({ _id: { $in: productIds } }).populate('merchantId', 'username email');
+
+        let updatedCount = 0;
+        for (const product of products) {
+            product.approvalStatus = 'approved';
+            product.status = 'active';
+            await product.save();
+            updatedCount++;
+
+            // Send notification to each merchant
+            await triggerProductApprovedNotification(
+                product.merchantId._id,
+                product.name,
+                product._id
+            );
+        }
+
+        res.status(200).json({
+            success: true,
+            message: `${updatedCount} products approved successfully`,
+            count: updatedCount
+        });
+    } catch (error) {
+        console.error('Error bulk approving products:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Bulk reject products
+// @route   PUT /api/admin/products/bulk-reject
+// @access  Admin only
+export const bulkRejectProducts = async (req, res) => {
+    try {
+        const { productIds, reason } = req.body;
+
+        if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Product IDs are required'
+            });
+        }
+
+        if (!reason) {
+            return res.status(400).json({
+                success: false,
+                message: 'Rejection reason is required'
+            });
+        }
+
+        const products = await Product.find({ _id: { $in: productIds } }).populate('merchantId', 'username email');
+
+        let updatedCount = 0;
+        for (const product of products) {
+            product.approvalStatus = 'rejected';
+            product.status = 'inactive';
+            product.approvalReason = reason;
+            await product.save();
+            updatedCount++;
+
+            // Send notification to each merchant
+            await triggerProductRejectedNotification(
+                product.merchantId._id,
+                product.name,
+                product._id,
+                reason
+            );
+        }
+
+        res.status(200).json({
+            success: true,
+            message: `${updatedCount} products rejected successfully`,
+            count: updatedCount
+        });
+    } catch (error) {
+        console.error('Error bulk rejecting products:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Reset product status to pending (for re-review)
+// @route   PUT /api/admin/products/:id/reset
+// @access  Admin only
+export const resetProductStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const product = await Product.findById(id);
+
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                message: 'Product not found'
+            });
+        }
+
+        // Reset product status
+        product.approvalStatus = 'pending';
+        product.status = 'draft';
+        product.approvalReason = '';
+        await product.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Product reset to pending successfully',
+            product
+        });
+    } catch (error) {
+        console.error('Error resetting product:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
 };

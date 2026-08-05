@@ -1,6 +1,8 @@
 import express from 'express';
 import { protect } from '../middleware/auth.js';
 import {
+
+  // userM & merchantM
   getAllUsers,
   getUserById,
   toggleBlockUser,
@@ -10,17 +12,32 @@ import {
   resetMerchantStatus,
   getSystemStats,
   deleteUser,
+
+  // Profile 
   getAdminProfile,
   updateAdminProfile,
   changeAdminPassword,
   updateAdminAvatar,
   getDashboardStats,
-  getAdminNotifications,
+
+  // Notifications 
   // createAdminNotification,
+  getAdminNotifications,
   markAdminNotificationAsRead,
   markAllAdminNotificationsAsRead,
   deleteAdminNotification,
-  getAdminUnreadCount  
+  getAdminUnreadCount,
+
+  // productM 
+  getAdminProducts,
+  getAdminProductById,
+  approveProduct,
+  rejectProduct,
+  getProductStats,
+  bulkApproveProducts,
+  bulkRejectProducts,
+  resetProductStatus,
+  
 } from '../controllers/adminController.js';
 
 const router = express.Router();
@@ -78,5 +95,15 @@ router.delete('/notifications/:id', protect, isAdmin, deleteAdminNotification);
 
 // ==================== STATISTICS ====================
 router.get('/stats', getSystemStats);
+
+// ==================== PRODUCT MODERATION ====================
+router.get('/products', getAdminProducts);
+router.get('/products/:id', getAdminProductById);
+router.get('/products/stats', getProductStats);
+router.put('/products/:id/approve', approveProduct);
+router.put('/products/:id/reject', rejectProduct);
+router.put('/products/bulk-approve', bulkApproveProducts);
+router.put('/products/bulk-reject', bulkRejectProducts);
+router.put('/products/:id/reset', resetProductStatus);
 
 export default router;
