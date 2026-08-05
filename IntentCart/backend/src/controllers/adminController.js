@@ -1,20 +1,21 @@
 import User from '../models/User.js';
 import Notification from '../models/Notifications.js';
 
-// ==================== HELPER: Create Notification ====================
+// ==================== HELPER: Create Admin Notification ====================
 
-const createNotification = async (title, message, type, category, metadata = {}) => {
+const createAdminNotification = async (title, message, type, category, metadata = {}) => {
   try {
     await Notification.create({
       title,
       message,
       type: type || 'info',
       category: category || 'General',
+      panel: 'admin',
       isGlobal: true,
       metadata
     });
   } catch (error) {
-    console.error('Error creating notification:', error);
+    console.error('Error creating admin notification:', error);
   }
 };
 
@@ -79,8 +80,8 @@ export const deleteUser = async (req, res) => {
       });
     }
 
-    // Create notification for user deletion
-    await createNotification(
+    // Create admin notification for user deletion
+    await createAdminNotification(
       `User Deleted: ${user.username}`,
       `User ${user.username} (${user.email}) was deleted from the system.`,
       'alert',
@@ -124,9 +125,9 @@ export const toggleBlockUser = async (req, res) => {
       });
     }
 
-    // Create notification for block/unblock
+    // Create admin notification for block/unblock
     if (!isActive) {
-      await createNotification(
+      await createAdminNotification(
         `User Blocked: ${user.username}`,
         `User ${user.username} (${user.email}) has been blocked. Reason: ${reason || 'No reason provided'}`,
         'alert',
@@ -134,7 +135,7 @@ export const toggleBlockUser = async (req, res) => {
         { userId: user._id, email: user.email, reason }
       );
     } else {
-      await createNotification(
+      await createAdminNotification(
         `User Unblocked: ${user.username}`,
         `User ${user.username} (${user.email}) has been unblocked.`,
         'success',
@@ -213,8 +214,8 @@ export const approveMerchant = async (req, res) => {
       { new: true }
     ).select('-password');
 
-    // Create notification for merchant approval
-    await createNotification(
+    // Create admin notification for merchant approval
+    await createAdminNotification(
       `Merchant Approved: ${user.businessName || user.username}`,
       `Merchant ${user.businessName || user.username} (${user.email}) has been approved and can now sell products.`,
       'success',
@@ -270,16 +271,14 @@ export const rejectMerchant = async (req, res) => {
       { new: true }
     ).select('-password');
 
-    // Create notification for merchant rejection
-    await createNotification(
+    // Create admin notification for merchant rejection
+    await createAdminNotification(
       `Merchant Rejected: ${user.businessName || user.username}`,
       `Merchant ${user.businessName || user.username} (${user.email}) has been rejected. Reason: ${reason || 'No reason provided'}`,
       'alert',
       'Alerts',
       { merchantId: user._id, email: user.email, reason }
     );
-
-    // console.log('Merchant rejected successfully:', user.email);
 
     res.status(200).json({
       success: true,
@@ -329,8 +328,8 @@ export const resetMerchantStatus = async (req, res) => {
       { new: true }
     ).select('-password');
 
-    // Create notification for merchant status reset
-    await createNotification(
+    // Create admin notification for merchant status reset
+    await createAdminNotification(
       `Merchant Reset: ${user.businessName || user.username}`,
       `Merchant ${user.businessName || user.username} (${user.email}) has been reset to pending status for re-review.`,
       'info',
@@ -493,8 +492,8 @@ export const updateAdminProfile = async (req, res) => {
       });
     }
 
-    // Create notification for profile update
-    await createNotification(
+    // Create admin notification for profile update
+    await createAdminNotification(
       'Profile Updated',
       `Admin profile was updated successfully.`,
       'success',
@@ -582,8 +581,8 @@ export const changeAdminPassword = async (req, res) => {
     admin.password = newPassword;
     await admin.save();
 
-    // Create notification for password change
-    await createNotification(
+    // Create admin notification for password change
+    await createAdminNotification(
       'Password Changed',
       `Admin password was changed successfully.`,
       'success',
@@ -774,10 +773,10 @@ export const getAdminNotifications = async (req, res) => {
   }
 };
 
-// @desc    Create admin notification
+// @desc    Create admin notification (manual)
 // @route   POST /api/admin/notifications
 // @access  Admin only
-export const createAdminNotification = async (req, res) => {
+export const createAdminNotificationManual = async (req, res) => {
   try {
     const { title, message, type, category, actionLink, actionLabel, metadata } = req.body;
 

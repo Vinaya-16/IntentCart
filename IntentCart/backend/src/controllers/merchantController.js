@@ -3,12 +3,11 @@ import Category from '../models/Category.js';
 import User from '../models/User.js';
 import Notification from '../models/Notifications.js';
 
-// ==================== CATEGORY MANAGEMENT ====================
+// ==================== HELPER FUNCTIONS ====================
 
 const buildCategoryTree = (categories, parentId = null) => {
     const result = [];
 
-    // Filter categories by parentId
     const filtered = categories.filter(cat => {
         if (parentId === null) {
             return !cat.parentId || cat.parentId === null;
@@ -16,11 +15,9 @@ const buildCategoryTree = (categories, parentId = null) => {
         return cat.parentId && cat.parentId.toString() === parentId.toString();
     });
 
-    // Sort by order
     filtered.sort((a, b) => (a.order || 0) - (b.order || 0));
 
     for (const category of filtered) {
-        // Recursively get children
         const children = buildCategoryTree(categories, category._id);
 
         result.push({
@@ -43,20 +40,190 @@ const buildCategoryTree = (categories, parentId = null) => {
     return result;
 };
 
-// Helper function to create notification
-const createNotification = async (title, message, type, category, metadata = {}) => {
+// ==================== MERCHANT NOTIFICATION TRIGGERS ====================
+
+// Trigger: Product Created
+const triggerProductCreatedNotification = async (merchantId, productName, productId) => {
     try {
         await Notification.create({
-            title,
-            message,
-            type: type || 'info',
-            category: category || 'General',
-            panel: 'admin',
-            isGlobal: true,
-            metadata
+            title: 'Product Created',
+            message: `Your product "${productName}" has been created and is pending admin approval.`,
+            type: 'info',
+            category: 'Products',
+            panel: 'merchant',
+            merchantId: merchantId,
+            isGlobal: false,
+            actionLink: `/merchant/products/${productId}`,
+            actionLabel: 'View Product',
+            metadata: { productId, productName }
         });
+        // console.log(`Product creation notification sent to merchant: ${merchantId}`);
     } catch (error) {
-        console.error('Error creating notification:', error);
+        console.error('Error creating product creation notification:', error);
+    }
+};
+
+// Trigger: Product Updated
+const triggerProductUpdatedNotification = async (merchantId, productName, productId) => {
+    try {
+        await Notification.create({
+            title: 'Product Updated',
+            message: `Your product "${productName}" has been updated and is pending re-approval.`,
+            type: 'info',
+            category: 'Products',
+            panel: 'merchant',
+            merchantId: merchantId,
+            isGlobal: false,
+            actionLink: `/merchant/products/${productId}`,
+            actionLabel: 'View Product',
+            metadata: { productId, productName }
+        });
+        // console.log(`Product update notification sent to merchant: ${merchantId}`);
+    } catch (error) {
+        console.error('Error creating product update notification:', error);
+    }
+};
+
+// Trigger: Product Deleted
+const triggerProductDeletedNotification = async (merchantId, productName) => {
+    try {
+        await Notification.create({
+            title: 'Product Deleted',
+            message: `Your product "${productName}" has been deleted.`,
+            type: 'alert',
+            category: 'Products',
+            panel: 'merchant',
+            merchantId: merchantId,
+            isGlobal: false,
+            metadata: { productName }
+        });
+        // console.log(`Product deletion notification sent to merchant: ${merchantId}`);
+    } catch (error) {
+        console.error('Error creating product deletion notification:', error);
+    }
+};
+
+// Trigger: Product Approved (called by admin)
+export const triggerProductApprovedNotification = async (merchantId, productName, productId) => {
+    try {
+        await Notification.create({
+            title: 'Product Approved!',
+            message: `Your product "${productName}" has been approved and is now live in the marketplace.`,
+            type: 'success',
+            category: 'Products',
+            panel: 'merchant',
+            merchantId: merchantId,
+            isGlobal: false,
+            actionLink: `/merchant/products/${productId}`,
+            actionLabel: 'View Product',
+            metadata: { productId, productName }
+        });
+        // console.log(`Product approval notification sent to merchant: ${merchantId}`);
+    } catch (error) {
+        console.error('Error creating product approval notification:', error);
+    }
+};
+
+// Trigger: Product Rejected
+export const triggerProductRejectedNotification = async (merchantId, productName, productId, reason) => {
+    try {
+        await Notification.create({
+            title: 'Product Rejected',
+            message: `Your product "${productName}" was rejected. Reason: ${reason || 'No reason provided'}`,
+            type: 'alert',
+            category: 'Products',
+            panel: 'merchant',
+            merchantId: merchantId,
+            isGlobal: false,
+            actionLink: `/merchant/products/${productId}`,
+            actionLabel: 'View Details',
+            metadata: { productId, productName, reason }
+        });
+        console.log(`Product rejection notification sent to merchant: ${merchantId}`);
+    } catch (error) {
+        console.error('Error creating product rejection notification:', error);
+    }
+};
+
+// Trigger: Stock Updated
+const triggerStockUpdatedNotification = async (merchantId, productName, productId, oldStock, newStock) => {
+    try {
+        await Notification.create({
+            title: 'Stock Updated',
+            message: `Your product "${productName}" stock has been updated from ${oldStock} to ${newStock}.`,
+            type: 'info',
+            category: 'Products',
+            panel: 'merchant',
+            merchantId: merchantId,
+            isGlobal: false,
+            actionLink: `/merchant/products/${productId}`,
+            actionLabel: 'View Product',
+            metadata: { productId, productName, oldStock, newStock }
+        });
+        // console.log(`Stock update notification sent to merchant: ${merchantId}`);
+    } catch (error) {
+        console.error('Error creating stock update notification:', error);
+    }
+};
+
+// Trigger: Low Stock
+export const triggerLowStockNotification = async (merchantId, productName, productId, stock) => {
+    try {
+        await Notification.create({
+            title: 'Low Stock Alert!',
+            message: `Your product "${productName}" is running low on stock (${stock} remaining). Please restock soon.`,
+            type: 'alert',
+            category: 'Products',
+            panel: 'merchant',
+            merchantId: merchantId,
+            isGlobal: false,
+            actionLink: `/merchant/products/${productId}`,
+            actionLabel: 'Update Stock',
+            metadata: { productId, productName, stock }
+        });
+        console.log(`Low stock notification sent to merchant: ${merchantId}`);
+    } catch (error) {
+        console.error('Error creating low stock notification:', error);
+    }
+};
+
+// Trigger: Merchant Approved
+export const triggerMerchantApprovedNotification = async (merchantId, businessName) => {
+    try {
+        await Notification.create({
+            title: 'Welcome to IntentCart!',
+            message: `Your merchant account "${businessName}" has been approved. You can now start listing your products!`,
+            type: 'success',
+            category: 'Updates',
+            panel: 'merchant',
+            merchantId: merchantId,
+            isGlobal: false,
+            actionLink: '/merchant/dashboard',
+            actionLabel: 'Go to Dashboard',
+            metadata: { businessName }
+        });
+        console.log(`Merchant approval notification sent to: ${merchantId}`);
+    } catch (error) {
+        console.error('Error creating merchant approval notification:', error);
+    }
+};
+
+// Trigger: Merchant Rejected
+export const triggerMerchantRejectedNotification = async (merchantId, businessName, reason) => {
+    try {
+        await Notification.create({
+            title: 'Merchant Application Update',
+            message: `Your merchant application "${businessName}" has been reviewed. Status: Rejected. Reason: ${reason || 'No reason provided'}`,
+            type: 'alert',
+            category: 'Updates',
+            panel: 'merchant',
+            merchantId: merchantId,
+            isGlobal: false,
+            metadata: { businessName, reason }
+        });
+        console.log(`Merchant rejection notification sent to: ${merchantId}`);
+    } catch (error) {
+        console.error('Error creating merchant rejection notification:', error);
     }
 };
 
@@ -67,22 +234,11 @@ const createNotification = async (title, message, type, category, metadata = {})
 // @access  Private (Merchant)
 export const getCategories = async (req, res) => {
     try {
-        // Get all active categories
         const categories = await Category.find({ isActive: true })
             .sort({ level: 1, order: 1 })
-            .lean(); // Use lean() for better performance
+            .lean();
 
-        // console.log(`Found ${categories.length} categories in database`);
-
-        // Log categories for debugging
-        categories.forEach(cat => {
-            // console.log(`  - ${cat.name} (Level: ${cat.level}, Parent: ${cat.parentId || 'None'})`);
-        });
-
-        // Build category tree
         const categoryTree = buildCategoryTree(categories);
-
-        // console.log(`Built tree with ${categoryTree.length} top-level categories`);
 
         res.status(200).json({
             success: true,
@@ -108,7 +264,6 @@ export const getFlatCategories = async (req, res) => {
             .sort({ level: 1, order: 1 })
             .lean();
 
-        // Format for dropdown with indentation
         const formattedCategories = categories.map(cat => ({
             id: cat._id,
             name: cat.level === 0 ? cat.name : `${'--'.repeat(cat.level)} ${cat.name}`,
@@ -174,59 +329,6 @@ export const getCategoriesByLevel = async (req, res) => {
         });
     }
 };
-
-// In seedCategories.js, after creating categories, verify parent relationships
-const seedCategories = async () => {
-    try {
-        await mongoose.connect(process.env.MONGODB_URI);
-        // console.log('Connected to MongoDB');
-
-        await Category.deleteMany({});
-        // console.log('Cleared existing categories');
-
-        const categoryMap = {};
-
-        // First pass: Create all categories
-        for (const cat of categories) {
-            const category = new Category({
-                name: cat.name,
-                level: cat.level,
-                order: cat.order || 0,
-                isActive: true
-            });
-            await category.save();
-            categoryMap[cat.name] = category;
-            //   console.log(`Created: ${cat.name} (Level: ${cat.level})`);
-        }
-
-        // Second pass: Set parent relationships
-        for (const cat of categories) {
-            if (cat.parentName) {
-                const parent = categoryMap[cat.parentName];
-                const child = categoryMap[cat.name];
-                if (parent && child) {
-                    child.parentId = parent._id;
-                    await child.save();
-                    //   console.log(`Linked: ${cat.name} -> ${cat.parentName}`);
-                }
-            }
-        }
-
-        // console.log(`\nSeeded ${categories.length} categories successfully!`);
-
-        // Verify
-        const allCategories = await Category.find().lean();
-        const topLevel = allCategories.filter(c => !c.parentId);
-        const withParent = allCategories.filter(c => c.parentId);
-        // console.log(`Top level: ${topLevel.length}, With parent: ${withParent.length}`);
-
-        process.exit(0);
-    } catch (error) {
-        console.error('Error seeding categories:', error);
-        process.exit(1);
-    }
-};
-
 
 // ==================== PRODUCT MANAGEMENT ====================
 
@@ -309,7 +411,7 @@ export const getProductById = async (req, res) => {
     }
 };
 
-// @desc    Create product
+// @desc    Create product 
 // @route   POST /api/merchant/products
 // @access  Private (Merchant)
 export const createProduct = async (req, res) => {
@@ -317,10 +419,6 @@ export const createProduct = async (req, res) => {
         const merchantId = req.user._id;
         const productData = req.body;
 
-        // console.log('Creating product for merchant:', merchantId);
-        // console.log('Images received:', productData.images);
-
-        // Check if merchant is approved
         const merchant = await User.findById(merchantId);
         if (!merchant || !merchant.isApproved) {
             return res.status(403).json({
@@ -329,7 +427,6 @@ export const createProduct = async (req, res) => {
             });
         }
 
-        // Validate category
         if (!productData.categoryId) {
             return res.status(400).json({
                 success: false,
@@ -345,7 +442,6 @@ export const createProduct = async (req, res) => {
             });
         }
 
-        // Prepare product data including images
         const productFields = {
             merchantId,
             name: productData.name,
@@ -359,32 +455,20 @@ export const createProduct = async (req, res) => {
             images: productData.images || []
         };
 
-        // Add optional fields
-        if (productData.subcategoryId) {
-            productFields.subcategoryId = productData.subcategoryId;
-        }
-        if (productData.microCategoryId) {
-            productFields.microCategoryId = productData.microCategoryId;
-        }
-        if (productData.compareAtPrice) {
-            productFields.compareAtPrice = parseFloat(productData.compareAtPrice);
-        }
-        if (productData.costPerItem) {
-            productFields.costPerItem = parseFloat(productData.costPerItem);
-        }
-        if (productData.sku) {
-            productFields.sku = productData.sku;
-        }
+        if (productData.subcategoryId) productFields.subcategoryId = productData.subcategoryId;
+        if (productData.microCategoryId) productFields.microCategoryId = productData.microCategoryId;
+        if (productData.compareAtPrice) productFields.compareAtPrice = parseFloat(productData.compareAtPrice);
+        if (productData.costPerItem) productFields.costPerItem = parseFloat(productData.costPerItem);
+        if (productData.sku) productFields.sku = productData.sku;
 
-        // Create product
         const product = await Product.create(productFields);
 
-        // console.log('Product created with images:', product.images);
-
-        // Update category product count
         await Category.findByIdAndUpdate(productData.categoryId, {
             $inc: { productCount: 1 }
         });
+
+        // TRIGGER: Product Created
+        await triggerProductCreatedNotification(merchantId, product.name, product._id);
 
         res.status(201).json({
             success: true,
@@ -401,7 +485,7 @@ export const createProduct = async (req, res) => {
     }
 };
 
-// @desc    Update product
+// @desc    Update product 
 // @route   PUT /api/merchant/products/:id
 // @access  Private (Merchant)
 export const updateProduct = async (req, res) => {
@@ -409,10 +493,6 @@ export const updateProduct = async (req, res) => {
         const { id } = req.params;
         const merchantId = req.user._id;
         const updates = req.body;
-
-        // console.log('Updating product:', id);
-        // console.log('Update data:', updates);
-        // console.log('Images received:', updates.images);
 
         const product = await Product.findOne({ _id: id, merchantId });
         if (!product) {
@@ -422,15 +502,9 @@ export const updateProduct = async (req, res) => {
             });
         }
 
-        // Build update object - including images
         const updateData = {};
+        if (updates.images !== undefined) updateData.images = updates.images;
 
-        // Handle images specifically
-        if (updates.images !== undefined) {
-            updateData.images = updates.images;
-        }
-
-        // Handle other fields
         const fields = ['name', 'description', 'shortDescription', 'categoryId',
             'subcategoryId', 'microCategoryId', 'price', 'compareAtPrice',
             'costPerItem', 'stock', 'sku', 'status'];
@@ -447,12 +521,9 @@ export const updateProduct = async (req, res) => {
             }
         }
 
-        // If status is being changed to active, set approval status to pending
         if (updates.status === 'active' && product.status !== 'active') {
             updateData.approvalStatus = 'pending';
         }
-
-        // console.log('Update data to save:', updateData);
 
         const updatedProduct = await Product.findByIdAndUpdate(
             id,
@@ -460,7 +531,13 @@ export const updateProduct = async (req, res) => {
             { new: true, runValidators: true }
         );
 
-        // console.log('Product updated with images:', updatedProduct.images);
+        // TRIGGER: Product Updated
+        await triggerProductUpdatedNotification(merchantId, updatedProduct.name, updatedProduct._id);
+
+        // TRIGGER: Low Stock if applicable
+        if (updatedProduct.stock <= 10) {
+            await triggerLowStockNotification(merchantId, updatedProduct.name, updatedProduct._id, updatedProduct.stock);
+        }
 
         res.status(200).json({
             success: true,
@@ -477,7 +554,7 @@ export const updateProduct = async (req, res) => {
     }
 };
 
-// @desc    Delete product
+// @desc    Delete product 
 // @route   DELETE /api/merchant/products/:id
 // @access  Private (Merchant)
 export const deleteProduct = async (req, res) => {
@@ -485,7 +562,7 @@ export const deleteProduct = async (req, res) => {
         const { id } = req.params;
         const merchantId = req.user._id;
 
-        const product = await Product.findOneAndDelete({ _id: id, merchantId });
+        const product = await Product.findOne({ _id: id, merchantId });
         if (!product) {
             return res.status(404).json({
                 success: false,
@@ -493,12 +570,18 @@ export const deleteProduct = async (req, res) => {
             });
         }
 
-        // Update category product count
+        const productName = product.name;
+
+        await Product.findOneAndDelete({ _id: id, merchantId });
+
         if (product.categoryId) {
             await Category.findByIdAndUpdate(product.categoryId, {
                 $inc: { productCount: -1 }
             });
         }
+
+        // TRIGGER: Product Deleted
+        await triggerProductDeletedNotification(merchantId, productName);
 
         res.status(200).json({
             success: true,
@@ -514,7 +597,7 @@ export const deleteProduct = async (req, res) => {
     }
 };
 
-// @desc    Update product stock
+// @desc    Update product stock 
 // @route   PUT /api/merchant/products/:id/stock
 // @access  Private (Merchant)
 export const updateProductStock = async (req, res) => {
@@ -530,12 +613,7 @@ export const updateProductStock = async (req, res) => {
             });
         }
 
-        const product = await Product.findOneAndUpdate(
-            { _id: id, merchantId },
-            { stock },
-            { new: true }
-        );
-
+        const product = await Product.findOne({ _id: id, merchantId });
         if (!product) {
             return res.status(404).json({
                 success: false,
@@ -543,10 +621,25 @@ export const updateProductStock = async (req, res) => {
             });
         }
 
+        const oldStock = product.stock;
+        const updatedProduct = await Product.findOneAndUpdate(
+            { _id: id, merchantId },
+            { stock },
+            { new: true }
+        );
+
+        // TRIGGER: Stock Updated
+        await triggerStockUpdatedNotification(merchantId, updatedProduct.name, updatedProduct._id, oldStock, stock);
+
+        // TRIGGER: Low Stock if applicable
+        if (stock <= 10) {
+            await triggerLowStockNotification(merchantId, updatedProduct.name, updatedProduct._id, stock);
+        }
+
         res.status(200).json({
             success: true,
             message: 'Stock updated successfully',
-            product
+            product: updatedProduct
         });
     } catch (error) {
         console.error('Error updating stock:', error);
@@ -586,7 +679,6 @@ export const getMerchantDashboardStats = async (req, res) => {
             status: 'active'
         });
 
-        // Get total inventory value
         const products = await Product.find({ merchantId, status: 'active' });
         const totalInventoryValue = products.reduce((sum, p) => sum + (p.price * p.stock), 0);
 
@@ -661,7 +753,7 @@ export const getMerchantNotifications = async (req, res) => {
     }
 };
 
-// @desc    Create merchant notification (for internal use)
+// @desc    Create merchant notification (manual)
 // @route   POST /api/merchant/notifications
 // @access  Private (Merchant)
 export const createMerchantNotification = async (req, res) => {
@@ -676,6 +768,7 @@ export const createMerchantNotification = async (req, res) => {
             category: category || 'General',
             panel: 'merchant',
             merchantId: merchantId,
+            isGlobal: false,
             actionLink,
             actionLabel,
             metadata
@@ -826,115 +919,314 @@ export const getMerchantUnreadCount = async (req, res) => {
     }
 };
 
-// ==================== MERCHANT NOTIFICATION TRIGGERS ====================
+// ==================== MERCHANT PROFILE MANAGEMENT ====================
 
-// @desc    Create notification for product approval
-// @route   Internal use only
-export const notifyMerchantProductApproved = async (merchantId, productName, productId) => {
+// Trigger: Profile Updated
+const triggerProfileUpdatedNotification = async (merchantId) => {
     try {
         await Notification.create({
-            title: 'Product Approved!',
-            message: `Your product "${productName}" has been approved and is now live in the marketplace.`,
-            type: 'success',
-            category: 'Products',
-            panel: 'merchant',
-            merchantId: merchantId,
-            actionLink: `/merchant/products/${productId}`,
-            actionLabel: 'View Product',
-            metadata: { productId, productName }
-        });
-    } catch (error) {
-        console.error('Error creating product approval notification:', error);
-    }
-};
-
-// @desc    Create notification for product rejection
-export const notifyMerchantProductRejected = async (merchantId, productName, reason) => {
-    try {
-        await Notification.create({
-            title: 'Product Rejected',
-            message: `Your product "${productName}" was rejected. Reason: ${reason || 'No reason provided'}`,
-            type: 'alert',
-            category: 'Products',
-            panel: 'merchant',
-            merchantId: merchantId,
-            metadata: { productName, reason }
-        });
-    } catch (error) {
-        console.error('Error creating product rejection notification:', error);
-    }
-};
-
-// @desc    Create notification for new order
-export const notifyMerchantNewOrder = async (merchantId, orderId, customerName) => {
-    try {
-        await Notification.create({
-            title: 'New Order Received!',
-            message: `You have received a new order #${orderId} from ${customerName}.`,
-            type: 'order',
-            category: 'Orders',
-            panel: 'merchant',
-            merchantId: merchantId,
-            actionLink: `/merchant/orders/${orderId}`,
-            actionLabel: 'View Order',
-            metadata: { orderId, customerName }
-        });
-    } catch (error) {
-        console.error('Error creating new order notification:', error);
-    }
-};
-
-// @desc    Create notification for low stock
-export const notifyMerchantLowStock = async (merchantId, productName, productId, stock) => {
-    try {
-        await Notification.create({
-            title: 'Low Stock Alert!',
-            message: `Your product "${productName}" is running low on stock (${stock} remaining). Please restock soon.`,
-            type: 'alert',
-            category: 'Products',
-            panel: 'merchant',
-            merchantId: merchantId,
-            actionLink: `/merchant/products/${productId}`,
-            actionLabel: 'Update Stock',
-            metadata: { productId, productName, stock }
-        });
-    } catch (error) {
-        console.error('Error creating low stock notification:', error);
-    }
-};
-
-// @desc    Create notification for merchant approval
-export const notifyMerchantApproved = async (merchantId, businessName) => {
-    try {
-        await Notification.create({
-            title: 'Welcome to IntentCart! 🎉',
-            message: `Your merchant account "${businessName}" has been approved. You can now start listing your products!`,
+            title: '👤 Profile Updated',
+            message: 'Your merchant profile has been updated successfully.',
             type: 'success',
             category: 'Updates',
             panel: 'merchant',
             merchantId: merchantId,
-            actionLink: '/merchant/dashboard',
-            actionLabel: 'Go to Dashboard',
-            metadata: { businessName }
+            isGlobal: false,
+            actionLink: '/merchant/profile',
+            actionLabel: 'View Profile',
+            metadata: { updatedAt: new Date() }
         });
+        // console.log(`Profile update notification sent to merchant: ${merchantId}`);
     } catch (error) {
-        console.error('Error creating merchant approval notification:', error);
+        console.error('Error creating profile update notification:', error);
     }
 };
 
-// @desc    Create notification for merchant rejection
-export const notifyMerchantRejected = async (merchantId, businessName, reason) => {
+// Trigger: Password Changed
+const triggerPasswordChangedNotification = async (merchantId) => {
     try {
         await Notification.create({
-            title: 'Merchant Application Update',
-            message: `Your merchant application "${businessName}" has been reviewed. Status: Rejected. Reason: ${reason || 'No reason provided'}`,
-            type: 'alert',
+            title: 'Password Changed',
+            message: 'Your account password has been changed successfully.',
+            type: 'system',
+            category: 'Security',
+            panel: 'merchant',
+            merchantId: merchantId,
+            isGlobal: false,
+            actionLink: '/merchant/profile',
+            actionLabel: 'View Profile',
+            metadata: { changedAt: new Date() }
+        });
+        // console.log(`Password change notification sent to merchant: ${merchantId}`);
+    } catch (error) {
+        console.error('Error creating password change notification:', error);
+    }
+};
+
+// Trigger: Avatar Updated
+const triggerAvatarUpdatedNotification = async (merchantId) => {
+    try {
+        await Notification.create({
+            title: 'Profile Picture Updated',
+            message: 'Your profile picture has been updated successfully.',
+            type: 'success',
             category: 'Updates',
             panel: 'merchant',
             merchantId: merchantId,
-            metadata: { businessName, reason }
+            isGlobal: false,
+            actionLink: '/merchant/profile',
+            actionLabel: 'View Profile',
+            metadata: { updatedAt: new Date() }
+        });
+        // console.log(`Avatar update notification sent to merchant: ${merchantId}`);
+    } catch (error) {
+        console.error('Error creating avatar update notification:', error);
+    }
+};
+
+// @desc    Get merchant profile
+// @route   GET /api/merchant/profile
+// @access  Private (Merchant)
+export const getMerchantProfile = async (req, res) => {
+    try {
+        const merchant = await User.findById(req.user._id).select('-password');
+        
+        if (!merchant) {
+            return res.status(404).json({
+                success: false,
+                message: 'Merchant not found'
+            });
+        }
+
+        // Format profile data
+        const profileData = {
+            id: merchant._id,
+            username: merchant.username,
+            email: merchant.email,
+            businessName: merchant.businessName || 'Merchant Store',
+            businessDescription: merchant.businessDescription || '',
+            businessAddress: merchant.businessAddress || '',
+            businessPhone: merchant.businessPhone || '',
+            phone: merchant.phone || merchant.businessPhone || '',
+            avatarUrl: merchant.avatarUrl || '',
+            initials: merchant.businessName 
+                ? merchant.businessName.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2)
+                : merchant.username?.slice(0, 2).toUpperCase() || 'MS',
+            isApproved: merchant.isApproved,
+            merchantStatus: merchant.merchantStatus || 'pending',
+            createdAt: merchant.createdAt,
+            currency: 'Rupee (Rs.)',
+            role: merchant.role
+        };
+
+        res.status(200).json({
+            success: true,
+            profile: profileData
         });
     } catch (error) {
-        console.error('Error creating merchant rejection notification:', error);
+        console.error('Error fetching merchant profile:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Update merchant profile
+// @route   PUT /api/merchant/profile
+// @access  Private (Merchant)
+export const updateMerchantProfile = async (req, res) => {
+    try {
+        const merchantId = req.user._id;
+        const { businessName, businessDescription, businessAddress, businessPhone, email, phone } = req.body;
+
+        // Check if merchant exists
+        const merchant = await User.findById(merchantId);
+        if (!merchant) {
+            return res.status(404).json({
+                success: false,
+                message: 'Merchant not found'
+            });
+        }
+
+        // Build update object
+        const updates = {};
+        if (businessName) updates.businessName = businessName;
+        if (businessDescription !== undefined) updates.businessDescription = businessDescription;
+        if (businessAddress !== undefined) updates.businessAddress = businessAddress;
+        if (businessPhone !== undefined) updates.businessPhone = businessPhone;
+        if (phone !== undefined) updates.phone = phone;
+        
+        // Email update - check if it's not already taken
+        if (email && email !== merchant.email) {
+            const existingUser = await User.findOne({ email, _id: { $ne: merchantId } });
+            if (existingUser) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Email already in use'
+                });
+            }
+            updates.email = email;
+        }
+
+        // Update merchant
+        const updatedMerchant = await User.findByIdAndUpdate(
+            merchantId,
+            updates,
+            { new: true, runValidators: true }
+        ).select('-password');
+
+        // TRIGGER: Profile Updated Notification
+        await triggerProfileUpdatedNotification(merchantId);
+
+        // Format response
+        const profileData = {
+            id: updatedMerchant._id,
+            username: updatedMerchant.username,
+            email: updatedMerchant.email,
+            businessName: updatedMerchant.businessName || 'Merchant Store',
+            businessDescription: updatedMerchant.businessDescription || '',
+            businessAddress: updatedMerchant.businessAddress || '',
+            businessPhone: updatedMerchant.businessPhone || '',
+            phone: updatedMerchant.phone || updatedMerchant.businessPhone || '',
+            avatarUrl: updatedMerchant.avatarUrl || '',
+            initials: updatedMerchant.businessName 
+                ? updatedMerchant.businessName.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2)
+                : updatedMerchant.username?.slice(0, 2).toUpperCase() || 'MS',
+            isApproved: updatedMerchant.isApproved,
+            merchantStatus: updatedMerchant.merchantStatus || 'pending',
+            createdAt: updatedMerchant.createdAt,
+            currency: 'Rupee (Rs.)',
+            role: updatedMerchant.role
+        };
+
+        res.status(200).json({
+            success: true,
+            message: 'Profile updated successfully',
+            profile: profileData
+        });
+    } catch (error) {
+        console.error('Error updating merchant profile:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Change merchant password
+// @route   PUT /api/merchant/change-password
+// @access  Private (Merchant)
+export const changeMerchantPassword = async (req, res) => {
+    try {
+        const merchantId = req.user._id;
+        const { currentPassword, newPassword, confirmPassword } = req.body;
+
+        // Validate inputs
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please provide all password fields'
+            });
+        }
+
+        if (newPassword !== confirmPassword) {
+            return res.status(400).json({
+                success: false,
+                message: 'New passwords do not match'
+            });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: 'New password must be at least 6 characters'
+            });
+        }
+
+        // Get merchant with password
+        const merchant = await User.findById(merchantId);
+        if (!merchant) {
+            return res.status(404).json({
+                success: false,
+                message: 'Merchant not found'
+            });
+        }
+
+        // Verify current password
+        const isPasswordValid = await merchant.comparePassword(currentPassword);
+        if (!isPasswordValid) {
+            return res.status(401).json({
+                success: false,
+                message: 'Current password is incorrect'
+            });
+        }
+
+        // Update password
+        merchant.password = newPassword;
+        await merchant.save();
+
+        // TRIGGER: Password Changed Notification
+        await triggerPasswordChangedNotification(merchantId);
+
+        res.status(200).json({
+            success: true,
+            message: 'Password changed successfully'
+        });
+    } catch (error) {
+        console.error('Error changing merchant password:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Update merchant avatar
+// @route   PUT /api/merchant/avatar
+// @access  Private (Merchant)
+export const updateMerchantAvatar = async (req, res) => {
+    try {
+        const merchantId = req.user._id;
+        const { avatarUrl } = req.body;
+
+        if (!avatarUrl) {
+            return res.status(400).json({
+                success: false,
+                message: 'Avatar URL is required'
+            });
+        }
+
+        const merchant = await User.findByIdAndUpdate(
+            merchantId,
+            { avatarUrl },
+            { new: true }
+        ).select('-password');
+
+        if (!merchant) {
+            return res.status(404).json({
+                success: false,
+                message: 'Merchant not found'
+            });
+        }
+
+        // TRIGGER: Avatar Updated Notification
+        await triggerAvatarUpdatedNotification(merchantId);
+
+        res.status(200).json({
+            success: true,
+            message: 'Avatar updated successfully',
+            avatarUrl: merchant.avatarUrl
+        });
+    } catch (error) {
+        console.error('Error updating merchant avatar:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
     }
 };

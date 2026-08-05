@@ -1,22 +1,38 @@
 import express from 'express';
 import { protect } from '../middleware/auth.js';
 import {
+
+    // Categories 
     getCategories,
     getCategoriesByLevel,
     getFlatCategories,
+
+    // Products 
     getMerchantProducts,
     getProductById,
     createProduct,
     updateProduct,
     deleteProduct,
     updateProductStock,
+
+    //dashboard
     getMerchantDashboardStats,
+
+    // Notifications 
     getMerchantNotifications,
+    getMerchantUnreadCount,
     createMerchantNotification,
     markMerchantNotificationAsRead,
     markAllMerchantNotificationsAsRead,
     deleteMerchantNotification,
-    getMerchantUnreadCount
+
+    // Profile 
+    getMerchantProfile,
+    updateMerchantProfile,
+    changeMerchantPassword,
+    updateMerchantAvatar,
+
+
 } from '../controllers/merchantController.js';
 
 const router = express.Router();
@@ -47,5 +63,11 @@ router.post('/notifications', createMerchantNotification);
 router.put('/notifications/:id/read', markMerchantNotificationAsRead);
 router.put('/notifications/read-all', markAllMerchantNotificationsAsRead);
 router.delete('/notifications/:id', deleteMerchantNotification);
+
+// ==================== MERCHANT PROFILE ====================
+router.get('/profile', getMerchantProfile);
+router.put('/profile', updateMerchantProfile);
+router.put('/change-password', changeMerchantPassword);
+router.put('/avatar', updateMerchantAvatar);
 
 export default router;

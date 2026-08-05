@@ -16,7 +16,7 @@ import {
   updateAdminAvatar,
   getDashboardStats,
   getAdminNotifications,
-  createAdminNotification,
+  // createAdminNotification,
   markAdminNotificationAsRead,
   markAllAdminNotificationsAsRead,
   deleteAdminNotification,
@@ -71,7 +71,7 @@ router.get('/dashboard-stats', getDashboardStats);
 // ==================== ADMIN NOTIFICATIONS ====================
 router.get('/notifications', protect, isAdmin, getAdminNotifications);
 router.get('/notifications/unread-count', protect, isAdmin, getAdminUnreadCount);
-router.post('/notifications', protect, isAdmin, createAdminNotification);
+// router.post('/notifications', protect, isAdmin, createAdminNotification);
 router.put('/notifications/:id/read', protect, isAdmin, markAdminNotificationAsRead);
 router.put('/notifications/read-all', protect, isAdmin, markAllAdminNotificationsAsRead);
 router.delete('/notifications/:id', protect, isAdmin, deleteAdminNotification);
