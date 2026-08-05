@@ -103,7 +103,7 @@ export default function Header() {
             case 'merchant':
                 return '/merchant-profile';
             case 'customer':
-                return '/profile';
+                return '/main-profile';
             default:
                 return '/';
         }
@@ -134,7 +134,7 @@ export default function Header() {
                         <>
                             {/* Notification Bell */}
                             <Link
-                                to="/notifications"
+                                to="/main-notifications"
                                 className="relative p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
                             >
                                 <Bell className="w-5 h-5" />
@@ -147,7 +147,7 @@ export default function Header() {
 
                             {/* Wishlist */}
                             <Link
-                                to="/wishlist"
+                                to="/main-wishlist"
                                 className="relative p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
                             >
                                 <Heart className="w-5 h-5" />
@@ -160,7 +160,7 @@ export default function Header() {
 
                             {/* Cart */}
                             <Link
-                                to="/cart"
+                                to="/main-cart"
                                 className="relative p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
                             >
                                 <ShoppingBag className="w-5 h-5" />
