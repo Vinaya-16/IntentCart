@@ -1,13 +1,17 @@
-import React, { useState } from 'react';
-import { 
-  Heart, 
-  ShoppingCart, 
-  Trash2, 
+import React, { useState, useMemo } from 'react';
+import {
+  Heart,
+  ShoppingCart,
+  Trash2,
   ChevronDown,
   Filter,
   CheckCircle2,
   XCircle,
-  Image as ImageIcon
+  Image as ImageIcon,
+  ArrowUpDown,
+  Sparkles,
+  ArrowRight,
+  ShoppingBag
 } from 'lucide-react';
 
 import Header from '../components/Header.jsx';
@@ -15,6 +19,7 @@ import Footer from '../components/Footer.jsx';
 
 export default function WishlistPage() {
   const [filter, setFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('featured');
   const [wishlistItems, setWishlistItems] = useState([
     {
       id: 1,
@@ -66,179 +71,233 @@ export default function WishlistPage() {
     setWishlistItems([]);
   };
 
-  const filteredItems = wishlistItems.filter((item) => {
-    if (filter === 'all') return true;
-    return item.category.toLowerCase() === filter.toLowerCase();
-  });
+  const categories = useMemo(() => {
+    return ['all', ...Array.from(new Set(wishlistItems.map((i) => i.category)))];
+  }, [wishlistItems]);
 
-  const categories = ['all', ...Array.from(new Set(wishlistItems.map((i) => i.category)))];
+  const processedItems = useMemo(() => {
+    let result = wishlistItems.filter((item) => {
+      if (filter === 'all') return true;
+      return item.category.toLowerCase() === filter.toLowerCase();
+    });
+
+    if (sortBy === 'price-low') {
+      result.sort((a, b) => a.price - b.price);
+    } else if (sortBy === 'price-high') {
+      result.sort((a, b) => b.price - a.price);
+    }
+
+    return result;
+  }, [wishlistItems, filter, sortBy]);
+
+  const inStockCount = wishlistItems.filter((item) => item.inStock).length;
 
   return (
-    <div className="min-h-screen bg-white font-sans text-gray-800">
-      <Header />
+    <div className="min-h-screen bg-slate-50/60 font-sans text-slate-800 flex flex-col justify-between selection:bg-indigo-500 selection:text-white">
+      <div>
+        <Header />
 
-      <main className="max-w-6xl mx-auto px-4 py-8">
-        {/* Page Title Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 pb-5 border-b-2 border-gray-100">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-black text-black tracking-tight">My Wishlist</h1>
-              <span className="bg-[#5c63f6] text-white text-sm font-black px-3 py-1 rounded-full">
-                {wishlistItems.length} Saved
-              </span>
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+          {/* Header Banner Section */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 pb-6 border-b border-slate-200">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-3">
+
+                <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">My Wishlist</h1>
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20">
+                  {wishlistItems.length} {wishlistItems.length === 1 ? 'Item' : 'Items'}
+                </span>
+              </div>
+              <p className="text-sm text-slate-500 font-medium max-w-xl">
+                Items saved for later. Move available items to your cart before promotional offers expire.
+              </p>
             </div>
-            <p className="text-sm text-gray-600 font-medium mt-1">
-              Items you've saved for later. Move them to your cart before offers end!
-            </p>
-          </div>
 
-          {wishlistItems.length > 0 && (
-            <button
-              onClick={handleClearAll}
-              className="flex items-center gap-2 text-sm font-bold text-red-600 hover:text-red-700 transition self-start sm:self-auto bg-red-50 px-4 py-2 rounded-lg hover:bg-red-100"
-            >
-              <Trash2 className="w-4 h-4" /> Clear Entire Wishlist
-            </button>
-          )}
-        </div>
-
-        {/* Layout Grid */}
-        <div className="flex flex-col md:flex-row gap-8">
-          
-          {/* Left Sidebar Filter */}
-          <aside className="w-full md:w-64 shrink-0 space-y-6">
-            <div className="border border-gray-200 rounded-2xl p-5 bg-stone-50/50 shadow-sm">
-              <div className="flex items-center justify-between border-b border-gray-200 pb-3 mb-4">
-                <div className="flex items-center gap-2">
-                  <Filter className="w-4 h-4 text-[#5c63f6]" />
-                  <h3 className="font-black text-base text-black">Categories</h3>
-                </div>
-                <ChevronDown className="w-4 h-4 text-gray-500 md:hidden" />
-              </div>
-
-              <div className="space-y-1.5">
-                {categories.map((cat) => {
-                  const isActive = filter.toLowerCase() === cat.toLowerCase();
-                  const count = cat === 'all' 
-                    ? wishlistItems.length 
-                    : wishlistItems.filter((i) => i.category.toLowerCase() === cat.toLowerCase()).length;
-
-                  return (
-                    <button
-                      key={cat}
-                      onClick={() => setFilter(cat)}
-                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold text-sm capitalize transition-all text-left ${
-                        isActive
-                          ? 'bg-[#5c63f6] text-white shadow-sm'
-                          : 'text-gray-700 hover:bg-stone-200/60'
-                      }`}
-                    >
-                      <span>{cat}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-black ${
-                        isActive ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-700'
-                      }`}>
-                        {count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </aside>
-
-          {/* Wishlist Items Grid */}
-          <main className="flex-1">
-            {filteredItems.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="group relative flex flex-col bg-white border-2 border-gray-100 rounded-2xl overflow-hidden hover:border-[#5c63f6]/40 hover:shadow-md transition duration-300"
-                  >
-                    {/* Delete Icon Button */}
-                    <button
-                      onClick={() => handleDelete(item.id)}
-                      aria-label="Remove item"
-                      className="absolute top-3 right-3 z-10 p-2 bg-white/90 hover:bg-red-50 text-gray-400 hover:text-red-600 rounded-full shadow-sm transition"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-
-                    {/* Image Placeholder */}
-                    <div className="w-full aspect-[4/4.5] bg-stone-100 relative flex items-center justify-center border-b border-gray-100">
-                      <ImageIcon className="w-12 h-12 text-stone-300" />
-                      <span className="absolute bottom-3 left-3 bg-black/70 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-md">
-                        {item.brand}
-                      </span>
-                    </div>
-
-                    {/* Content Details */}
-                    <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                      <div>
-                        <h3 className="font-bold text-base text-gray-900 line-clamp-2 leading-snug group-hover:text-[#5c63f6] transition">
-                          {item.name}
-                        </h3>
-
-                        {/* Price */}
-                        <div className="flex items-center gap-2 mt-2">
-                          <span className="text-lg font-black text-black">Rs. {item.price}</span>
-                          <span className="text-xs font-bold text-gray-400 line-through">
-                            Rs. {item.originalPrice}
-                          </span>
-                          <span className="text-xs font-black text-emerald-600">
-                            {item.discount}
-                          </span>
-                        </div>
-
-                        {/* Availability */}
-                        <div className="flex items-center gap-1.5 mt-2 text-xs font-bold">
-                          {item.inStock ? (
-                            <span className="text-emerald-600 flex items-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> In Stock
-                            </span>
-                          ) : (
-                            <span className="text-red-500 flex items-center gap-1">
-                              <XCircle className="w-3.5 h-3.5" /> Out of Stock
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Move to Cart CTA */}
-                      <button
-                        disabled={!item.inStock}
-                        className={`w-full py-2.5 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition ${
-                          item.inStock
-                            ? 'bg-[#5c63f6] text-white hover:bg-[#4853e8] shadow-sm'
-                            : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        }`}
-                      >
-                        <ShoppingCart className="w-4 h-4" />
-                        {item.inStock ? 'Move To Cart' : 'Out Of Stock'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              /* Empty Wishlist View */
-              <div className="text-center py-20 bg-stone-50 rounded-2xl border-2 border-dashed border-stone-200">
-                <div className="w-16 h-16 bg-stone-200/60 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Heart className="w-8 h-8 text-stone-400" />
-                </div>
-                <h3 className="font-black text-xl text-black mb-1">Your Wishlist is Empty</h3>
-                <p className="text-sm text-gray-500 font-medium">
-                  Explore products and tap the heart icon to save items for later.
-                </p>
+            {/* Quick Actions */}
+            {wishlistItems.length > 0 && (
+              <div className="flex items-center gap-3 self-start md:self-auto">
+                <button
+                  onClick={handleClearAll}
+                  className="inline-flex items-center gap-2 text-xs sm:text-sm font-semibold text-rose-600 hover:text-rose-700 bg-white hover:bg-rose-50/80 border border-slate-200 hover:border-rose-200 px-4 py-2.5 rounded-xl shadow-xs transition-all duration-200"
+                >
+                  <Trash2 className="w-4 h-4" /> Clear All
+                </button>
               </div>
             )}
-          </main>
-        </div>
-      </main>
+          </div>
 
-      <div className="border-t-4 border-[#5c63f6] mt-16">
-        <Footer />
+          {/* Main Layout Grid */}
+          <div className="flex flex-col lg:flex-row gap-8 items-start">
+
+            {/* Sidebar Controls (Responsive Layout) */}
+            <aside className="w-full lg:w-64 shrink-0 space-y-6 lg:sticky lg:top-8">
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs">
+
+                {/* Section Title */}
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-4 h-4 text-indigo-600" />
+                    <h2 className="font-bold text-sm text-slate-900 uppercase tracking-wider">
+                      Categories
+                    </h2>
+                  </div>
+                </div>
+
+                {/* Filter List / Pill Navigation for Mobile */}
+                <div className="flex lg:flex-col gap-1.5 overflow-x-auto pb-2 lg:pb-0 scrollbar-none">
+                  {categories.map((cat) => {
+                    const isActive = filter.toLowerCase() === cat.toLowerCase();
+                    const count = cat === 'all'
+                      ? wishlistItems.length
+                      : wishlistItems.filter((i) => i.category.toLowerCase() === cat.toLowerCase()).length;
+
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => setFilter(cat)}
+                        className={`whitespace-nowrap lg:whitespace-normal shrink-0 flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold capitalize transition-all duration-200 ${isActive
+                            ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-600/20'
+                            : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                          }`}
+                      >
+                        <span className="capitalize">{cat}</span>
+                        <span className={`ml-2 text-[11px] px-2 py-0.5 rounded-full font-bold ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                          }`}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Sorting Options */}
+                {wishlistItems.length > 0 && (
+                  <div className="mt-6 pt-5 border-t border-slate-100">
+                    <div className="flex items-center gap-2 mb-3 text-xs font-bold text-slate-900 uppercase tracking-wider">
+                      <ArrowUpDown className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Sort By</span>
+                    </div>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value)}
+                      className="w-full text-xs font-medium bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
+                    >
+                      <option value="featured">Featured</option>
+                      <option value="price-low">Price: Low to High</option>
+                      <option value="price-high">Price: High to Low</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+            </aside>
+
+            {/* Wishlist Grid Container */}
+            <main className="flex-1 w-full">
+              {processedItems.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {processedItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="group relative flex flex-col bg-white border border-slate-200/80 rounded-2xl overflow-hidden hover:shadow-xl hover:border-indigo-200 transition-all duration-300 transform hover:-translate-y-1"
+                    >
+                      {/* Delete Button */}
+                      <button
+                        onClick={() => handleDelete(item.id)}
+                        aria-label="Remove item"
+                        className="absolute top-3 right-3 z-10 p-2 bg-white/90 backdrop-blur-md hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-full shadow-xs transition-colors duration-200 border border-slate-200/50"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+
+                      {/* Image Container */}
+                      <div className="w-full aspect-[4/4.5] bg-gradient-to-br from-slate-50 to-slate-100 relative flex items-center justify-center overflow-hidden border-b border-slate-100">
+                        <ImageIcon className="w-10 h-10 text-slate-300 group-hover:scale-110 transition-transform duration-300" />
+
+                        {/* Brand Pill */}
+                        <span className="absolute bottom-3 left-3 bg-slate-900/80 backdrop-blur-md text-white text-[10px] font-extrabold uppercase tracking-widest px-2.5 py-1 rounded-md shadow-xs">
+                          {item.brand}
+                        </span>
+
+                        {/* Discount Tag */}
+                        {item.discount && (
+                          <span className="absolute top-3 left-3 bg-emerald-500 text-white text-[10px] font-extrabold px-2 py-1 rounded-md shadow-xs">
+                            {item.discount}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Content Card Details */}
+                      <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                        <div>
+                          <p className="text-[11px] font-bold text-indigo-600 uppercase tracking-wider mb-1">
+                            {item.category}
+                          </p>
+                          <h3 className="font-bold text-sm text-slate-900 line-clamp-2 leading-snug group-hover:text-indigo-600 transition-colors">
+                            {item.name}
+                          </h3>
+
+                          {/* Pricing */}
+                          <div className="flex items-baseline gap-2 mt-3">
+                            <span className="text-lg font-extrabold text-slate-900">
+                              ₹{item.price.toLocaleString()}
+                            </span>
+                            {item.originalPrice && (
+                              <span className="text-xs font-semibold text-slate-400 line-through">
+                                ₹{item.originalPrice.toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Stock Status */}
+                          <div className="mt-2.5">
+                            {item.inStock ? (
+                              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50/80 px-2.5 py-0.5 rounded-full">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> In Stock
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-500 bg-rose-50/80 px-2.5 py-0.5 rounded-full">
+                                <XCircle className="w-3.5 h-3.5" /> Out of Stock
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Move to Cart Action Button */}
+                        <button
+                          disabled={!item.inStock}
+                          className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all duration-200 ${item.inStock
+                              ? 'bg-slate-900 text-white hover:bg-indigo-600 shadow-sm active:scale-[0.99]'
+                              : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200/60'
+                            }`}
+                        >
+                          <ShoppingCart className="w-4 h-4" />
+                          <span>{item.inStock ? 'Move to Cart' : 'Currently Unavailable'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                /* Enhanced Empty Wishlist State */
+                <div className="text-center py-16 px-4 bg-white rounded-3xl border border-dashed border-slate-200 shadow-xs max-w-lg mx-auto my-6">
+                  <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-5 ring-8 ring-indigo-50/50">
+                    <Heart className="w-10 h-10" />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">Your Wishlist is Empty</h3>
+                  <p className="text-sm text-slate-500 font-medium mb-6 leading-relaxed max-w-xs mx-auto">
+                    Looks like you haven't saved any items yet. Start exploring our collections to add your favorites!
+                  </p>
+                  <button className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-indigo-600 text-white font-bold text-xs tracking-wide uppercase hover:bg-indigo-700 transition shadow-sm hover:shadow">
+                    <ShoppingBag className="w-4 h-4" /> Start Shopping
+                  </button>
+                </div>
+              )}
+            </main>
+          </div>
+        </main>
       </div>
+
+      <Footer />
     </div>
   );
 }
