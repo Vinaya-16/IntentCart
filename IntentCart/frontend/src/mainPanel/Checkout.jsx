@@ -536,7 +536,7 @@ export default function CheckoutPage() {
                 ) : (
                   <>
                     <Lock className="w-5 h-5" />
-                    Place Order • ₹{total.toLocaleString()}
+                    Place Order • Rs.{total.toLocaleString()}
                   </>
                 )}
               </button>
@@ -587,7 +587,7 @@ function OrderSummary({ items, subtotal, deliveryFee, total }) {
               <p className="text-sm font-medium text-slate-900 truncate">{item.name}</p>
               <p className="text-xs text-slate-500">Qty: {item.quantity}</p>
             </div>
-            <span className="text-sm font-semibold text-slate-900">₹{item.total.toLocaleString()}</span>
+            <span className="text-sm font-semibold text-slate-900">Rs.{item.total.toLocaleString()}</span>
           </div>
         ))}
       </div>
@@ -604,21 +604,21 @@ function OrderSummary({ items, subtotal, deliveryFee, total }) {
       <div className="border-t border-slate-100 mt-4 pt-4 space-y-2 text-sm">
         <div className="flex justify-between text-slate-600">
           <span>Subtotal</span>
-          <span>₹{subtotal.toLocaleString()}</span>
+          <span>Rs.{subtotal.toLocaleString()}</span>
         </div>
         <div className="flex justify-between text-slate-600">
           <span>Delivery Fee</span>
-          <span>{deliveryFee === 0 ? 'FREE' : `₹${deliveryFee}`}</span>
+          <span>{deliveryFee === 0 ? 'FREE' : `Rs.${deliveryFee}`}</span>
         </div>
         <div className="flex justify-between text-slate-600">
           <span>Tax (5%)</span>
-          <span>₹{Math.round(subtotal * 0.05).toLocaleString()}</span>
+          <span>Rs.{Math.round(subtotal * 0.05).toLocaleString()}</span>
         </div>
       </div>
 
       <div className="border-t border-slate-200 mt-4 pt-4 flex justify-between items-baseline">
         <span className="font-bold text-slate-900">Total</span>
-        <span className="font-extrabold text-2xl text-indigo-600">₹{total.toLocaleString()}</span>
+        <span className="font-extrabold text-2xl text-indigo-600">Rs.{total.toLocaleString()}</span>
       </div>
 
       <div className="mt-4 p-3 bg-slate-50 rounded-xl text-xs text-slate-500 flex items-center gap-2">

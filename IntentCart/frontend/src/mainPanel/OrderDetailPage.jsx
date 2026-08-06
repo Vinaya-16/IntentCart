@@ -236,7 +236,7 @@ export default function OrderDetailPage() {
                   <p className="font-medium text-slate-900">{item.productName}</p>
                   <p className="text-xs text-slate-500">Qty: {item.quantity}</p>
                 </div>
-                <span className="font-semibold text-slate-900">₹{item.total?.toLocaleString()}</span>
+                <span className="font-semibold text-slate-900">Rs.{item.total?.toLocaleString()}</span>
               </div>
             ))}
           </div>
@@ -248,29 +248,29 @@ export default function OrderDetailPage() {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-slate-500">Subtotal</span>
-              <span className="font-medium text-slate-900">₹{order.subtotal?.toLocaleString()}</span>
+              <span className="font-medium text-slate-900">Rs.{order.subtotal?.toLocaleString()}</span>
             </div>
             {order.shippingCost > 0 && (
               <div className="flex justify-between">
                 <span className="text-slate-500">Shipping</span>
-                <span className="font-medium text-slate-900">₹{order.shippingCost}</span>
+                <span className="font-medium text-slate-900">Rs.{order.shippingCost}</span>
               </div>
             )}
             {order.tax > 0 && (
               <div className="flex justify-between">
                 <span className="text-slate-500">Tax</span>
-                <span className="font-medium text-slate-900">₹{order.tax}</span>
+                <span className="font-medium text-slate-900">Rs.{order.tax}</span>
               </div>
             )}
             {order.discount > 0 && (
               <div className="flex justify-between text-emerald-600">
                 <span>Discount</span>
-                <span>-₹{order.discount}</span>
+                <span>-Rs.{order.discount}</span>
               </div>
             )}
             <div className="flex justify-between pt-2 border-t border-slate-100">
               <span className="font-bold text-slate-900">Total</span>
-              <span className="font-bold text-indigo-600">₹{order.total?.toLocaleString()}</span>
+              <span className="font-bold text-indigo-600">Rs.{order.total?.toLocaleString()}</span>
             </div>
           </div>
         </div>

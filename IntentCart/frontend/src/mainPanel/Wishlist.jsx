@@ -438,11 +438,11 @@ export default function WishlistPage() {
                           {/* Pricing */}
                           <div className="flex items-baseline gap-2 mt-3">
                             <span className="text-lg font-extrabold text-slate-900">
-                              ₹{item.price.toLocaleString()}
+                              Rs.{item.price.toLocaleString()}
                             </span>
                             {item.originalPrice && item.originalPrice > item.price && (
                               <span className="text-xs font-semibold text-slate-400 line-through">
-                                ₹{item.originalPrice.toLocaleString()}
+                                Rs.{item.originalPrice.toLocaleString()}
                               </span>
                             )}
                           </div>

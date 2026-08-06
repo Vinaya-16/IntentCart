@@ -307,7 +307,7 @@ export default function OrdersPage() {
                                             <div className="flex items-center gap-4">
                                                 <div className="text-right">
                                                     <p className="text-sm text-slate-500">Total</p>
-                                                    <p className="text-lg font-bold text-indigo-600">₹{order.total?.toLocaleString()}</p>
+                                                    <p className="text-lg font-bold text-indigo-600">Rs.{order.total?.toLocaleString()}</p>
                                                 </div>
                                                 <div className="text-right">
                                                     <p className="text-sm text-slate-500">Items</p>
@@ -343,7 +343,7 @@ export default function OrdersPage() {
                                                                     <p className="text-sm font-medium text-slate-900 truncate">{item.productName}</p>
                                                                     <p className="text-xs text-slate-500">Qty: {item.quantity}</p>
                                                                 </div>
-                                                                <span className="text-sm font-semibold text-slate-900">₹{item.total?.toLocaleString()}</span>
+                                                                <span className="text-sm font-semibold text-slate-900">Rs.{item.total?.toLocaleString()}</span>
                                                             </div>
                                                         ))}
                                                     </div>
@@ -378,23 +378,23 @@ export default function OrdersPage() {
                                                         </div>
                                                         <div className="flex justify-between">
                                                             <span className="text-slate-500">Subtotal</span>
-                                                            <span className="font-medium text-slate-900">₹{order.subtotal?.toLocaleString()}</span>
+                                                            <span className="font-medium text-slate-900">Rs.{order.subtotal?.toLocaleString()}</span>
                                                         </div>
                                                         {order.shippingCost > 0 && (
                                                             <div className="flex justify-between">
                                                                 <span className="text-slate-500">Shipping</span>
-                                                                <span className="font-medium text-slate-900">₹{order.shippingCost}</span>
+                                                                <span className="font-medium text-slate-900">Rs.{order.shippingCost}</span>
                                                             </div>
                                                         )}
                                                         {order.discount > 0 && (
                                                             <div className="flex justify-between text-emerald-600">
                                                                 <span>Discount</span>
-                                                                <span>-₹{order.discount}</span>
+                                                                <span>-Rs.{order.discount}</span>
                                                             </div>
                                                         )}
                                                         <div className="flex justify-between pt-2 border-t border-slate-100">
                                                             <span className="font-semibold text-slate-900">Total</span>
-                                                            <span className="font-bold text-indigo-600">₹{order.total?.toLocaleString()}</span>
+                                                            <span className="font-bold text-indigo-600">Rs.{order.total?.toLocaleString()}</span>
                                                         </div>
                                                     </div>
 

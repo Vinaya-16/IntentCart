@@ -354,7 +354,7 @@ export default function CartPage() {
                         <span className="text-emerald-600 font-bold">You unlocked Free Express Shipping!</span>
                       ) : (
                         <span>
-                          Add <strong className="text-slate-900">₹{amountNeededForFreeShipping.toLocaleString()}</strong> more to get <strong className="text-indigo-600">Free Shipping</strong>
+                          Add <strong className="text-slate-900">Rs.{amountNeededForFreeShipping.toLocaleString()}</strong> more to get <strong className="text-indigo-600">Free Shipping</strong>
                         </span>
                       )}
                     </span>
@@ -406,11 +406,11 @@ export default function CartPage() {
 
                         <div className="flex items-baseline gap-2 pt-2">
                           <span className="text-base font-extrabold text-slate-900">
-                            ₹{item.price.toLocaleString()}
+                            Rs.{item.price.toLocaleString()}
                           </span>
                           {item.originalPrice > item.price && (
                             <span className="text-xs font-semibold text-slate-400 line-through">
-                              ₹{item.originalPrice.toLocaleString()}
+                              Rs.{item.originalPrice.toLocaleString()}
                             </span>
                           )}
                         </div>
@@ -528,16 +528,16 @@ export default function CartPage() {
                   <div className="space-y-3 text-xs font-semibold text-slate-600">
                     <div className="flex justify-between">
                       <span>Total MRP</span>
-                      <span className="text-slate-900 font-bold">₹{subtotal.toLocaleString()}</span>
+                      <span className="text-slate-900 font-bold">Rs.{subtotal.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between text-emerald-600">
                       <span>Discount on MRP</span>
-                      <span>-₹{totalSavings.toLocaleString()}</span>
+                      <span>-Rs.{totalSavings.toLocaleString()}</span>
                     </div>
                     {discountApplied && (
                       <div className="flex justify-between text-emerald-600">
                         <span>Promo Discount</span>
-                        <span>-₹500</span>
+                        <span>-Rs.500</span>
                       </div>
                     )}
                     <div className="flex justify-between">
@@ -546,7 +546,7 @@ export default function CartPage() {
                         {deliveryFee === 0 ? (
                           <span className="text-emerald-600 font-bold">FREE</span>
                         ) : (
-                          `₹${deliveryFee}`
+                          `Rs.${deliveryFee}`
                         )}
                       </span>
                     </div>
@@ -558,7 +558,7 @@ export default function CartPage() {
                       <p className="text-[10px] text-slate-400 font-medium">Inclusive of all taxes</p>
                     </div>
                     <span className="font-extrabold text-2xl text-indigo-600">
-                      ₹{finalTotal.toLocaleString()}
+                      Rs.{finalTotal.toLocaleString()}
                     </span>
                   </div>
 
