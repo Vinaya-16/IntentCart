@@ -9,7 +9,7 @@ import {
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 
-const API_URL = 'http://localhost:5000/api'; 
+const API_URL = 'http://localhost:5000/api';
 
 export default function ProductDetail() {
     const { slug } = useParams();
@@ -23,6 +23,8 @@ export default function ProductDetail() {
     const [selectedImage, setSelectedImage] = useState(null);
     const [activeTab, setActiveTab] = useState('description');
     const [isWishlist, setIsWishlist] = useState(false);
+    const [isAddingToCart, setIsAddingToCart] = useState(false);
+    const [isTogglingWishlist, setIsTogglingWishlist] = useState(false);
 
     useEffect(() => {
         if (slug) {
@@ -67,14 +69,117 @@ export default function ProductDetail() {
         }
     };
 
-    const handleAddToCart = () => {
-        // Will be implemented with cart functionality
-        alert(`Added ${quantity} item(s) to cart!`);
+    //  Add to cart
+    const handleAddToCart = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                alert('Please login first');
+                navigate('/intentCart-auth');
+                return;
+            }
+
+            setIsAddingToCart(true);
+            setError('');
+
+            const response = await fetch(`${API_URL}/customer/cart`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    productId: product._id,
+                    quantity: quantity
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Failed to add to cart');
+            }
+
+            alert(`Added ${quantity} item(s) to cart!`);
+        } catch (err) {
+            console.error('Error adding to cart:', err);
+            setError(err.message);
+            alert( err.message);
+        } finally {
+            setIsAddingToCart(false);
+        }
     };
 
-    const handleWishlistToggle = () => {
-        setIsWishlist(!isWishlist);
+    // Toggle wishlist (single function)
+    const handleWishlistToggle = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                alert('Please login first');
+                navigate('/intentCart-auth');
+                return;
+            }
+
+            setIsTogglingWishlist(true);
+            setError('');
+
+            const method = isWishlist ? 'DELETE' : 'POST';
+            const url = isWishlist
+                ? `${API_URL}/customer/wishlist/${product._id}`
+                : `${API_URL}/customer/wishlist`;
+
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: method === 'POST' ? JSON.stringify({ productId: product._id }) : undefined
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Failed to update wishlist');
+            }
+
+            setIsWishlist(!isWishlist);
+            alert(isWishlist ? 'Removed from wishlist' : 'Added to wishlist');
+        } catch (err) {
+            console.error('Error updating wishlist:', err);
+            setError(err.message);
+            alert(err.message);
+        } finally {
+            setIsTogglingWishlist(false);
+        }
     };
+
+    // Check wishlist status on load
+    useEffect(() => {
+        const checkWishlistStatus = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                if (!token || !product) return;
+
+                const response = await fetch(`${API_URL}/customer/wishlist/check/${product._id}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    setIsWishlist(data.inWishlist);
+                }
+            } catch (err) {
+                console.error('Error checking wishlist:', err);
+            }
+        };
+
+        if (product) {
+            checkWishlistStatus();
+        }
+    }, [product]);
 
     const handleShare = () => {
         if (navigator.share) {
@@ -82,6 +187,14 @@ export default function ProductDetail() {
                 title: product?.name,
                 text: `Check out ${product?.name}`,
                 url: window.location.href
+            });
+        } else {
+            // Fallback: Copy to clipboard
+            navigator.clipboard?.writeText(window.location.href).then(() => {
+                alert('Link copied to clipboard!');
+            }).catch(() => {
+                // Fallback if clipboard API fails
+                prompt('Copy this link:', window.location.href);
             });
         }
     };
@@ -228,8 +341,8 @@ export default function ProductDetail() {
                                     <Star
                                         key={star}
                                         className={`w-4 h-4 ${star <= Math.round(product.ratings?.average || 0)
-                                                ? 'text-amber-400 fill-amber-400'
-                                                : 'text-gray-300'
+                                            ? 'text-amber-400 fill-amber-400'
+                                            : 'text-gray-300'
                                             }`}
                                     />
                                 ))}
@@ -310,17 +423,31 @@ export default function ProductDetail() {
                         <div className="flex flex-col sm:flex-row gap-3">
                             <button
                                 onClick={handleAddToCart}
-                                disabled={!isInStock}
+                                disabled={!isInStock || isAddingToCart}
                                 className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-lg transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                <ShoppingCart className="w-5 h-5" />
-                                {isInStock ? 'Add to Cart' : 'Out of Stock'}
+                                {isAddingToCart ? (
+                                    <>
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                        Adding...
+                                    </>
+                                ) : (
+                                    <>
+                                        <ShoppingCart className="w-5 h-5" />
+                                        {isInStock ? 'Add to Cart' : 'Out of Stock'}
+                                    </>
+                                )}
                             </button>
                             <button
                                 onClick={handleWishlistToggle}
-                                className="px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                                disabled={isTogglingWishlist}
+                                className="px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
                             >
-                                <Heart className={`w-5 h-5 ${isWishlist ? 'fill-red-500 text-red-500' : 'text-gray-600'}`} />
+                                {isTogglingWishlist ? (
+                                    <Loader2 className="w-5 h-5 animate-spin text-gray-600" />
+                                ) : (
+                                    <Heart className={`w-5 h-5 ${isWishlist ? 'fill-red-500 text-red-500' : 'text-gray-600'}`} />
+                                )}
                             </button>
                             <button
                                 onClick={handleShare}
@@ -360,8 +487,8 @@ export default function ProductDetail() {
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
                                 className={`py-4 text-sm font-medium capitalize transition border-b-2 ${activeTab === tab
-                                        ? 'border-indigo-600 text-indigo-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                                    ? 'border-indigo-600 text-indigo-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700'
                                     }`}
                             >
                                 {tab}

@@ -12,7 +12,7 @@ export default function Header() {
     const [cartCount, setCartCount] = useState(0);
     const [wishlistCount, setWishlistCount] = useState(0);
     const [notificationCount, setNotificationCount] = useState(0);
-    
+
     // Search states
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
@@ -69,15 +69,48 @@ export default function Header() {
     const fetchCounts = async (userData) => {
         try {
             const token = localStorage.getItem('token');
-            setCartCount(0);
-            setWishlistCount(0);
-            setNotificationCount(0);
+            if (!token) return;
+
+            // Fetch cart count
+            try {
+                const cartRes = await fetch(`${API_URL}/customer/cart`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (cartRes.ok) {
+                    const cartData = await cartRes.json();
+                    const items = cartData.cart?.items || [];
+                    const totalItems = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+                    setCartCount(totalItems);
+                }
+            } catch (e) { }
+
+            // Fetch wishlist count
+            try {
+                const wishRes = await fetch(`${API_URL}/customer/wishlist`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (wishRes.ok) {
+                    const wishData = await wishRes.json();
+                    setWishlistCount(wishData.wishlist?.products?.length || 0);
+                }
+            } catch (e) { }
+
+            // Fetch notification count
+            try {
+                const notifRes = await fetch(`${API_URL}/customer/notifications/unread-count`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (notifRes.ok) {
+                    const notifData = await notifRes.json();
+                    setNotificationCount(notifData.unreadCount || 0);
+                }
+            } catch (e) { }
         } catch (error) {
             console.error('Error fetching counts:', error);
         }
     };
 
-    // Search function - searches products by name, category, or brand
+    // Search function - uses /api/product/search
     const handleSearch = async (query) => {
         if (!query.trim() || query.length < 2) {
             setSearchResults([]);
@@ -89,8 +122,8 @@ export default function Header() {
         setShowSearchResults(true);
 
         try {
-            // Search across all products
-            const response = await fetch(`${API_URL}/products/search?q=${encodeURIComponent(query)}`, {
+            // Use /product/search endpoint
+            const response = await fetch(`${API_URL}/product/search?q=${encodeURIComponent(query)}`, {
                 headers: {
                     'Content-Type': 'application/json'
                 }

@@ -10,6 +10,10 @@ import WishlistPage from "./mainPanel/Wishlist.jsx";
 import CartPage from "./mainPanel/cart.jsx";
 import ProductDetail from "./mainPanel/productDetail.jsx";
 import CustProfile from './mainPanel/Profile.jsx';
+import CheckoutPage from "./mainPanel/Checkout.jsx";
+import OrderSuccess from "./mainPanel/OrderSuccess.jsx";
+import OrdersPage from './mainPanel/OrderPage.jsx';
+import OrderDetailPage from './mainPanel/OrderDetailPage.jsx';
 
 // Admin Panel
 import AdminDashboard from "./adminPanel/dashboard.jsx";
@@ -58,12 +62,16 @@ function App() {
           <Route path="/merchant-profile" element={<MerchantProfile />} />
 
           {/* Main Panel Paths  */}
-          <Route path="/category/:path*" element={<CategoryPage />} />
+          <Route path="/category/:path/*" element={<CategoryPage />} />          
           <Route path="/main-notifications" element={<NotificationsPage />} />
           <Route path="/main-wishlist" element={<WishlistPage />} />
           <Route path="/main-cart" element={<CartPage />} />
           <Route path="/product/:slug" element={<ProductDetail />} />
           <Route path="/main-profile" element={<CustProfile />} />
+          <Route path="/checkout" element={<CheckoutPage />} />
+          <Route path="/order-success/:orderId" element={<OrderSuccess />} />
+          <Route path="/orders" element={<OrdersPage />} />
+          <Route path="/order/:id" element={<OrderDetailPage />} />
 
         </Routes>
       </BrowserRouter>
