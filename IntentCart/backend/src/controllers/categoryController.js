@@ -1,5 +1,6 @@
 import Category from '../models/Category.js';
 import Product from '../models/Product.js';
+import Notification from '../models/Notifications.js';
 
 // @desc    Get top-level categories for public
 // @route   GET /api/categories/top
@@ -286,4 +287,271 @@ const buildCategoryTree = (categories, parentId = null) => {
   }
 
   return result;
+};
+
+// @desc    Search products
+// @route   GET /api/products/search
+// @access  Public
+export const searchProducts = async (req, res) => {
+  try {
+    const { q } = req.query;
+
+    if (!q || q.length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: 'Search query must be at least 2 characters'
+      });
+    }
+
+    // Search in name, description, category name, and brand
+    const products = await Product.find({
+      $or: [
+        { name: { $regex: q, $options: 'i' } },
+        { description: { $regex: q, $options: 'i' } },
+        { shortDescription: { $regex: q, $options: 'i' } },
+        { brand: { $regex: q, $options: 'i' } },
+        { tags: { $regex: q, $options: 'i' } }
+      ],
+      status: 'active',
+      approvalStatus: 'approved'
+    })
+      .populate('categoryId', 'name slug')
+      .populate('subcategoryId', 'name slug')
+      .limit(10)
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: products.length,
+      products
+    });
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// ==================== CUSTOMER NOTIFICATIONS ====================
+
+// @desc    Get customer notifications
+// @route   GET /api/customer/notifications
+// @access  Private (Customer)
+export const getCustomerNotifications = async (req, res) => {
+  try {
+    const customerId = req.user._id;
+    const { limit = 50, page = 1, read, type } = req.query;
+
+    // console.log(`Fetching notifications for customer: ${customerId}`);
+
+    let query = {
+      panel: 'customer',
+      customerId: customerId
+    };
+
+    if (read !== undefined) {
+      query.read = read === 'true';
+    }
+
+    if (type) {
+      query.type = type;
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const notifications = await Notification.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const total = await Notification.countDocuments(query);
+    const unreadCount = await Notification.countDocuments({
+      panel: 'customer',
+      customerId: customerId,
+      read: false
+    });
+
+    // Count by type
+    const orderCount = await Notification.countDocuments({
+      panel: 'customer',
+      customerId: customerId,
+      type: 'order'
+    });
+    const promoCount = await Notification.countDocuments({
+      panel: 'customer',
+      customerId: customerId,
+      type: { $in: ['promo', 'price'] }
+    });
+
+    res.status(200).json({
+      success: true,
+      count: notifications.length,
+      total,
+      unreadCount,
+      orderCount,
+      promoCount,
+      notifications
+    });
+  } catch (error) {
+    console.error('Error fetching customer notifications:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Mark customer notification as read
+// @route   PUT /api/customer/notifications/:id/read
+// @access  Private (Customer)
+export const markCustomerNotificationAsRead = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const customerId = req.user._id;
+
+    const notification = await Notification.findOneAndUpdate(
+      { _id: id, panel: 'customer', customerId: customerId },
+      {
+        read: true,
+        readAt: new Date()
+      },
+      { new: true }
+    );
+
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notification not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Notification marked as read',
+      notification
+    });
+  } catch (error) {
+    console.error('Error marking customer notification as read:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Mark all customer notifications as read
+// @route   PUT /api/customer/notifications/read-all
+// @access  Private (Customer)
+export const markAllCustomerNotificationsAsRead = async (req, res) => {
+  try {
+    const customerId = req.user._id;
+
+    await Notification.updateMany(
+      { panel: 'customer', customerId: customerId, read: false },
+      {
+        read: true,
+        readAt: new Date()
+      }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'All notifications marked as read'
+    });
+  } catch (error) {
+    console.error('Error marking all customer notifications as read:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Delete customer notification
+// @route   DELETE /api/customer/notifications/:id
+// @access  Private (Customer)
+export const deleteCustomerNotification = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const customerId = req.user._id;
+
+    const notification = await Notification.findOneAndDelete({
+      _id: id,
+      panel: 'customer',
+      customerId: customerId
+    });
+
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notification not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Notification deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting customer notification:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get customer unread count
+// @route   GET /api/customer/notifications/unread-count
+// @access  Private (Customer)
+export const getCustomerUnreadCount = async (req, res) => {
+  try {
+    const customerId = req.user._id;
+
+    const count = await Notification.countDocuments({
+      panel: 'customer',
+      customerId: customerId,
+      read: false
+    });
+
+    res.status(200).json({
+      success: true,
+      unreadCount: count
+    });
+  } catch (error) {
+    console.error('Error getting customer unread count:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// ==================== CUSTOMER NOTIFICATION TRIGGERS ====================
+
+// @desc    Create notification for customer (internal use)
+export const createCustomerNotification = async (customerId, title, message, type, category, metadata = {}) => {
+  try {
+    await Notification.create({
+      title,
+      message,
+      type: type || 'info',
+      category: category || 'General',
+      panel: 'customer',
+      customerId: customerId,
+      isGlobal: false,
+      metadata
+    });
+    // console.log(`Customer notification created: ${title}`);
+  } catch (error) {
+    console.error('Error creating customer notification:', error);
+  }
 };

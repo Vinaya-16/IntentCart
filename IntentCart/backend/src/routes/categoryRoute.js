@@ -3,7 +3,10 @@ import {
   getTopCategories,
   getAllCategories,
   getCategoryBySlug,
-  getCategoryByPath 
+  getCategoryByPath,
+
+  searchProducts,
+
 } from '../controllers/categoryController.js';
 
 const router = express.Router();
@@ -13,5 +16,7 @@ router.get('/categories/top', getTopCategories);
 router.get('/categories', getAllCategories);
 router.get('/categories/:slug', getCategoryBySlug);
 router.get('/categories/path/:path(*)', getCategoryByPath);
+
+router.get('/products/search', searchProducts);
 
 export default router;
