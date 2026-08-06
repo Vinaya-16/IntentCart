@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
 const userSchema = new mongoose.Schema({
+  // ==================== BASIC INFO ====================
   username: {
     type: String,
     required: [true, 'Username is required'],
@@ -29,23 +30,39 @@ const userSchema = new mongoose.Schema({
     default: 'customer',
     required: [true, 'Role is required']
   },
-  merchantStatus: {
+
+  // ==================== PERSONAL INFO ====================
+  firstName: {
     type: String,
-    enum: ['pending', 'approved', 'rejected'],
-    default: 'pending'
+    trim: true
   },
-  isApproved: {
-    type: Boolean,
-    default: false
-  },
-  profileImage: {
+  lastName: {
     type: String,
-    default: null
+    trim: true
+  },
+  name: {
+    type: String,
+    trim: true
   },
   phone: {
     type: String,
     trim: true
   },
+  mobile: {
+    type: String,
+    trim: true
+  },
+  dob: {
+    type: String,
+    trim: true
+  },
+  gender: {
+    type: String,
+    enum: ['Male', 'Female', 'Other', ''],
+    default: ''
+  },
+
+  // ==================== ADDRESS ====================
   address: {
     street: String,
     city: String,
@@ -53,6 +70,45 @@ const userSchema = new mongoose.Schema({
     country: String,
     zipCode: String
   },
+  // Flat address fields (for simpler profile)
+  addressLine: {
+    type: String,
+    trim: true
+  },
+  city: {
+    type: String,
+    trim: true
+  },
+  state: {
+    type: String,
+    trim: true
+  },
+  zipCode: {
+    type: String,
+    trim: true
+  },
+  country: {
+    type: String,
+    trim: true
+  },
+
+  // ==================== AVATAR & IMAGES ====================
+  avatarUrl: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  profileImage: {
+    type: String,
+    default: null
+  },
+  coverImage: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+
+  // ==================== ACCOUNT STATUS ====================
   isActive: {
     type: Boolean,
     default: true
@@ -61,14 +117,28 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  isApproved: {
+    type: Boolean,
+    default: function() {
+      return this.role === 'admin' || this.role === 'customer';
+    }
+  },
   lastLogin: {
     type: Date
   },
-  // Merchant specific fields
+
+  // ==================== MERCHANT SPECIFIC ====================
+  merchantStatus: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: function() {
+      return this.role === 'merchant' ? 'pending' : 'approved';
+    }
+  },
   businessName: {
     type: String,
     trim: true,
-    required: function () {
+    required: function() {
       return this.role === 'merchant';
     }
   },
@@ -89,71 +159,91 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null
   },
-  businessStatus: {
-    type: String,
-    enum: ['pending', 'approved', 'rejected'],
-    default: function () {
-      return this.role === 'merchant' ? 'pending' : 'approved';
-    }
-  },
-  // Admin specific fields
+
+  // ==================== ADMIN SPECIFIC ====================
   adminPermissions: {
     type: [String],
     default: [],
     enum: ['users', 'products', 'orders', 'reviews', 'settings', 'analytics']
   },
-  // Add these to your userSchema
-  firstName: {
+
+  // ==================== CUSTOMER SPECIFIC ====================
+  tier: {
     type: String,
-    trim: true
+    enum: ['Silver Member', 'Gold Member', 'Platinum Member'],
+    default: 'Silver Member'
   },
-  lastName: {
-    type: String,
-    trim: true
+  rewardPoints: {
+    type: Number,
+    default: 0
   },
-  address: {
-    type: String,
-    trim: true
+  totalOrders: {
+    type: Number,
+    default: 0
   },
-  city: {
-    type: String,
-    trim: true
+  wishlistCount: {
+    type: Number,
+    default: 0
   },
-  stateZip: {
-    type: String,
-    trim: true
-  },
-  country: {
-    type: String,
-    trim: true
-  },
-  mobile: {
-    type: String,
-    trim: true
-  },
-  phone: {
-    type: String,
-    trim: true
-  },
-  dob: {
-    type: String,
-    trim: true
-  },
-  gender: {
-    type: String,
-    enum: ['Male', 'Female', 'Other', ''],
-    default: ''
-  },
-  avatarUrl: {
-    type: String,
-    trim: true
-  }
+
+  // ==================== ADDRESSES (Array) ====================
+  addresses: [{
+    type: {
+      type: String,
+      enum: ['Home', 'Work', 'Other'],
+      default: 'Home'
+    },
+    street: {
+      type: String,
+      required: true
+    },
+    city: {
+      type: String,
+      required: true
+    },
+    state: {
+      type: String,
+      required: true
+    },
+    zip: {
+      type: String,
+      required: true
+    },
+    isDefault: {
+      type: Boolean,
+      default: false
+    }
+  }],
+
+  // ==================== PAYMENTS ====================
+  payments: [{
+    brand: {
+      type: String,
+      enum: ['Visa', 'Mastercard', 'Amex', 'Card'],
+      default: 'Card'
+    },
+    last4: {
+      type: String,
+      required: true
+    },
+    expiry: {
+      type: String,
+      required: true
+    },
+    isDefault: {
+      type: Boolean,
+      default: false
+    }
+  }]
+
 }, {
   timestamps: true
 });
 
+// ==================== MIDDLEWARE ====================
+
 // Hash password before saving
-userSchema.pre('save', async function (next) {
+userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
 
   try {
@@ -165,13 +255,15 @@ userSchema.pre('save', async function (next) {
   }
 });
 
+// ==================== METHODS ====================
+
 // Compare password method
-userSchema.methods.comparePassword = async function (candidatePassword) {
+userSchema.methods.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
 // Remove sensitive data when converting to JSON
-userSchema.methods.toJSON = function () {
+userSchema.methods.toJSON = function() {
   const user = this.toObject();
   delete user.password;
   delete user.__v;

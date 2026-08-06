@@ -8,6 +8,8 @@ import Auth from "./components/Auth.jsx";
 import NotificationsPage from "./mainPanel/Notifications.jsx";
 import WishlistPage from "./mainPanel/Wishlist.jsx";
 import CartPage from "./mainPanel/cart.jsx";
+import ProductDetail from "./mainPanel/productDetail.jsx";
+import CustProfile from './mainPanel/Profile.jsx';
 
 // Admin Panel
 import AdminDashboard from "./adminPanel/dashboard.jsx";
@@ -57,9 +59,11 @@ function App() {
 
           {/* Main Panel Paths  */}
           <Route path="/category/:path*" element={<CategoryPage />} />
-          <Route path="/main-notifications" element={<NotificationsPage />}/>
-          <Route path="/main-wishlist" element={<WishlistPage />}/>
-          <Route path="/main-cart" element={<CartPage />}/>
+          <Route path="/main-notifications" element={<NotificationsPage />} />
+          <Route path="/main-wishlist" element={<WishlistPage />} />
+          <Route path="/main-cart" element={<CartPage />} />
+          <Route path="/product/:slug" element={<ProductDetail />} />
+          <Route path="/main-profile" element={<CustProfile />} />
 
         </Routes>
       </BrowserRouter>

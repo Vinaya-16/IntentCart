@@ -16,6 +16,8 @@ import categoryRoute from './src/routes/categoryRoute.js';
 
 import customerRoute from './src/routes/customerRoute.js';
 
+import productRoute from './src/routes/productRoute.js';
+
 // Load environment variables
 dotenv.config();
 
@@ -54,6 +56,8 @@ app.use('/api/merchant', merchantRoute);
 app.use('/api', categoryRoute);
 
 app.use('/api/customer', customerRoute);
+
+app.use('/api/product', productRoute);
 
 // Health check
 app.get('/health', (req, res) => {
