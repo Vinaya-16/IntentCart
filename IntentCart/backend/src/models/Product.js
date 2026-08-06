@@ -29,6 +29,7 @@ const productSchema = new mongoose.Schema({
         trim: true,
         maxlength: [300, 'Short description cannot exceed 300 characters']
     },
+
     // Category fields
     categoryId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -51,6 +52,17 @@ const productSchema = new mongoose.Schema({
     compareAtPrice: {
         type: Number,
         min: [0, 'Price cannot be negative']
+    },
+    // In Product model
+    discount: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100
+    },
+    isFeatured: {
+        type: Boolean,
+        default: false
     },
     costPerItem: {
         type: Number,
