@@ -240,7 +240,7 @@ const Dashboard = () => {
             images: [...productForm.images, {
                 url: imageUrlInput,
                 alt: productForm.name || 'Product image',
-                isPrimary: productForm.images.length === 0 // First image is primary
+                isPrimary: productForm.images.length === 0
             }]
         });
         setImageUrlInput('');
@@ -368,6 +368,13 @@ const Dashboard = () => {
                 return;
             }
 
+            // Validate category
+            if (!productForm.categoryId) {
+                setError('Please select a category');
+                setActionLoading(null);
+                return;
+            }
+
             // Ensure images are properly formatted
             const formattedImages = productForm.images.map(img => ({
                 url: img.url,
@@ -376,22 +383,22 @@ const Dashboard = () => {
             }));
 
             const productData = {
-                name: productForm.name,
-                description: productForm.description,
-                shortDescription: productForm.shortDescription || '',
+                name: productForm.name.trim(),
+                description: productForm.description.trim(),
+                shortDescription: productForm.shortDescription?.trim() || '',
                 categoryId: productForm.categoryId,
                 subcategoryId: productForm.subcategoryId || null,
                 microCategoryId: productForm.microCategoryId || null,
-                price: parseFloat(productForm.price),
+                price: parseFloat(productForm.price) || 0,
                 compareAtPrice: productForm.compareAtPrice ? parseFloat(productForm.compareAtPrice) : null,
                 costPerItem: productForm.costPerItem ? parseFloat(productForm.costPerItem) : null,
                 stock: parseInt(productForm.stock) || 0,
-                sku: productForm.sku || '',
+                sku: productForm.sku?.trim() || '',
                 status: productForm.status || 'draft',
                 images: formattedImages
             };
 
-            // console.log('Updating product with images:', JSON.stringify(productData, null, 2));
+            // console.log('Updating product:', JSON.stringify(productData, null, 2));
 
             const response = await fetch(`${API_URL}/products/${editingProduct._id}`, {
                 method: 'PUT',
@@ -409,7 +416,6 @@ const Dashboard = () => {
 
             const data = await response.json();
             // console.log('Product updated:', data.product);
-            // console.log('Images updated:', data.product.images);
 
             setSuccess('Product updated successfully!');
             setEditingProduct(null);
@@ -541,6 +547,8 @@ const Dashboard = () => {
 
     // Edit product - populate form
     const handleEditProduct = (product) => {
+        // console.log('Editing product:', product);
+
         setEditingProduct(product);
         setProductForm({
             name: product.name || '',
@@ -623,13 +631,15 @@ const Dashboard = () => {
                     <main className="flex-1 p-8 overflow-y-auto">
                         {/* Error/Success Messages */}
                         {error && (
-                            <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg border border-red-200">
-                                <Cross /> {error}
+                            <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg border border-red-200 flex items-center gap-2">
+                                <X className="w-4 h-4" />
+                                {error}
                             </div>
                         )}
                         {success && (
-                            <div className="mb-4 p-3 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-200">
-                                <MoveRight /> {success}
+                            <div className="mb-4 p-3 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-200 flex items-center gap-2">
+                                <CheckCircle className="w-4 h-4" />
+                                {success}
                             </div>
                         )}
 

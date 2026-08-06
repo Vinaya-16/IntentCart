@@ -41,14 +41,14 @@ export const getCategoryByPath = async (req, res) => {
     let products = [];
     let breadcrumbs = [];
 
-    console.log('🔍 Fetching category path:', slugs);
+    // console.log('Fetching category path:', slugs);
 
     // Find the first category (level 0)
     let query = { slug: slugs[0], level: 0 };
     let parent = await Category.findOne(query);
     
     if (!parent) {
-      console.log('❌ Top-level category not found:', slugs[0]);
+      // console.log('Top-level category not found:', slugs[0]);
       return res.status(404).json({
         success: false,
         message: 'Category not found'
@@ -66,7 +66,7 @@ export const getCategoryByPath = async (req, res) => {
       });
       
       if (!child) {
-        console.log('❌ Subcategory not found:', slugs[i]);
+        // console.log('Subcategory not found:', slugs[i]);
         break;
       }
       
@@ -74,8 +74,8 @@ export const getCategoryByPath = async (req, res) => {
       currentCategory = child;
     }
 
-    console.log('✅ Current category:', currentCategory.name);
-    console.log('📊 Breadcrumbs:', breadcrumbs.map(c => c.name).join(' → '));
+    // console.log('Current category:', currentCategory.name);
+    // console.log('Breadcrumbs:', breadcrumbs.map(c => c.name).join(' → '));
 
     // Get subcategories of the current category
     subcategories = await Category.find({
@@ -83,7 +83,7 @@ export const getCategoryByPath = async (req, res) => {
       isActive: true
     }).sort({ order: 1 });
 
-    console.log('📂 Subcategories found:', subcategories.length);
+    // console.log('Subcategories found:', subcategories.length);
 
     // Get product count for each subcategory
     for (let sub of subcategories) {
@@ -112,7 +112,7 @@ export const getCategoryByPath = async (req, res) => {
     .limit(20)
     .sort({ createdAt: -1 });
 
-    console.log('📦 Products found:', products.length);
+    // console.log('Products found:', products.length);
 
     res.status(200).json({
       success: true,
@@ -147,7 +147,7 @@ export const getCategoryByPath = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error fetching category path:', error);
+    // console.error('Error fetching category path:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
