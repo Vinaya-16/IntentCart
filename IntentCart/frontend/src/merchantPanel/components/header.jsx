@@ -227,7 +227,7 @@ const Header = () => {
                 <span>Dashboard</span>
               </button> */}
 
-              {/* <button
+              <button
                 type="button"
                 onClick={() => {
                   setIsProfileOpen(false);
@@ -237,36 +237,7 @@ const Header = () => {
               >
                 <UserCircle className="w-4 h-4 text-slate-600" />
                 <span>Profile Settings</span>
-              </button> */}
-
-              {/* <button
-                type="button"
-                onClick={() => {
-                  setIsProfileOpen(false);
-                  navigate('/merchant-notifications');
-                }}
-                className="w-full flex items-center gap-2 px-4 py-2 text-sm font-medium hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                <Bell className="w-4 h-4 text-slate-600" />
-                <span>Notifications</span>
-                {notificationCount > 0 && (
-                  <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full px-2 py-0.5">
-                    {notificationCount}
-                  </span>
-                )}
-              </button> */}
-
-              {/* <button
-                type="button"
-                onClick={() => {
-                  setIsProfileOpen(false);
-                  navigate('/merchant-productM');
-                }}
-                className="w-full flex items-center gap-2 px-4 py-2 text-sm font-medium hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                <Store className="w-4 h-4 text-slate-600" />
-                <span>My Products</span>
-              </button> */}
+              </button>
 
               <div className="my-1 border-t border-slate-100" />
 

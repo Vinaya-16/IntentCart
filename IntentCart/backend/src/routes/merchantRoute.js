@@ -35,6 +35,13 @@ import {
 
 } from '../controllers/merchantController.js';
 
+import {
+    getMerchantOrders,
+    getMerchantOrderById,
+    updateOrderStatus,
+    getOrderStats
+} from '../controllers/merchantOrderController.js';
+
 const router = express.Router();
 
 // All merchant routes require authentication
@@ -69,5 +76,11 @@ router.get('/profile', getMerchantProfile);
 router.put('/profile', updateMerchantProfile);
 router.put('/change-password', changeMerchantPassword);
 router.put('/avatar', updateMerchantAvatar);
+
+// ==================== ORDER MANAGEMENT ====================
+router.get('/orders', getMerchantOrders);
+router.get('/orders/stats', getOrderStats);
+router.get('/orders/:id', getMerchantOrderById);
+router.put('/orders/:id/status', updateOrderStatus);
 
 export default router;

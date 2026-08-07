@@ -76,10 +76,13 @@ const Dashboard = () => {
     const getToken = () => localStorage.getItem('token');
 
     // Fetch dashboard stats
+    // Fetch dashboard stats - with better error handling
     const fetchStats = async () => {
         try {
             const token = getToken();
             if (!token) return;
+
+            // console.log('Fetching dashboard stats...');
 
             const response = await fetch(`${API_URL}/dashboard-stats`, {
                 headers: {
@@ -95,14 +98,26 @@ const Dashboard = () => {
                 return;
             }
 
-            if (!response.ok) throw new Error('Failed to fetch stats');
+            if (!response.ok) {
+                throw new Error('Failed to fetch stats');
+            }
 
             const data = await response.json();
+            // console.log('Stats received:', data);
+
             if (data.success) {
-                setStats(data.stats);
+                setStats({
+                    totalProducts: data.stats.totalProducts || 0,
+                    activeProducts: data.stats.activeProducts || 0,
+                    pendingProducts: data.stats.pendingProducts || 0,
+                    outOfStock: data.stats.outOfStock || 0,
+                    lowStock: data.stats.lowStock || 0,
+                    totalInventoryValue: data.stats.totalInventoryValue || 0
+                });
             }
         } catch (err) {
             console.error('Error fetching stats:', err);
+            // Don't show error to user, just keep existing stats
         }
     };
 

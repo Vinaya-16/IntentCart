@@ -139,7 +139,7 @@ export const triggerProductRejectedNotification = async (merchantId, productName
             actionLabel: 'View Details',
             metadata: { productId, productName, reason }
         });
-        console.log(`Product rejection notification sent to merchant: ${merchantId}`);
+        // console.log(`Product rejection notification sent to merchant: ${merchantId}`);
     } catch (error) {
         console.error('Error creating product rejection notification:', error);
     }
@@ -658,28 +658,42 @@ export const getMerchantDashboardStats = async (req, res) => {
     try {
         const merchantId = req.user._id;
 
+        // Get all products for this merchant
         const totalProducts = await Product.countDocuments({ merchantId });
+
+        // Active products (approved and active)
         const activeProducts = await Product.countDocuments({
             merchantId,
             status: 'active',
             approvalStatus: 'approved'
         });
+
+        // Pending products (pending approval)
         const pendingProducts = await Product.countDocuments({
             merchantId,
             approvalStatus: 'pending'
         });
+
+        // Out of stock (active products with 0 stock)
         const outOfStock = await Product.countDocuments({
             merchantId,
             stock: 0,
             status: 'active'
         });
+
+        // Low stock (active products with stock between 1 and 10)
         const lowStock = await Product.countDocuments({
             merchantId,
             stock: { $gt: 0, $lte: 10 },
             status: 'active'
         });
 
-        const products = await Product.find({ merchantId, status: 'active' });
+        // Get total inventory value (sum of price * stock for active products)
+        const products = await Product.find({
+            merchantId,
+            status: 'active',
+            approvalStatus: 'approved'
+        });
         const totalInventoryValue = products.reduce((sum, p) => sum + (p.price * p.stock), 0);
 
         res.status(200).json({
@@ -925,7 +939,7 @@ export const getMerchantUnreadCount = async (req, res) => {
 const triggerProfileUpdatedNotification = async (merchantId) => {
     try {
         await Notification.create({
-            title: '👤 Profile Updated',
+            title: 'Profile Updated',
             message: 'Your merchant profile has been updated successfully.',
             type: 'success',
             category: 'Updates',
@@ -990,7 +1004,7 @@ const triggerAvatarUpdatedNotification = async (merchantId) => {
 export const getMerchantProfile = async (req, res) => {
     try {
         const merchant = await User.findById(req.user._id).select('-password');
-        
+
         if (!merchant) {
             return res.status(404).json({
                 success: false,
@@ -1009,7 +1023,7 @@ export const getMerchantProfile = async (req, res) => {
             businessPhone: merchant.businessPhone || '',
             phone: merchant.phone || merchant.businessPhone || '',
             avatarUrl: merchant.avatarUrl || '',
-            initials: merchant.businessName 
+            initials: merchant.businessName
                 ? merchant.businessName.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2)
                 : merchant.username?.slice(0, 2).toUpperCase() || 'MS',
             isApproved: merchant.isApproved,
@@ -1057,7 +1071,7 @@ export const updateMerchantProfile = async (req, res) => {
         if (businessAddress !== undefined) updates.businessAddress = businessAddress;
         if (businessPhone !== undefined) updates.businessPhone = businessPhone;
         if (phone !== undefined) updates.phone = phone;
-        
+
         // Email update - check if it's not already taken
         if (email && email !== merchant.email) {
             const existingUser = await User.findOne({ email, _id: { $ne: merchantId } });
@@ -1091,7 +1105,7 @@ export const updateMerchantProfile = async (req, res) => {
             businessPhone: updatedMerchant.businessPhone || '',
             phone: updatedMerchant.phone || updatedMerchant.businessPhone || '',
             avatarUrl: updatedMerchant.avatarUrl || '',
-            initials: updatedMerchant.businessName 
+            initials: updatedMerchant.businessName
                 ? updatedMerchant.businessName.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2)
                 : updatedMerchant.username?.slice(0, 2).toUpperCase() || 'MS',
             isApproved: updatedMerchant.isApproved,
