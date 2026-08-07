@@ -9,7 +9,7 @@ import Notification from '../models/Notifications.js';
 export const getCustomerProfile = async (req, res) => {
     try {
         const customer = await User.findById(req.user._id).select('-password');
-        
+
         if (!customer) {
             return res.status(404).json({
                 success: false,
@@ -17,12 +17,21 @@ export const getCustomerProfile = async (req, res) => {
             });
         }
 
-        // Format profile data
+        // Format profile data with all fields
         const profileData = {
             id: customer._id,
             name: customer.name || customer.username || 'Customer',
+            firstName: customer.firstName || '',
+            lastName: customer.lastName || '',
             email: customer.email,
             phone: customer.phone || '',
+            mobile: customer.mobile || '',
+            address: customer.address || '',
+            city: customer.city || '',
+            stateZip: customer.stateZip || '',
+            country: customer.country || '',
+            dob: customer.dob || '',
+            gender: customer.gender || '',
             avatar: customer.avatarUrl || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=250',
             cover: customer.coverImage || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=1200',
             memberSince: customer.createdAt ? new Date(customer.createdAt).toLocaleDateString('en-US', {
@@ -58,7 +67,10 @@ export const getCustomerProfile = async (req, res) => {
 // @access  Private (Customer)
 export const updateCustomerProfile = async (req, res) => {
     try {
-        const { name, email, phone } = req.body;
+        const {
+            name, firstName, lastName, email, phone, mobile,
+            address, city, stateZip, country, dob, gender
+        } = req.body;
         const customerId = req.user._id;
 
         const customer = await User.findById(customerId);
@@ -80,10 +92,19 @@ export const updateCustomerProfile = async (req, res) => {
             }
         }
 
-        // Update fields
+        // Update all fields
         if (name) customer.name = name;
+        if (firstName) customer.firstName = firstName;
+        if (lastName) customer.lastName = lastName;
         if (email) customer.email = email;
         if (phone) customer.phone = phone;
+        if (mobile) customer.mobile = mobile;
+        if (address) customer.address = address;
+        if (city) customer.city = city;
+        if (stateZip) customer.stateZip = stateZip;
+        if (country) customer.country = country;
+        if (dob) customer.dob = dob;
+        if (gender) customer.gender = gender;
 
         await customer.save();
 
@@ -103,12 +124,97 @@ export const updateCustomerProfile = async (req, res) => {
             message: 'Profile updated successfully',
             profile: {
                 name: customer.name,
+                firstName: customer.firstName,
+                lastName: customer.lastName,
                 email: customer.email,
-                phone: customer.phone
+                phone: customer.phone,
+                mobile: customer.mobile,
+                address: customer.address,
+                city: customer.city,
+                stateZip: customer.stateZip,
+                country: customer.country,
+                dob: customer.dob,
+                gender: customer.gender
             }
         });
     } catch (error) {
         console.error('Error updating customer profile:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Change customer password
+// @route   PUT /api/customer/change-password
+// @access  Private (Customer)
+export const changeCustomerPassword = async (req, res) => {
+    try {
+        const customerId = req.user._id;
+        const { currentPassword, newPassword, confirmPassword } = req.body;
+
+        // Validate inputs
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please provide all password fields'
+            });
+        }
+
+        if (newPassword !== confirmPassword) {
+            return res.status(400).json({
+                success: false,
+                message: 'New passwords do not match'
+            });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: 'New password must be at least 6 characters'
+            });
+        }
+
+        // Get customer with password
+        const customer = await User.findById(customerId);
+        if (!customer) {
+            return res.status(404).json({
+                success: false,
+                message: 'Customer not found'
+            });
+        }
+
+        // Verify current password
+        const isPasswordValid = await customer.comparePassword(currentPassword);
+        if (!isPasswordValid) {
+            return res.status(401).json({
+                success: false,
+                message: 'Current password is incorrect'
+            });
+        }
+
+        // Update password
+        customer.password = newPassword;
+        await customer.save();
+
+        await Notification.create({
+            title: 'Password Changed',
+            message: 'Your password has been changed successfully.',
+            type: 'system',
+            category: 'System',
+            panel: 'customer',
+            customerId: customerId,
+            isGlobal: false
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Password changed successfully'
+        });
+    } catch (error) {
+        console.error('Error changing customer password:', error);
         res.status(500).json({
             success: false,
             message: 'Server error',
@@ -305,6 +411,49 @@ export const deletePaymentMethod = async (req, res) => {
         });
     } catch (error) {
         console.error('Error deleting payment method:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Update customer cover image
+// @route   PUT /api/customer/cover
+// @access  Private (Customer)
+export const updateCustomerCover = async (req, res) => {
+    try {
+        const { coverUrl } = req.body;
+        const customerId = req.user._id;
+
+        if (!coverUrl) {
+            return res.status(400).json({
+                success: false,
+                message: 'Cover image URL is required'
+            });
+        }
+
+        const customer = await User.findByIdAndUpdate(
+            customerId,
+            { coverImage: coverUrl },
+            { new: true }
+        ).select('-password');
+
+        if (!customer) {
+            return res.status(404).json({
+                success: false,
+                message: 'Customer not found'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Cover image updated successfully',
+            coverUrl: customer.coverImage
+        });
+    } catch (error) {
+        console.error('Error updating cover image:', error);
         res.status(500).json({
             success: false,
             message: 'Server error',

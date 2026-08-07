@@ -150,17 +150,15 @@ export default function CheckoutPage() {
   };
 
   // Place order
-  // In Checkout.jsx
+  // In Checkout.jsx - handlePlaceOrder function
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
 
-    // Validate terms
     if (!formData.agreeTerms) {
       setError('Please agree to the terms and conditions');
       return;
     }
 
-    // Validate shipping address
     if (!formData.shippingAddress.street || !formData.shippingAddress.city) {
       setError('Please provide a complete shipping address');
       return;
@@ -178,7 +176,6 @@ export default function CheckoutPage() {
         return;
       }
 
-      // Prepare order data with proper structure
       const orderData = {
         shippingAddress: {
           street: formData.shippingAddress.street || '',
@@ -190,8 +187,6 @@ export default function CheckoutPage() {
         },
         paymentMethod: formData.paymentMethod
       };
-
-      // console.log('Placing order:', orderData);
 
       const response = await fetch(`${API_URL}/orders`, {
         method: 'POST',
@@ -210,6 +205,7 @@ export default function CheckoutPage() {
 
       if (data.success) {
         setSuccess('Order placed successfully!');
+        // Navigate with orderId
         setTimeout(() => {
           navigate(`/order-success/${data.order?.orderId}`);
         }, 1500);

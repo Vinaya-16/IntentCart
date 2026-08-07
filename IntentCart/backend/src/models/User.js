@@ -32,15 +32,15 @@ const userSchema = new mongoose.Schema({
   },
 
   // ==================== PERSONAL INFO ====================
+  name: {
+    type: String,
+    trim: true
+  },
   firstName: {
     type: String,
     trim: true
   },
   lastName: {
-    type: String,
-    trim: true
-  },
-  name: {
     type: String,
     trim: true
   },
@@ -61,17 +61,7 @@ const userSchema = new mongoose.Schema({
     enum: ['Male', 'Female', 'Other', ''],
     default: ''
   },
-
-  // ==================== ADDRESS ====================
   address: {
-    street: String,
-    city: String,
-    state: String,
-    country: String,
-    zipCode: String
-  },
-  // Flat address fields (for simpler profile)
-  addressLine: {
     type: String,
     trim: true
   },
@@ -79,11 +69,7 @@ const userSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
-  state: {
-    type: String,
-    trim: true
-  },
-  zipCode: {
+  stateZip: {
     type: String,
     trim: true
   },
@@ -96,16 +82,12 @@ const userSchema = new mongoose.Schema({
   avatarUrl: {
     type: String,
     trim: true,
-    default: ''
-  },
-  profileImage: {
-    type: String,
-    default: null
+    default: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=250'
   },
   coverImage: {
     type: String,
     trim: true,
-    default: ''
+    default: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=1200'
   },
 
   // ==================== ACCOUNT STATUS ====================
@@ -113,15 +95,13 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  isApproved: {
+    type: Boolean,
+    default: true
+  },
   isEmailVerified: {
     type: Boolean,
     default: false
-  },
-  isApproved: {
-    type: Boolean,
-    default: function() {
-      return this.role === 'admin' || this.role === 'customer';
-    }
   },
   lastLogin: {
     type: Date
@@ -131,21 +111,15 @@ const userSchema = new mongoose.Schema({
   merchantStatus: {
     type: String,
     enum: ['pending', 'approved', 'rejected'],
-    default: function() {
-      return this.role === 'merchant' ? 'pending' : 'approved';
-    }
+    default: 'approved'
   },
   businessName: {
     type: String,
-    trim: true,
-    required: function() {
-      return this.role === 'merchant';
-    }
+    trim: true
   },
   businessDescription: {
     type: String,
-    trim: true,
-    maxlength: [500, 'Description cannot exceed 500 characters']
+    trim: true
   },
   businessAddress: {
     type: String,
@@ -154,17 +128,6 @@ const userSchema = new mongoose.Schema({
   businessPhone: {
     type: String,
     trim: true
-  },
-  businessLogo: {
-    type: String,
-    default: null
-  },
-
-  // ==================== ADMIN SPECIFIC ====================
-  adminPermissions: {
-    type: [String],
-    default: [],
-    enum: ['users', 'products', 'orders', 'reviews', 'settings', 'analytics']
   },
 
   // ==================== CUSTOMER SPECIFIC ====================
@@ -186,7 +149,7 @@ const userSchema = new mongoose.Schema({
     default: 0
   },
 
-  // ==================== ADDRESSES (Array) ====================
+  // ==================== ADDRESSES ====================
   addresses: [{
     type: {
       type: String,
@@ -219,7 +182,7 @@ const userSchema = new mongoose.Schema({
   payments: [{
     brand: {
       type: String,
-      enum: ['Visa', 'Mastercard', 'Amex', 'Card'],
+      enum: ['Visa', 'Mastercard', 'Amex', 'Card', 'American Express', 'Discover'],
       default: 'Card'
     },
     last4: {
@@ -240,10 +203,8 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// ==================== MIDDLEWARE ====================
-
 // Hash password before saving
-userSchema.pre('save', async function(next) {
+userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
 
   try {
@@ -255,15 +216,13 @@ userSchema.pre('save', async function(next) {
   }
 });
 
-// ==================== METHODS ====================
-
 // Compare password method
-userSchema.methods.comparePassword = async function(candidatePassword) {
+userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
 // Remove sensitive data when converting to JSON
-userSchema.methods.toJSON = function() {
+userSchema.methods.toJSON = function () {
   const user = this.toObject();
   delete user.password;
   delete user.__v;

@@ -201,16 +201,18 @@ export const getOrderById = async (req, res) => {
         const customerId = req.user._id;
         const { id } = req.params;
 
-        // Check if the id is a valid ObjectId or a string
-        let query = { customerId };
+        // console.log('Fetching order:', id);
 
-        // If id is a valid ObjectId string, search by _id
+        let query = { customerId };
+        
+        // Check if the id is a valid ObjectId or a string
         if (mongoose.Types.ObjectId.isValid(id)) {
             query._id = id;
         } else {
-            // Otherwise search by orderId
             query.orderId = id;
         }
+
+        // console.log('Query:', query);
 
         const order = await Order.findOne(query)
             .populate('customerId', 'username email')

@@ -181,7 +181,7 @@ export const triggerLowStockNotification = async (merchantId, productName, produ
             actionLabel: 'Update Stock',
             metadata: { productId, productName, stock }
         });
-        console.log(`Low stock notification sent to merchant: ${merchantId}`);
+        // console.log(`Low stock notification sent to merchant: ${merchantId}`);
     } catch (error) {
         console.error('Error creating low stock notification:', error);
     }
@@ -202,7 +202,7 @@ export const triggerMerchantApprovedNotification = async (merchantId, businessNa
             actionLabel: 'Go to Dashboard',
             metadata: { businessName }
         });
-        console.log(`Merchant approval notification sent to: ${merchantId}`);
+        // console.log(`Merchant approval notification sent to: ${merchantId}`);
     } catch (error) {
         console.error('Error creating merchant approval notification:', error);
     }
@@ -221,7 +221,7 @@ export const triggerMerchantRejectedNotification = async (merchantId, businessNa
             isGlobal: false,
             metadata: { businessName, reason }
         });
-        console.log(`Merchant rejection notification sent to: ${merchantId}`);
+        // console.log(`Merchant rejection notification sent to: ${merchantId}`);
     } catch (error) {
         console.error('Error creating merchant rejection notification:', error);
     }

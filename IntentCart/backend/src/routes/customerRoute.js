@@ -10,13 +10,15 @@ import {
 } from '../controllers/customerNotificationController.js';
 
 import {
-  getCustomerProfile,
-  updateCustomerProfile,
-  updateCustomerAvatar,
-  addAddress,
-  deleteAddress,
-  addPaymentMethod,
-  deletePaymentMethod
+    getCustomerProfile,
+    updateCustomerProfile,
+    updateCustomerAvatar,
+    addAddress,
+    deleteAddress,
+    addPaymentMethod,
+    deletePaymentMethod,
+    changeCustomerPassword,
+    updateCustomerCover
 } from '../controllers/customerProfileController.js';
 
 import {
@@ -56,6 +58,8 @@ router.delete('/notifications/:id', deleteCustomerNotification);
 router.get('/profile', getCustomerProfile);
 router.put('/profile', updateCustomerProfile);
 router.put('/avatar', updateCustomerAvatar);
+router.put('/change-password', changeCustomerPassword);
+router.put('/cover', updateCustomerCover); 
 
 // ==================== ADDRESSES ====================
 router.post('/addresses', addAddress);

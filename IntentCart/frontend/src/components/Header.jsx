@@ -411,14 +411,14 @@ export default function Header() {
                                             </span>
                                         </div>
 
-                                        <Link
+                                        {/* <Link
                                             to={getDashboardLink()}
                                             className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 transition-colors"
                                             onClick={() => setIsDropdownOpen(false)}
                                         >
                                             <User className="w-4 h-4" />
                                             Dashboard
-                                        </Link>
+                                        </Link> */}
 
                                         <Link
                                             to={getProfileLink()}
