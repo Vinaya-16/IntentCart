@@ -42,6 +42,12 @@ import {
     getOrderStats
 } from '../controllers/merchantOrderController.js';
 
+import {
+    getCustomers,
+    getCustomerDetails,
+    getCustomerStats
+} from '../controllers/customerAnalysisController.js';
+
 const router = express.Router();
 
 // All merchant routes require authentication
@@ -82,5 +88,10 @@ router.get('/orders', getMerchantOrders);
 router.get('/orders/stats', getOrderStats);
 router.get('/orders/:id', getMerchantOrderById);
 router.put('/orders/:id/status', updateOrderStatus);
+
+// ==================== CUSTOMER ANALYSIS ====================
+router.get('/customers', getCustomers);
+router.get('/customers/stats', getCustomerStats);
+router.get('/customers/:id', getCustomerDetails);
 
 export default router;

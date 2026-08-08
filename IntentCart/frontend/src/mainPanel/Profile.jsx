@@ -11,7 +11,7 @@ import { useNavigate, Link } from 'react-router-dom';
 
 const API_URL = 'http://localhost:5000/api/customer';
 
-export default function EnhancedCustomerProfile() {
+export default function CustomerProfile() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('profile');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -996,7 +996,7 @@ export default function EnhancedCustomerProfile() {
                                   <p className="text-sm font-semibold text-slate-900">{order.items?.length || 0}</p>
                                 </div>
                                 <Link
-                                  to={`/order/${order._id}`}
+                                  to={`/orders`}
                                   className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
                                 >
                                   <Eye className="w-3.5 h-3.5" /> View
