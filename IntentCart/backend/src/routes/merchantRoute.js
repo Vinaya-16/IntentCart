@@ -48,6 +48,27 @@ import {
     getCustomerStats
 } from '../controllers/customerAnalysisController.js';
 
+import {
+    trackAbandonment,
+    getRecoveryStats,
+    triggerRecovery,
+    getAbandonedCarts,
+    generateSampleData,
+    trackRecoveryEvent
+} from '../controllers/recoveryController.js';
+
+import {
+    createCampaign,
+    getCampaigns,
+    getCampaignById,
+    updateCampaign,
+    updateCampaignStatus,
+    deleteCampaign,
+    validateCoupon,
+    applyCoupon,
+    getCampaignStats
+} from '../controllers/campaignController.js';
+
 const router = express.Router();
 
 // All merchant routes require authentication
@@ -93,5 +114,24 @@ router.put('/orders/:id/status', updateOrderStatus);
 router.get('/customers', getCustomers);
 router.get('/customers/stats', getCustomerStats);
 router.get('/customers/:id', getCustomerDetails);
+
+// ==================== RECOVERY DASHBOARD ====================
+router.post('/recovery/track', trackAbandonment);
+router.get('/recovery/stats', getRecoveryStats);
+router.post('/recovery/trigger', triggerRecovery);
+router.get('/recovery/abandoned', getAbandonedCarts);
+router.post('/recovery/generate-sample', generateSampleData); 
+router.post('/recovery/track-event', trackRecoveryEvent);
+
+// ==================== CAMPAIGN MANAGEMENT ====================
+router.post('/campaigns', createCampaign);
+router.get('/campaigns', getCampaigns);
+router.get('/campaigns/stats', getCampaignStats);
+router.get('/campaigns/:id', getCampaignById);
+router.put('/campaigns/:id', updateCampaign);
+router.put('/campaigns/:id/status', updateCampaignStatus);
+router.delete('/campaigns/:id', deleteCampaign);
+router.post('/campaigns/validate-coupon', validateCoupon);
+router.post('/campaigns/apply-coupon', applyCoupon);
 
 export default router;
