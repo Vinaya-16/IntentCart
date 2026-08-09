@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Heart,
   ShoppingCart,
@@ -20,6 +20,7 @@ import {
 import { Link, useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
+import eventTracker from '../utils/eventTracker';
 
 const API_URL = 'http://localhost:5000/api/customer';
 
@@ -32,6 +33,9 @@ export default function WishlistPage() {
   const [error, setError] = useState('');
   const [isServerDown, setIsServerDown] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
+
+  // Use ref to track if wishlist view has been tracked
+  const wishlistTrackedRef = useRef(false);
 
   const getToken = () => localStorage.getItem('token');
 
@@ -83,8 +87,10 @@ export default function WishlistPage() {
           slug: item.productId?.slug || '',
           productId: item.productId?._id
         })) || [];
-        
+
         setWishlistItems(items);
+        // Reset tracking flag when wishlist changes
+        wishlistTrackedRef.current = false;
       }
     } catch (err) {
       console.error('Error fetching wishlist:', err);
@@ -99,7 +105,15 @@ export default function WishlistPage() {
     }
   };
 
-  // Remove from wishlist
+  // Track wishlist view - only once per wishlist load
+  useEffect(() => {
+    if (wishlistItems.length > 0 && !wishlistTrackedRef.current) {
+      eventTracker.trackWishlistView(wishlistItems);
+      wishlistTrackedRef.current = true;
+    }
+  }, [wishlistItems]);
+
+  // Handle delete function
   const handleDelete = async (productId) => {
     try {
       setActionLoading(productId);
@@ -126,8 +140,15 @@ export default function WishlistPage() {
 
       const data = await response.json();
       if (data.success) {
-        // Update local state
-        setWishlistItems(prev => prev.filter(item => item.productId !== productId));
+        const removedItem = wishlistItems.find(item => item.productId === productId);
+        const updatedItems = wishlistItems.filter(item => item.productId !== productId);
+        setWishlistItems(updatedItems);
+        wishlistTrackedRef.current = false; // Reset to allow tracking again
+
+        // Track wishlist remove
+        if (removedItem) {
+          await eventTracker.trackWishlistRemove(productId, { name: removedItem.name, price: removedItem.price });
+        }
       }
     } catch (err) {
       console.error('Error removing from wishlist:', err);
@@ -164,6 +185,7 @@ export default function WishlistPage() {
       }
 
       setWishlistItems([]);
+      wishlistTrackedRef.current = false;
     } catch (err) {
       console.error('Error clearing wishlist:', err);
       setError(err.message);
@@ -172,7 +194,7 @@ export default function WishlistPage() {
     }
   };
 
-  // Move to cart
+  // Handle move to cart function
   const handleMoveToCart = async (productId, quantity = 1) => {
     try {
       setActionLoading(productId);
@@ -184,6 +206,8 @@ export default function WishlistPage() {
         setActionLoading(null);
         return;
       }
+
+      const item = wishlistItems.find(i => i.productId === productId);
 
       const response = await fetch(`${API_URL}/cart`, {
         method: 'POST',
@@ -200,8 +224,18 @@ export default function WishlistPage() {
 
       const data = await response.json();
       if (data.success) {
+        // Track move to cart
+        if (item) {
+          const cartItems = [{ productId: item.productId, name: item.name, price: item.price, quantity }];
+          const total = item.price * quantity;
+          await eventTracker.trackAddToCart(productId, { name: item.name, price: item.price, quantity }, cartItems, total);
+        }
+
         // Remove from wishlist after adding to cart
-        await handleDelete(productId);
+        const updatedItems = wishlistItems.filter(i => i.productId !== productId);
+        setWishlistItems(updatedItems);
+        wishlistTrackedRef.current = false;
+
         alert('Item moved to cart successfully!');
       }
     } catch (err) {
@@ -236,8 +270,6 @@ export default function WishlistPage() {
     return result;
   }, [wishlistItems, filter, sortBy]);
 
-  const inStockCount = wishlistItems.filter((item) => item.inStock).length;
-
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50/60">
@@ -259,7 +291,7 @@ export default function WishlistPage() {
           {/* Error/Success Messages */}
           {error && (
             <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg border border-red-200">
-              <X /> {error}
+              <X className="inline mr-1" /> {error}
             </div>
           )}
 
@@ -337,8 +369,8 @@ export default function WishlistPage() {
                         key={cat}
                         onClick={() => setFilter(cat)}
                         className={`whitespace-nowrap lg:whitespace-normal shrink-0 flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold capitalize transition-all duration-200 ${isActive
-                            ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-600/20'
-                            : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                          ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-600/20'
+                          : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                           }`}
                       >
                         <span className="capitalize">{cat}</span>
@@ -466,8 +498,8 @@ export default function WishlistPage() {
                           onClick={() => handleMoveToCart(item.productId)}
                           disabled={!item.inStock || actionLoading === item.productId}
                           className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all duration-200 ${item.inStock
-                              ? 'bg-slate-900 text-white hover:bg-indigo-600 shadow-sm active:scale-[0.99]'
-                              : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200/60'
+                            ? 'bg-slate-900 text-white hover:bg-indigo-600 shadow-sm active:scale-[0.99]'
+                            : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200/60'
                             }`}
                         >
                           {actionLoading === item.productId ? (

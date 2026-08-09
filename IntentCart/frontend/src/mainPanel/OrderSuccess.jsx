@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { CheckCircle2, Package, Truck, Mail, Loader2, IndianRupee } from 'lucide-react';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
+import eventTracker from '../utils/eventTracker';
 
 const API_URL = 'http://localhost:5000/api/customer';
 
@@ -12,13 +13,10 @@ export default function OrderSuccess() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const getToken = () => localStorage.getItem('token');
+  // Use ref to track if order success has been tracked
+  const orderTrackedRef = useRef(false);
 
-  useEffect(() => {
-    if (orderId) {
-      fetchOrder(orderId);
-    }
-  }, [orderId]);
+  const getToken = () => localStorage.getItem('token');
 
   const fetchOrder = async (id) => {
     try {
@@ -44,6 +42,8 @@ export default function OrderSuccess() {
       const data = await response.json();
       if (data.success) {
         setOrder(data.order);
+        // Reset tracking flag when order is loaded
+        orderTrackedRef.current = false;
       }
     } catch (err) {
       console.error('Error fetching order:', err);
@@ -52,6 +52,27 @@ export default function OrderSuccess() {
       setLoading(false);
     }
   };
+
+  // Fetch order when component mounts or orderId changes
+  useEffect(() => {
+    if (orderId) {
+      fetchOrder(orderId);
+    }
+  }, [orderId]);
+
+  // Track order success view - only once per order
+  useEffect(() => {
+    if (order && !orderTrackedRef.current) {
+      eventTracker.trackEvent({
+        eventType: 'order_success_viewed',
+        metadata: {
+          orderId: order.orderId,
+          total: order.total
+        }
+      });
+      orderTrackedRef.current = true;
+    }
+  }, [order]);
 
   if (loading) {
     return (
@@ -89,10 +110,10 @@ export default function OrderSuccess() {
           <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle2 className="w-10 h-10 text-emerald-600" />
           </div>
-          
-          <h1 className="text-2xl font-bold text-slate-900">Order Placed Successfully! 🎉</h1>
+
+          <h1 className="text-2xl font-bold text-slate-900">Order Placed Successfully!</h1>
           <p className="text-slate-500 mt-2">Thank you for your order</p>
-          
+
           {order && (
             <div className="mt-6 p-4 bg-slate-50 rounded-xl">
               <p className="text-sm text-slate-600">Order Number</p>
@@ -101,7 +122,7 @@ export default function OrderSuccess() {
               <p className="text-lg font-bold text-indigo-600">₹{order.total?.toLocaleString()}</p>
               <p className="text-sm text-slate-600 mt-2">Payment Status</p>
               <p className={`text-sm font-semibold ${order.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-amber-600'}`}>
-                {order.paymentStatus === 'paid' ? '✅ Paid' : '⏳ Pending'}
+                {order.paymentStatus === 'paid' ? 'Paid' : 'Pending'}
               </p>
             </div>
           )}

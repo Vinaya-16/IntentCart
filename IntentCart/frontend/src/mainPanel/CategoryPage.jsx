@@ -1,8 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Loader2, ChevronRight, Home, ChevronDown, ShoppingBag, Star, Heart, Filter, Clock } from 'lucide-react';
+import {
+    Loader2,
+    ChevronRight,
+    Home,
+    ChevronDown,
+    ShoppingBag,
+    Star,
+    Heart,
+    Filter,
+    Clock,
+    X,
+    Search
+} from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import eventTracker from '../utils/eventTracker';
 
 const API_URL = 'http://localhost:5000/api';
 
@@ -23,6 +36,29 @@ export default function CategoryPage() {
     const [sortBy, setSortBy] = useState('newest');
     const [selectedBrands, setSelectedBrands] = useState([]);
     const [showFilters, setShowFilters] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    // Track category view when component mounts
+    useEffect(() => {
+        if (categoryData) {
+            eventTracker.trackCategoryView(categoryData._id, categoryData.name);
+        }
+    }, [categoryData]);
+
+    // Track product views when products change
+    useEffect(() => {
+        if (products.length > 0 && categoryData) {
+            // Track product views in batch (limit to first 10 to avoid spam)
+            const productsToTrack = products.slice(0, 10);
+            productsToTrack.forEach(product => {
+                eventTracker.trackProductView(product._id, {
+                    name: product.name,
+                    price: product.price,
+                    category: categoryData.name
+                });
+            });
+        }
+    }, [products, categoryData]);
 
     useEffect(() => {
         if (!path) return;
@@ -63,6 +99,13 @@ export default function CategoryPage() {
         const currentPathSegments = path ? path.split('/') : [];
         if (currentPathSegments.includes(slug)) return;
         const newPath = [...currentPathSegments, slug].join('/');
+
+        // Track subcategory navigation
+        const subcategory = subcategories.find(s => s.slug === slug);
+        if (subcategory) {
+            eventTracker.trackCategoryView(subcategory._id, subcategory.name);
+        }
+
         navigate(`/category/${newPath}`);
     };
 
@@ -101,6 +144,16 @@ export default function CategoryPage() {
     const getFilteredProducts = () => {
         let filtered = getSortedProducts();
 
+        // Filter by search query
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase().trim();
+            filtered = filtered.filter(p =>
+                p.name.toLowerCase().includes(query) ||
+                p.brand?.toLowerCase().includes(query) ||
+                p.description?.toLowerCase().includes(query)
+            );
+        }
+
         // Filter by subcategories
         if (selectedCategories.length > 0) {
             filtered = filtered.filter(p =>
@@ -124,25 +177,121 @@ export default function CategoryPage() {
         return filtered;
     };
 
+    // Handle search with tracking
+    const handleSearch = (e) => {
+        e.preventDefault();
+        const query = searchQuery.trim();
+        if (query) {
+            const filtered = getFilteredProducts();
+            eventTracker.trackProductSearch(query, filtered);
+        }
+    };
+
+    // Handle wishlist toggle with tracking
+    const handleWishlistToggle = async (productId, e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                alert('Please login first');
+                navigate('/intentCart-auth');
+                return;
+            }
+
+            const product = products.find(p => p._id === productId);
+            if (!product) return;
+
+            // Check if in wishlist
+            const checkResponse = await fetch(`${API_URL}/customer/wishlist/check/${productId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const checkData = await checkResponse.json();
+            const inWishlist = checkData.inWishlist || false;
+
+            const method = inWishlist ? 'DELETE' : 'POST';
+            const url = inWishlist
+                ? `${API_URL}/customer/wishlist/${productId}`
+                : `${API_URL}/customer/wishlist`;
+
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: method === 'POST' ? JSON.stringify({ productId }) : undefined
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to update wishlist');
+            }
+
+            // Track wishlist action
+            if (inWishlist) {
+                await eventTracker.trackWishlistRemove(productId, { name: product.name, price: product.price });
+                alert('Removed from wishlist');
+            } else {
+                await eventTracker.trackWishlistAdd(productId, { name: product.name, price: product.price });
+                alert('Added to wishlist');
+            }
+
+            // Refresh products to update wishlist status
+            fetchCategoryData(path);
+        } catch (err) {
+            console.error('Error updating wishlist:', err);
+            alert(err.message);
+        }
+    };
+
+    // Handle product click tracking
+    const handleProductClick = (product) => {
+        eventTracker.trackProductView(product._id, {
+            name: product.name,
+            price: product.price,
+            category: categoryData?.name
+        });
+    };
+
     const filteredProducts = getFilteredProducts();
     const brands = getUniqueBrands();
 
+    // Clear all filters
+    const clearFilters = () => {
+        setSelectedPrice(5000);
+        setSelectedCategories([]);
+        setSelectedBrands([]);
+        setSearchQuery('');
+    };
+
+    // Count active filters
+    const activeFilterCount = selectedCategories.length + selectedBrands.length + (searchQuery.trim() ? 1 : 0);
+
     if (loading) {
         return (
-            <div className="min-h-[400px] flex items-center justify-center">
-                <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+            <div className="w-full bg-white text-gray-800">
+                <Header />
+                <div className="min-h-[400px] flex items-center justify-center">
+                    <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+                </div>
+                <Footer />
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="min-h-[400px] flex flex-col items-center justify-center text-center p-4">
-                <h2 className="text-2xl font-bold text-gray-800">Category Not Found</h2>
-                <p className="text-gray-500 mt-2">{error}</p>
-                <Link to="/" className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition">
-                    Return Home
-                </Link>
+            <div className="w-full bg-white text-gray-800">
+                <Header />
+                <div className="min-h-[400px] flex flex-col items-center justify-center text-center p-4">
+                    <h2 className="text-2xl font-bold text-gray-800">Category Not Found</h2>
+                    <p className="text-gray-500 mt-2">{error}</p>
+                    <Link to="/" className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition">
+                        Return Home
+                    </Link>
+                </div>
+                <Footer />
             </div>
         );
     }
@@ -190,6 +339,37 @@ export default function CategoryPage() {
                     </span>
                 </div>
 
+                {/* Search Bar */}
+                <form onSubmit={handleSearch} className="mb-4">
+                    <div className="flex gap-2">
+                        <div className="flex-1 relative">
+                            <input
+                                type="text"
+                                placeholder="Search products in this category..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition pr-10"
+                            />
+                            {searchQuery && (
+                                <button
+                                    type="button"
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            )}
+                        </div>
+                        <button
+                            type="submit"
+                            className="px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition flex items-center gap-2"
+                        >
+                            <Search className="w-4 h-4" />
+                            Search
+                        </button>
+                    </div>
+                </form>
+
                 {/* Mobile Filter Toggle */}
                 <div className="md:hidden flex items-center gap-3 mb-4">
                     <button
@@ -198,6 +378,11 @@ export default function CategoryPage() {
                     >
                         <Filter className="w-4 h-4" />
                         Filters
+                        {activeFilterCount > 0 && (
+                            <span className="bg-indigo-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                                {activeFilterCount}
+                            </span>
+                        )}
                     </button>
                     <select
                         value={sortBy}
@@ -209,17 +394,35 @@ export default function CategoryPage() {
                         <option value="price-high">Price: High to Low</option>
                         <option value="popular">Most Popular</option>
                     </select>
+                    {activeFilterCount > 0 && (
+                        <button
+                            onClick={clearFilters}
+                            className="text-xs text-indigo-600 hover:text-indigo-700 whitespace-nowrap"
+                        >
+                            Clear All
+                        </button>
+                    )}
                 </div>
 
                 {/* Main Content Layout */}
                 <div className="flex flex-col md:flex-row gap-8">
                     {/* Left Sidebar Filters */}
                     <aside className={`w-full md:w-64 shrink-0 space-y-6 ${showFilters ? 'block' : 'hidden md:block'}`}>
+                        {/* Clear Filters Button (Desktop) */}
+                        {activeFilterCount > 0 && (
+                            <button
+                                onClick={clearFilters}
+                                className="w-full text-center text-sm text-indigo-600 hover:text-indigo-700 font-semibold py-2 border border-dashed border-indigo-200 rounded-lg hover:bg-indigo-50 transition"
+                            >
+                                Clear All Filters ({activeFilterCount})
+                            </button>
+                        )}
+
                         {/* Categories Filter */}
                         {subcategories.length > 0 && (
                             <div className="border-b pb-4">
                                 <h3 className="font-bold text-sm text-gray-900 mb-3">Categories</h3>
-                                <div className="space-y-2 text-sm text-gray-600">
+                                <div className="space-y-2 text-sm text-gray-600 max-h-60 overflow-y-auto">
                                     {subcategories.map((sub) => (
                                         <label key={sub._id} className="flex items-center gap-2 cursor-pointer hover:text-indigo-600">
                                             <input
@@ -234,8 +437,8 @@ export default function CategoryPage() {
                                                 }}
                                                 className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                                             />
-                                            <span>{sub.name}</span>
-                                            {/* <span className="text-xs text-gray-400 ml-auto">{sub.productCount || 0}</span> */}
+                                            <span className="flex-1">{sub.name}</span>
+                                            <span className="text-xs text-gray-400">{sub.productCount || 0}</span>
                                         </label>
                                     ))}
                                 </div>
@@ -246,8 +449,8 @@ export default function CategoryPage() {
                         {brands.length > 0 && (
                             <div className="border-b pb-4">
                                 <h3 className="font-bold text-sm text-gray-900 mb-3">Brand</h3>
-                                <div className="space-y-2 text-sm text-gray-600">
-                                    {brands.slice(0, 10).map((brand) => (
+                                <div className="space-y-2 text-sm text-gray-600 max-h-48 overflow-y-auto">
+                                    {brands.map((brand) => (
                                         <label key={brand} className="flex items-center gap-2 cursor-pointer hover:text-indigo-600">
                                             <input
                                                 type="checkbox"
@@ -270,27 +473,92 @@ export default function CategoryPage() {
 
                         {/* Price Filter */}
                         <div>
-                            <h3 className="font-bold text-sm text-gray-900 mb-3">Max Price: ${selectedPrice}</h3>
+                            <h3 className="font-bold text-sm text-gray-900 mb-3">Max Price: ₹{selectedPrice}</h3>
                             <input
                                 type="range"
-                                min="50"
-                                max="1000"
-                                step="50"
+                                min="100"
+                                max="10000"
+                                step="100"
                                 value={selectedPrice}
                                 onChange={(e) => setSelectedPrice(Number(e.target.value))}
                                 className="w-full accent-indigo-600"
                             />
                             <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>$50</span>
-                                <span>$1000</span>
+                                <span>₹100</span>
+                                <span>₹10,000</span>
                             </div>
                         </div>
+
+                        {/* Active Filters Summary */}
+                        {activeFilterCount > 0 && (
+                            <div className="pt-4 border-t">
+                                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Active Filters</h4>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {selectedCategories.map(id => {
+                                        const sub = subcategories.find(s => s._id === id);
+                                        return sub ? (
+                                            <span key={id} className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 text-xs px-2 py-1 rounded-full">
+                                                {sub.name}
+                                                <button
+                                                    onClick={() => setSelectedCategories(prev => prev.filter(c => c !== id))}
+                                                    className="hover:text-indigo-900"
+                                                >
+                                                    <X className="w-3 h-3" />
+                                                </button>
+                                            </span>
+                                        ) : null;
+                                    })}
+                                    {selectedBrands.map(brand => (
+                                        <span key={brand} className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 text-xs px-2 py-1 rounded-full">
+                                            {brand}
+                                            <button
+                                                onClick={() => setSelectedBrands(prev => prev.filter(b => b !== brand))}
+                                                className="hover:text-indigo-900"
+                                            >
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        </span>
+                                    ))}
+                                    {searchQuery && (
+                                        <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 text-xs px-2 py-1 rounded-full">
+                                            "{searchQuery}"
+                                            <button
+                                                onClick={() => setSearchQuery('')}
+                                                className="hover:text-indigo-900"
+                                            >
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </aside>
 
                     {/* Main Content Grid */}
                     <main className="flex-1">
+                        {/* Desktop Sort */}
+                        <div className="hidden md:flex justify-between items-center mb-4">
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-500">Sort by:</span>
+                                <select
+                                    value={sortBy}
+                                    onChange={(e) => setSortBy(e.target.value)}
+                                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                                >
+                                    <option value="newest">Newest</option>
+                                    <option value="price-low">Price: Low to High</option>
+                                    <option value="price-high">Price: High to Low</option>
+                                    <option value="popular">Most Popular</option>
+                                </select>
+                            </div>
+                            <span className="text-sm text-gray-500">
+                                Showing {filteredProducts.length} of {totalProducts} products
+                            </span>
+                        </div>
+
                         {/* Subcategories Grid */}
-                        {/* {subcategories.length > 0 && (
+                        {/* {subcategories.length > 0 && !searchQuery && (
                             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-10">
                                 {subcategories.map((sub) => (
                                     <button
@@ -326,7 +594,7 @@ export default function CategoryPage() {
                             </div>
                         )} */}
 
-                        {/* Deal Corner Section - Coming Soon */}
+                        {/* Deal Corner Section */}
                         <section className="mt-8 mb-10">
                             <div className="flex items-center gap-2 mb-4">
                                 <h2 className="text-lg font-bold text-gray-900 border-b-2 border-indigo-600 inline-block pb-1">
@@ -343,7 +611,7 @@ export default function CategoryPage() {
                                         We're working on bringing you the best deals and discounts.
                                         Stay tuned for amazing offers!
                                     </p>
-                                    <div className="mt-4 flex gap-2">
+                                    <div className="mt-4 flex gap-2 flex-wrap justify-center">
                                         <span className="px-3 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-full">50% Off</span>
                                         <span className="px-3 py-1 bg-pink-100 text-pink-700 text-xs rounded-full">Buy 1 Get 1</span>
                                         <span className="px-3 py-1 bg-green-100 text-green-700 text-xs rounded-full">Free Shipping</span>
@@ -356,10 +624,10 @@ export default function CategoryPage() {
                         <section>
                             <div className="flex justify-between items-center mb-4">
                                 <h2 className="text-lg font-bold text-gray-900 border-b-2 border-indigo-600 inline-block pb-1">
-                                    All Products
+                                    {searchQuery ? `Results for "${searchQuery}"` : 'All Products'}
                                 </h2>
                                 <span className="text-sm text-gray-500">
-                                    {filteredProducts.length} of {totalProducts} products
+                                    {filteredProducts.length} products
                                 </span>
                             </div>
 
@@ -373,6 +641,7 @@ export default function CategoryPage() {
                                             <Link
                                                 key={product._id}
                                                 to={`/product/${product.slug}`}
+                                                onClick={() => handleProductClick(product)}
                                                 className="group flex flex-col bg-white border border-gray-100 rounded-lg overflow-hidden hover:shadow-md transition p-2"
                                             >
                                                 <div className="w-full aspect-[4/5] bg-gray-100 rounded-md overflow-hidden mb-2 relative">
@@ -391,20 +660,28 @@ export default function CategoryPage() {
                                                             <ShoppingBag className="w-8 h-8 text-gray-400" />
                                                         </div>
                                                     )}
-                                                    <button className="absolute top-2 right-2 p-1.5 bg-white/80 rounded-full hover:bg-white transition">
+                                                    <button
+                                                        onClick={(e) => handleWishlistToggle(product._id, e)}
+                                                        className="absolute top-2 right-2 p-1.5 bg-white/80 rounded-full hover:bg-white transition"
+                                                    >
                                                         <Heart className="w-4 h-4 text-gray-500 hover:text-red-500" />
                                                     </button>
+                                                    {product.discount && product.discount > 0 && (
+                                                        <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded">
+                                                            {product.discount}% OFF
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <h4 className="text-xs font-semibold text-gray-800 line-clamp-2">
                                                     {product.name}
                                                 </h4>
                                                 <div className="flex items-center gap-2 mt-1">
                                                     <p className="text-xs font-bold text-indigo-600">
-                                                        Rs. {product.price}
+                                                        ₹{product.price}
                                                     </p>
-                                                    {product.compareAtPrice && (
+                                                    {product.compareAtPrice && product.compareAtPrice > product.price && (
                                                         <p className="text-xs text-gray-400 line-through">
-                                                            Rs. {product.compareAtPrice}
+                                                            ₹{product.compareAtPrice}
                                                         </p>
                                                     )}
                                                 </div>
@@ -413,6 +690,23 @@ export default function CategoryPage() {
                                                         {product.brand}
                                                     </p>
                                                 )}
+                                                {product.ratings && product.ratings.average > 0 && (
+                                                    <div className="flex items-center gap-1 mt-1">
+                                                        <div className="flex items-center">
+                                                            {[...Array(5)].map((_, i) => (
+                                                                <Star
+                                                                    key={i}
+                                                                    className={`w-3 h-3 ${i < Math.round(product.ratings.average)
+                                                                        ? 'text-amber-400 fill-amber-400'
+                                                                        : 'text-gray-300'}`}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                        <span className="text-[10px] text-gray-500">
+                                                            ({product.ratings.count || 0})
+                                                        </span>
+                                                    </div>
+                                                )}
                                             </Link>
                                         );
                                     })}
@@ -420,8 +714,25 @@ export default function CategoryPage() {
                             ) : (
                                 <div className="text-center py-12 bg-gray-50 rounded-lg">
                                     <ShoppingBag className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                                    <p className="text-sm text-gray-500">No products found in this category.</p>
-                                    <p className="text-xs text-gray-400 mt-1">Try adjusting your filters.</p>
+                                    <p className="text-sm text-gray-500">No products found.</p>
+                                    {searchQuery && (
+                                        <p className="text-xs text-gray-400 mt-1">
+                                            Try adjusting your search or filters.
+                                        </p>
+                                    )}
+                                    {!searchQuery && (
+                                        <p className="text-xs text-gray-400 mt-1">
+                                            Try adjusting your filters.
+                                        </p>
+                                    )}
+                                    {(activeFilterCount > 0 || searchQuery) && (
+                                        <button
+                                            onClick={clearFilters}
+                                            className="mt-4 text-sm text-indigo-600 hover:text-indigo-700 font-semibold"
+                                        >
+                                            Clear all filters
+                                        </button>
+                                    )}
                                 </div>
                             )}
                         </section>

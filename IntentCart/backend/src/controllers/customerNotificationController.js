@@ -388,3 +388,40 @@ export const triggerWelcomeNotification = async (customerId, username) => {
         console.error('Error creating welcome notification:', error);
     }
 };
+
+// @desc    Trigger: Abandoned Cart Recovery
+export const triggerRecoveryNotification = async (customerId, cartItems, cartTotal, sessionId) => {
+    try {
+        if (!customerId) return; // Don't send if no customer ID
+
+        // Calculate number of items
+        const itemCount = cartItems?.length || 0;
+        
+        // Build the message
+        const message = itemCount > 0 
+            ? `You left ${itemCount} item${itemCount > 1 ? 's' : ''} worth ${cartTotal ? 'Rs. ' + cartTotal : ''} in your cart! Complete your purchase before they run out.` 
+            : 'You left items in your cart! Complete your purchase today!';
+
+        await Notification.create({
+            title: 'Complete Your Purchase!',
+            message: message,
+            type: 'recovery', 
+            category: 'Carts',
+            panel: 'customer',
+            customerId: customerId,
+            isGlobal: false,
+            actionLink: `/cart?session=${sessionId}`,
+            actionLabel: 'View My Cart',
+            metadata: { 
+                cartItems, 
+                cartTotal, 
+                sessionId,
+                itemCount
+            }
+        });
+        
+        // console.log(`Recovery notification saved for customer: ${customerId}`);
+    } catch (error) {
+        console.error('Error creating recovery notification:', error);
+    }
+};

@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
     Loader2, ChevronRight, Home, Heart,
     ShoppingCart, Star, Minus, Plus,
     Truck, Shield, RotateCcw, CheckCircle,
-    Share2, Eye, Clock, XCircle
+    Share2, Eye, Clock, XCircle,
+    ShoppingBag
 } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import eventTracker from '../utils/eventTracker';
 
 const API_URL = 'http://localhost:5000/api';
 
@@ -26,6 +28,9 @@ export default function ProductDetail() {
     const [isAddingToCart, setIsAddingToCart] = useState(false);
     const [isTogglingWishlist, setIsTogglingWishlist] = useState(false);
 
+    // Use ref to track if product view has been tracked
+    const productTrackedRef = useRef(false);
+
     useEffect(() => {
         if (slug) {
             fetchProduct(slug);
@@ -36,6 +41,8 @@ export default function ProductDetail() {
         try {
             setLoading(true);
             setError('');
+            // Reset tracking flag when fetching new product
+            productTrackedRef.current = false;
 
             const response = await fetch(`${API_URL}/product/${productSlug}`);
 
@@ -47,6 +54,22 @@ export default function ProductDetail() {
             const data = await response.json();
             setProduct(data.product);
             setSimilarProducts(data.similarProducts || []);
+
+            // Check wishlist status
+            const token = localStorage.getItem('token');
+            if (token && data.product) {
+                try {
+                    const wishlistCheck = await fetch(`${API_URL}/customer/wishlist/check/${data.product._id}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    const wishlistData = await wishlistCheck.json();
+                    if (wishlistData.success) {
+                        setIsWishlist(wishlistData.inWishlist);
+                    }
+                } catch (err) {
+                    console.error('Error checking wishlist:', err);
+                }
+            }
 
             // Set primary image as selected
             if (data.product.images && data.product.images.length > 0) {
@@ -61,6 +84,18 @@ export default function ProductDetail() {
         }
     };
 
+    // Track product view - only once per product
+    useEffect(() => {
+        if (product && !productTrackedRef.current) {
+            eventTracker.trackProductView(product._id, {
+                name: product.name,
+                price: product.price,
+                category: product.category?.name
+            });
+            productTrackedRef.current = true;
+        }
+    }, [product]);
+
     const handleQuantityChange = (type) => {
         if (type === 'increment' && quantity < (product?.stock || 10)) {
             setQuantity(q => q + 1);
@@ -69,7 +104,7 @@ export default function ProductDetail() {
         }
     };
 
-    //  Add to cart
+    // Update handleAddToCart function
     const handleAddToCart = async () => {
         try {
             const token = localStorage.getItem('token');
@@ -100,17 +135,22 @@ export default function ProductDetail() {
                 throw new Error(data.message || 'Failed to add to cart');
             }
 
+            // Track add to cart
+            const cartItems = [{ productId: product._id, name: product.name, price: product.price, quantity }];
+            const total = product.price * quantity;
+            await eventTracker.trackAddToCart(product._id, { name: product.name, price: product.price, quantity }, cartItems, total);
+
             alert(`Added ${quantity} item(s) to cart!`);
         } catch (err) {
             console.error('Error adding to cart:', err);
             setError(err.message);
-            alert( err.message);
+            alert(err.message);
         } finally {
             setIsAddingToCart(false);
         }
     };
 
-    // Toggle wishlist (single function)
+    // Update handleWishlistToggle function
     const handleWishlistToggle = async () => {
         try {
             const token = localStorage.getItem('token');
@@ -143,6 +183,13 @@ export default function ProductDetail() {
                 throw new Error(data.message || 'Failed to update wishlist');
             }
 
+            // Track wishlist action
+            if (isWishlist) {
+                await eventTracker.trackWishlistRemove(product._id, { name: product.name, price: product.price });
+            } else {
+                await eventTracker.trackWishlistAdd(product._id, { name: product.name, price: product.price });
+            }
+
             setIsWishlist(!isWishlist);
             alert(isWishlist ? 'Removed from wishlist' : 'Added to wishlist');
         } catch (err) {
@@ -153,33 +200,6 @@ export default function ProductDetail() {
             setIsTogglingWishlist(false);
         }
     };
-
-    // Check wishlist status on load
-    useEffect(() => {
-        const checkWishlistStatus = async () => {
-            try {
-                const token = localStorage.getItem('token');
-                if (!token || !product) return;
-
-                const response = await fetch(`${API_URL}/customer/wishlist/check/${product._id}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-
-                const data = await response.json();
-                if (data.success) {
-                    setIsWishlist(data.inWishlist);
-                }
-            } catch (err) {
-                console.error('Error checking wishlist:', err);
-            }
-        };
-
-        if (product) {
-            checkWishlistStatus();
-        }
-    }, [product]);
 
     const handleShare = () => {
         if (navigator.share) {
@@ -565,6 +585,13 @@ export default function ProductDetail() {
                                     key={item._id}
                                     to={`/product/${item.slug}`}
                                     className="group border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition"
+                                    onClick={() => {
+                                        eventTracker.trackProductView(item._id, {
+                                            name: item.name,
+                                            price: item.price,
+                                            category: product.category?.name
+                                        });
+                                    }}
                                 >
                                     <div className="aspect-square bg-gray-100 overflow-hidden">
                                         {item.image ? (

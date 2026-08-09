@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ShoppingBag,
   Trash2,
@@ -21,6 +21,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 
+import eventTracker from '../utils/eventTracker';
+
 const API_URL = 'http://localhost:5000/api/customer';
 
 export default function CartPage() {
@@ -34,6 +36,9 @@ export default function CartPage() {
   const [discountApplied, setDiscountApplied] = useState(false);
   const [couponError, setCouponError] = useState('');
   const [cartId, setCartId] = useState(null);
+
+  // Use ref to track if cart view has been tracked
+  const cartTrackedRef = useRef(false);
 
   const getToken = () => localStorage.getItem('token');
 
@@ -70,10 +75,10 @@ export default function CartPage() {
       }
 
       const data = await response.json();
-      
+
       if (data.success) {
         setCartId(data.cart?._id);
-        
+
         const items = data.cart?.items?.map(item => {
           const product = item.productId || {};
           return {
@@ -90,8 +95,11 @@ export default function CartPage() {
             total: item.total || (item.price * item.quantity) || 0
           };
         }) || [];
-        
+
         setCartItems(items);
+
+        // Reset tracking flag when cart changes
+        cartTrackedRef.current = false;
       }
     } catch (err) {
       console.error('Error fetching cart:', err);
@@ -106,7 +114,16 @@ export default function CartPage() {
     }
   };
 
-  // Update quantity
+  // Track cart view - only once per cart load
+  useEffect(() => {
+    if (cartItems.length > 0 && !cartTrackedRef.current) {
+      const total = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      eventTracker.trackCartView(cartItems, total);
+      cartTrackedRef.current = true;
+    }
+  }, [cartItems]);
+
+  // Update quantity function
   const updateQuantity = async (itemId, change) => {
     const item = cartItems.find(i => i.id === itemId);
     if (!item) return;
@@ -144,11 +161,19 @@ export default function CartPage() {
 
       const data = await response.json();
       if (data.success) {
-        setCartItems(prev => 
-          prev.map(i => 
-            i.id === itemId ? { ...i, quantity: newQty, total: i.price * newQty } : i
-          )
+        const updatedItems = cartItems.map(i =>
+          i.id === itemId ? { ...i, quantity: newQty, total: i.price * newQty } : i
         );
+        setCartItems(updatedItems);
+        cartTrackedRef.current = false; // Reset to allow tracking again
+
+        // Track quantity change
+        const total = updatedItems.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+        if (change > 0) {
+          await eventTracker.trackAddToCart(item.productId, { name: item.name, price: item.price, quantity: 1 }, updatedItems, total);
+        } else {
+          await eventTracker.trackRemoveFromCart(item.productId, { name: item.name, price: item.price }, updatedItems, total);
+        }
       }
     } catch (err) {
       console.error('Error updating quantity:', err);
@@ -158,7 +183,7 @@ export default function CartPage() {
     }
   };
 
-  // Remove item
+  // Remove item function
   const removeItem = async (itemId) => {
     try {
       setActionLoading(itemId);
@@ -185,7 +210,16 @@ export default function CartPage() {
 
       const data = await response.json();
       if (data.success) {
-        setCartItems(prev => prev.filter(i => i.id !== itemId));
+        const removedItem = cartItems.find(i => i.id === itemId);
+        const updatedItems = cartItems.filter(i => i.id !== itemId);
+        setCartItems(updatedItems);
+        cartTrackedRef.current = false; // Reset to allow tracking again
+
+        // Track removal
+        if (removedItem) {
+          const total = updatedItems.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+          await eventTracker.trackRemoveFromCart(removedItem.productId, { name: removedItem.name, price: removedItem.price }, updatedItems, total);
+        }
       }
     } catch (err) {
       console.error('Error removing item:', err);
@@ -223,6 +257,7 @@ export default function CartPage() {
       }
 
       setCartItems([]);
+      cartTrackedRef.current = false;
     } catch (err) {
       console.error('Error clearing cart:', err);
       setError(err.message);
@@ -231,12 +266,14 @@ export default function CartPage() {
     }
   };
 
-  // Handle checkout
+  // Handle checkout to track checkout start
   const handleCheckout = () => {
     if (cartItems.length === 0) {
       setError('Your cart is empty');
       return;
     }
+    const total = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    eventTracker.trackCheckoutStart(cartItems, total);
     navigate('/checkout');
   };
 
@@ -302,7 +339,7 @@ export default function CartPage() {
           {/* Error/Success Messages */}
           {error && (
             <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg border border-red-200">
-              <X /> {error}
+              <X className="inline mr-1" /> {error}
             </div>
           )}
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   Package,
@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
+import eventTracker from '../utils/eventTracker';
 
 const API_URL = 'http://localhost:5000/api/customer';
 
@@ -29,6 +30,9 @@ export default function OrderDetailPage() {
   const [isServerDown, setIsServerDown] = useState(false);
   const [cancelling, setCancelling] = useState(false);
 
+  // Use ref to track if order view has been tracked
+  const orderTrackedRef = useRef(false);
+
   const getToken = () => localStorage.getItem('token');
 
   const fetchOrder = async () => {
@@ -36,6 +40,8 @@ export default function OrderDetailPage() {
       setLoading(true);
       setError('');
       setIsServerDown(false);
+      // Reset tracking flag when fetching new data
+      orderTrackedRef.current = false;
 
       const token = getToken();
       if (!token) {
@@ -79,6 +85,14 @@ export default function OrderDetailPage() {
     }
   };
 
+  // Track order view - only once per order load
+  useEffect(() => {
+    if (order && !orderTrackedRef.current) {
+      eventTracker.trackOrderSuccessView(order.orderId, order.total);
+      orderTrackedRef.current = true;
+    }
+  }, [order]);
+
   const handleCancelOrder = async () => {
     if (!window.confirm('Are you sure you want to cancel this order?')) return;
 
@@ -109,6 +123,8 @@ export default function OrderDetailPage() {
       const data = await response.json();
       if (data.success) {
         setOrder(data.order);
+        // Reset tracking flag to allow re-tracking if needed
+        orderTrackedRef.current = false;
       }
     } catch (err) {
       console.error('Error cancelling order:', err);
@@ -130,6 +146,24 @@ export default function OrderDetailPage() {
       case 'pending': return { icon: Clock, color: 'text-gray-600', bg: 'bg-gray-50', label: 'Pending' };
       case 'cancelled': return { icon: XCircle, color: 'text-red-600', bg: 'bg-red-50', label: 'Cancelled' };
       default: return { icon: Package, color: 'text-gray-600', bg: 'bg-gray-50', label: status };
+    }
+  };
+
+  // Get status badge color (fix for missing function)
+  const getStatusBadgeColor = (status) => {
+    switch (status) {
+      case 'delivered':
+        return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+      case 'shipped':
+        return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'processing':
+        return 'bg-amber-100 text-amber-700 border-amber-200';
+      case 'pending':
+        return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'cancelled':
+        return 'bg-red-100 text-red-700 border-red-200';
+      default:
+        return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
 
@@ -176,8 +210,25 @@ export default function OrderDetailPage() {
 
         {/* Error */}
         {error && (
-          <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg border border-red-200">
-            <X /> {error}
+          <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg border border-red-200 flex items-center gap-2">
+            <X className="w-4 h-4" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Server Down */}
+        {isServerDown && (
+          <div className="mb-4 p-6 bg-amber-50 text-amber-700 rounded-xl border border-amber-200 text-center">
+            <WifiOff className="w-12 h-12 mx-auto mb-3 text-amber-500" />
+            <h3 className="text-lg font-semibold mb-2">Server Connection Lost</h3>
+            <p className="mb-4">{error}</p>
+            <button
+              onClick={fetchOrder}
+              className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors inline-flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Retry Connection
+            </button>
           </div>
         )}
 

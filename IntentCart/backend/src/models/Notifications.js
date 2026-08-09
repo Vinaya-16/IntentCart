@@ -15,12 +15,12 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['user', 'alert', 'success', 'info', 'system', 'order', 'product', 'payment'],
+    enum: ['user', 'alert', 'success', 'info', 'system', 'order', 'product', 'payment', 'recovery'],
     default: 'info'
   },
   category: {
     type: String,
-    enum: ['Under Review', 'Alerts', 'Updates', 'System', 'General', 'Orders', 'Products', 'Payments', 'Security'],
+    enum: ['Under Review', 'Alerts', 'Updates', 'System', 'General', 'Orders', 'Products', 'Payments', 'Security', 'Carts'],
     default: 'General'
   },
   panel: {

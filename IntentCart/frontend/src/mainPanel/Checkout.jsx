@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -19,10 +19,13 @@ import {
   Building,
   Home,
   Briefcase,
-  Check
+  Check,
+  ShoppingBag,
+  X
 } from 'lucide-react';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
+import eventTracker from '../utils/eventTracker';
 
 const API_URL = 'http://localhost:5000/api/customer';
 
@@ -37,6 +40,9 @@ export default function CheckoutPage() {
   const [profile, setProfile] = useState(null);
   const [addresses, setAddresses] = useState([]);
   const [payments, setPayments] = useState([]);
+
+  // Use ref to track if checkout view has been tracked
+  const checkoutTrackedRef = useRef(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -65,6 +71,8 @@ export default function CheckoutPage() {
       setLoading(true);
       setError('');
       setIsServerDown(false);
+      // Reset tracking flag when fetching new data
+      checkoutTrackedRef.current = false;
 
       const token = getToken();
       if (!token) {
@@ -149,8 +157,16 @@ export default function CheckoutPage() {
     }
   };
 
-  // Place order
-  // In Checkout.jsx - handlePlaceOrder function
+  // Track checkout view - only once per checkout load
+  useEffect(() => {
+    if (cartItems.length > 0 && !checkoutTrackedRef.current) {
+      const total = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      eventTracker.trackCheckoutView(cartItems, total);
+      checkoutTrackedRef.current = true;
+    }
+  }, [cartItems]);
+
+  // Handle place order function
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
 
@@ -204,8 +220,12 @@ export default function CheckoutPage() {
       }
 
       if (data.success) {
+        // Track payment success and purchase completed
+        const total = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        await eventTracker.trackPaymentSuccess(data.order?.orderId, cartItems, total);
+        await eventTracker.trackPurchaseCompleted(data.order?.orderId, cartItems, total);
+
         setSuccess('Order placed successfully!');
-        // Navigate with orderId
         setTimeout(() => {
           navigate(`/order-success/${data.order?.orderId}`);
         }, 1500);
@@ -213,6 +233,10 @@ export default function CheckoutPage() {
     } catch (err) {
       console.error('Error placing order:', err);
       setError(err.message);
+
+      // Track payment failure
+      const total = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      await eventTracker.trackPaymentFailed(err, cartItems, total);
     } finally {
       setSubmitting(false);
     }
@@ -285,13 +309,15 @@ export default function CheckoutPage() {
 
         {/* Error/Success Messages */}
         {error && (
-          <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg border border-red-200">
-            <X /> {error}
+          <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg border border-red-200 flex items-center gap-2">
+            <X className="w-4 h-4" />
+            <span>{error}</span>
           </div>
         )}
         {success && (
-          <div className="mb-4 p-3 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-200">
-            <Check /> {success}
+          <div className="mb-4 p-3 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-200 flex items-center gap-2">
+            <Check className="w-4 h-4" />
+            <span>{success}</span>
           </div>
         )}
 

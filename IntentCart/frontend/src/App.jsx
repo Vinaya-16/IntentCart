@@ -34,47 +34,52 @@ import MerchantCampM from "./merchantPanel/campaignM.jsx";
 import MerchantNotifications from "./merchantPanel/notifications.jsx";
 import MerchantProfile from "./merchantPanel/profile.jsx";
 
+import TrackingProvider from './components/TrackingProvider';
+
 function App() {
 
   return (
     <>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/intentCart-auth" element={<Auth />} />
+      <TrackingProvider>
+        {/* Your existing routes */}
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/intentCart-auth" element={<Auth />} />
 
-          {/* Admin Panel  */}
-          <Route path="/admin-dashboard" element={<AdminDashboard />} />
-          <Route path="/admin-userM" element={<UserM />} />
-          <Route path="/admin-merchantV" element={<MerchantManagement />} />
-          <Route path="/admin-productM" element={<ProductM />} />
-          <Route path="/admin-profile" element={<Profile />} />
-          <Route path="/admin-notifications" element={<Notifications />} />
+            {/* Admin Panel  */}
+            <Route path="/admin-dashboard" element={<AdminDashboard />} />
+            <Route path="/admin-userM" element={<UserM />} />
+            <Route path="/admin-merchantV" element={<MerchantManagement />} />
+            <Route path="/admin-productM" element={<ProductM />} />
+            <Route path="/admin-profile" element={<Profile />} />
+            <Route path="/admin-notifications" element={<Notifications />} />
 
-          {/* Merchant Panel  */}
-          <Route path="/merchant-dashboard" element={<MerchantDashboard />} />
-          <Route path="/merchant-productM" element={<MerchantProductM />} />
-          <Route path="/merchant-orderM" element={<MerchantOrderM />} />
-          <Route path="/merchant-customerA" element={<MerchantCustomerA />} />
-          <Route path="/merchant-recoveryD" element={<MerchantRecoveryD />} />
-          <Route path="/merchant-campM" element={<MerchantCampM />} />
-          <Route path="/merchant-notifications" element={<MerchantNotifications />} />
-          <Route path="/merchant-profile" element={<MerchantProfile />} />
+            {/* Merchant Panel  */}
+            <Route path="/merchant-dashboard" element={<MerchantDashboard />} />
+            <Route path="/merchant-productM" element={<MerchantProductM />} />
+            <Route path="/merchant-orderM" element={<MerchantOrderM />} />
+            <Route path="/merchant-customerA" element={<MerchantCustomerA />} />
+            <Route path="/merchant-recoveryD" element={<MerchantRecoveryD />} />
+            <Route path="/merchant-campM" element={<MerchantCampM />} />
+            <Route path="/merchant-notifications" element={<MerchantNotifications />} />
+            <Route path="/merchant-profile" element={<MerchantProfile />} />
 
-          {/* Main Panel Paths  */}
-          <Route path="/category/:path/*" element={<CategoryPage />} />          
-          <Route path="/main-notifications" element={<NotificationsPage />} />
-          <Route path="/main-wishlist" element={<WishlistPage />} />
-          <Route path="/main-cart" element={<CartPage />} />
-          <Route path="/product/:slug" element={<ProductDetail />} />
-          <Route path="/main-profile" element={<CustProfile />} />
-          <Route path="/checkout" element={<CheckoutPage />} />
-          <Route path="/order-success/:orderId" element={<OrderSuccess />} />
-          <Route path="/orders" element={<OrdersPage />} />
-          <Route path="/order/:id" element={<OrderDetailPage />} />
+            {/* Main Panel Paths  */}
+            <Route path="/category/:path/*" element={<CategoryPage />} />
+            <Route path="/main-notifications" element={<NotificationsPage />} />
+            <Route path="/main-wishlist" element={<WishlistPage />} />
+            <Route path="/main-cart" element={<CartPage />} />
+            <Route path="/product/:slug" element={<ProductDetail />} />
+            <Route path="/main-profile" element={<CustProfile />} />
+            <Route path="/checkout" element={<CheckoutPage />} />
+            <Route path="/order-success/:orderId" element={<OrderSuccess />} />
+            <Route path="/orders" element={<OrdersPage />} />
+            <Route path="/order/:id" element={<OrderDetailPage />} />
 
-        </Routes>
-      </BrowserRouter>
+          </Routes>
+        </BrowserRouter>
+      </TrackingProvider>
     </>
   )
 }

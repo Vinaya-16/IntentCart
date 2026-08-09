@@ -49,15 +49,6 @@ import {
 } from '../controllers/customerAnalysisController.js';
 
 import {
-    trackAbandonment,
-    getRecoveryStats,
-    triggerRecovery,
-    getAbandonedCarts,
-    generateSampleData,
-    trackRecoveryEvent
-} from '../controllers/recoveryController.js';
-
-import {
     createCampaign,
     getCampaigns,
     getCampaignById,
@@ -68,6 +59,18 @@ import {
     applyCoupon,
     getCampaignStats
 } from '../controllers/campaignController.js';
+
+import {
+    getRecoveryStats,
+    getAllRecoveryEvents,
+    detectAbandonments,
+    triggerRecovery,
+    trackEmailOpen,
+    trackEmailClick,
+    markRecoveryConverted,
+    getAbandonmentReasons,
+    getRecoveryTrends
+} from '../controllers/recoveryController.js';
 
 const router = express.Router();
 
@@ -115,14 +118,6 @@ router.get('/customers', getCustomers);
 router.get('/customers/stats', getCustomerStats);
 router.get('/customers/:id', getCustomerDetails);
 
-// ==================== RECOVERY DASHBOARD ====================
-router.post('/recovery/track', trackAbandonment);
-router.get('/recovery/stats', getRecoveryStats);
-router.post('/recovery/trigger', triggerRecovery);
-router.get('/recovery/abandoned', getAbandonedCarts);
-router.post('/recovery/generate-sample', generateSampleData); 
-router.post('/recovery/track-event', trackRecoveryEvent);
-
 // ==================== CAMPAIGN MANAGEMENT ====================
 router.post('/campaigns', createCampaign);
 router.get('/campaigns', getCampaigns);
@@ -133,5 +128,33 @@ router.put('/campaigns/:id/status', updateCampaignStatus);
 router.delete('/campaigns/:id', deleteCampaign);
 router.post('/campaigns/validate-coupon', validateCoupon);
 router.post('/campaigns/apply-coupon', applyCoupon);
+
+// ==================== RECOVERY DASHBOARD ====================
+// Get recovery statistics
+router.get('/recovery/stats', getRecoveryStats);
+
+// Get all recovery events with pagination and filters
+router.get('/recovery/events', getAllRecoveryEvents);
+
+// Get abandonment reasons distribution
+router.get('/recovery/abandonment-reasons', getAbandonmentReasons);
+
+// Get recovery trends data
+router.get('/recovery/trends', getRecoveryTrends);
+
+// Detect abandonments (manual trigger)
+router.post('/recovery/detect-abandonments', detectAbandonments);
+
+// Trigger recovery for a specific session
+router.post('/recovery/trigger', triggerRecovery);
+
+// Track email open (webhook/pixel)
+router.post('/recovery/open/:recoveryId', trackEmailOpen);
+
+// Track email click (webhook)
+router.post('/recovery/click/:recoveryId', trackEmailClick);
+
+// Mark recovery as converted (when purchase is completed)
+router.post('/recovery/convert/:recoveryId', markRecoveryConverted);
 
 export default router;

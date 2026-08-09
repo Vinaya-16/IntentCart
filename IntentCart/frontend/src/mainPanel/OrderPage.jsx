@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
+import eventTracker from '../utils/eventTracker';
 
 const API_URL = 'http://localhost:5000/api/customer';
 
@@ -229,8 +230,9 @@ export default function OrdersPage() {
 
                 {/* Error/Success Messages */}
                 {error && !isServerDown && (
-                    <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg border border-red-200">
-                        <X /> {error}
+                    <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg border border-red-200 flex items-center gap-2">
+                        <X className="w-4 h-4 flex-shrink-0" />
+                        <span>{error}</span>
                     </div>
                 )}
 
@@ -250,16 +252,17 @@ export default function OrdersPage() {
                     </div>
                 )}
 
-                {/* Status Filters - Updated: All, Completed, Cancelled, Processing */}
+                {/* Status Filters */}
                 <div className="flex flex-wrap gap-2 mb-8">
                     {statusFilters.map((filter) => (
                         <button
                             key={filter.value}
                             onClick={() => setStatusFilter(filter.value)}
-                            className={`px-4 py-2 rounded-full text-xs font-semibold transition-all ${statusFilter === filter.value
-                                ? 'bg-indigo-600 text-white shadow-sm'
-                                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                                }`}
+                            className={`px-4 py-2 rounded-full text-xs font-semibold transition-all ${
+                                statusFilter === filter.value
+                                    ? 'bg-indigo-600 text-white shadow-sm'
+                                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            }`}
                         >
                             {filter.label}
                         </button>
@@ -364,12 +367,13 @@ export default function OrdersPage() {
 
                                                         <div className="flex justify-between">
                                                             <span className="text-slate-500">Payment Status</span>
-                                                            <span className={`font-medium capitalize ${order.paymentStatus === 'paid'
-                                                                ? 'text-emerald-600'
-                                                                : order.paymentStatus === 'failed'
-                                                                    ? 'text-red-600'
-                                                                    : 'text-amber-600'
-                                                                }`}>
+                                                            <span className={`font-medium capitalize ${
+                                                                order.paymentStatus === 'paid'
+                                                                    ? 'text-emerald-600'
+                                                                    : order.paymentStatus === 'failed'
+                                                                        ? 'text-red-600'
+                                                                        : 'text-amber-600'
+                                                            }`}>
                                                                 {order.paymentStatus === 'pending' && 'Pending'}
                                                                 {order.paymentStatus === 'paid' && 'Paid'}
                                                                 {order.paymentStatus === 'failed' && 'Failed'}
@@ -419,7 +423,7 @@ export default function OrdersPage() {
                                                 </div>
                                             </div>
 
-                                            {/* Action Buttons - Only Cancel Order, No View Order */}
+                                            {/* Action Buttons */}
                                             <div className="mt-4 pt-4 border-t border-slate-100 flex flex-wrap gap-3">
                                                 {order.status === 'pending' && (
                                                     <button
