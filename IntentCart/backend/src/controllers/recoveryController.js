@@ -1,6 +1,5 @@
 import eventService from '../services/eventService.js';
 import abandonmentService from '../services/abandonmentService.js';
-import recoveryService from '../services/recoveryService.js';
 
 import User from '../models/User.js';
 import Event from '../models/Event.js';
@@ -9,10 +8,12 @@ import { triggerRecoveryNotification } from './customerNotificationController.js
 export const triggerRecovery = async (req, res) => {
     try {
         const { sessionId, customerId } = req.body;
+        const merchantId = req.user._id;
 
         // 1. Fetch the actual cart items from the events
         const cartEvent = await Event.findOne({
             sessionId,
+            merchantId: merchantId,
             eventType: { $in: ['add_to_cart', 'checkout_started'] }
         }).sort({ createdAt: -1 });
 
@@ -20,14 +21,13 @@ export const triggerRecovery = async (req, res) => {
             return res.status(404).json({ success: false, message: "Cart not found" });
         }
 
-        // 2. Get user details (to make sure they exist)
+        // 2. Get user details
         const user = await User.findById(customerId);
         if (!user) {
             return res.status(400).json({ success: false, message: "User not found" });
         }
 
-        // 3. SAVE TO CUSTOMER NOTIFICATIONS DB (This is the ONLY thing we do)
-        // This puts the notification into the customer's app dashboard
+        // 3. SAVE TO CUSTOMER NOTIFICATIONS DB
         await triggerRecoveryNotification(
             user._id,
             cartEvent.cartItems,
@@ -35,12 +35,11 @@ export const triggerRecovery = async (req, res) => {
             sessionId
         );
 
-        // console.log(`Recovery notification saved to DB for customer: ${user._id}`);
-
-        // 4. Log the action in your Events collection (for merchant dashboard tracking)
-        await eventService.trackEvent({
+        // 4. Log the action in your Events collection
+        const trackedEvent = await eventService.trackEvent({
             sessionId,
             customerId,
+            merchantId: merchantId,
             eventType: 'recovery_email_sent',
             cartItems: cartEvent.cartItems,
             cartTotal: cartEvent.cartTotal,
@@ -49,6 +48,16 @@ export const triggerRecovery = async (req, res) => {
                 notifiedCustomer: user._id.toString()
             }
         });
+
+        if (!trackedEvent) {
+            console.error("eventService.trackEvent failed to save the event!");
+            return res.status(500).json({
+                success: false,
+                message: "Failed to track recovery event in Event collection."
+            });
+        }
+
+        // console.log(`Recovery email sent event saved to Event collection. ID: ${trackedEvent._id}`);
 
         res.status(200).json({
             success: true,
@@ -66,66 +75,172 @@ export const triggerRecovery = async (req, res) => {
  */
 export const getRecoveryStats = async (req, res) => {
     try {
-        const { period = '30' } = req.query;
         const merchantId = req.user._id;
+        const { period = '30' } = req.query;
+        const days = parseInt(period);
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - days);
 
-        // Get recovery stats
-        const stats = await recoveryService.getRecoveryStats(period);
+        // 1. GET REAL ABANDONMENT STATS
+        const totalAbandonments = await Event.countDocuments({
+            // Allow legacy data with missing merchantId
+            $or: [
+                { merchantId: merchantId },
+                { merchantId: { $exists: false } }
+            ],
+            eventType: {
+                $in: [
+                    'cart_abandoned',
+                    'checkout_abandoned',
+                    'product_abandoned',
+                    'wishlist_abandoned'
+                ]
+            },
+            createdAt: { $gte: startDate }
+        });
 
-        // Get abandonment stats
-        const abandonmentStats = await eventService.getAbandonmentStats(period);
+        // 2. GET SUCCESSFUL RECOVERIES
+        const recoveredOrders = await Event.countDocuments({
+            merchantId: merchantId,
+            eventType: 'purchase_completed',
+            // Count ALL purchases, not just converted ones
+            recoveryStatus: { $in: ['converted', 'pending'] },
+            createdAt: { $gte: startDate }
+        });
 
-        // Get event distribution
-        const eventStats = await eventService.getEventStats(period);
+        // 3. CALCULATE REVENUE
+        const revenueResult = await Event.aggregate([
+            {
+                $match: {
+                    merchantId: merchantId,
+                    eventType: 'purchase_completed',
+                    // Sum ALL purchases, not just converted ones
+                    recoveryStatus: { $in: ['converted', 'pending'] },
+                    createdAt: { $gte: startDate }
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalRevenue: { $sum: { $ifNull: ['$cartTotal', 0] } }
+                }
+            }
+        ]);
 
-        // Calculate total abandonments
-        const totalAbandonments = Object.values(abandonmentStats).reduce((a, b) => a + b, 0);
+        const totalRevenue = revenueResult.length > 0 ? revenueResult[0].totalRevenue : 0;
 
-        // Prepare abandonment data for charts
-        const abandonmentData = Object.entries(abandonmentStats).map(([key, value]) => ({
-            name: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-            value
+        // 4. CALCULATE RECOVERY RATE
+        const recoveryRate = totalAbandonments > 0 ? (recoveredOrders / totalAbandonments) * 100 : 0;
+
+        // --- [CHART LOGIC BELOW] ---
+
+        // 5. ABANDONMENT REASONS BREAKDOWN FOR PIE CHART (BEHAVIORAL REASONS)
+        const abandonmentBreakdown = await Event.aggregate([
+            {
+                $match: {
+                    merchantId: merchantId,
+                    eventType: {
+                        $in: ['cart_abandoned', 'checkout_abandoned', 'product_abandoned', 'wishlist_abandoned']
+                    },
+                    abandonmentReason: { $ne: null },
+                    createdAt: { $gte: startDate }
+                }
+            },
+            {
+                $group: {
+                    _id: '$abandonmentReason',
+                    value: { $sum: 1 }
+                }
+            },
+            {
+                $sort: { value: -1 }
+            }
+        ]);
+
+        // Calculate total for percentage calculation
+        const totalReasons = abandonmentBreakdown.reduce((acc, curr) => acc + curr.value, 0);
+
+        const abandonmentData = abandonmentBreakdown.map(item => ({
+            name: item._id.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+            value: totalReasons > 0 ? Math.round((item.value / totalReasons) * 100) : 0
         }));
 
-        // Prepare notification data
+        // 6. NOTIFICATION PERFORMANCE
+        const sentCount = await Event.countDocuments({
+            merchantId: merchantId,
+            eventType: 'recovery_email_sent',
+            createdAt: { $gte: startDate }
+        });
+
         const notificationData = [
-            { name: 'Sent', value: stats.sent || 0 },
-            { name: 'Opened', value: stats.opened || 0 },
-            { name: 'Clicked', value: stats.clicked || 0 },
-            { name: 'Converted', value: stats.converted || 0 }
+            { name: 'Sent', value: sentCount },
+            { name: 'Opened', value: 0 },
+            { name: 'Clicked', value: 0 },
+            { name: 'Converted', value: recoveredOrders }
         ];
 
-        // Prepare intent data
+        // 7. INTENT DISTRIBUTION
         const intentData = {
-            High: stats.converted || 0,
-            Medium: stats.opened || 0,
-            Low: stats.sent || 0
+            High: recoveredOrders,
+            Medium: sentCount,
+            Low: Math.max(0, totalAbandonments - sentCount)
         };
 
-        // Get trends data
-        const trends = await getTrendData(period);
+        // 8. RECOVERY TRENDS
+        const trends = await getTrendData(merchantId, period);
+
+        // 9. EVENT FLOW STATS (ABANDONMENT FLOW)
+        const eventFlowStats = await Event.aggregate([
+            {
+                $match: {
+                    merchantId: merchantId,
+                    eventType: {
+                        $in: ['product_viewed', 'cart_viewed', 'checkout_viewed', 'cart_restored']
+                    },
+                    createdAt: { $gte: startDate }
+                }
+            },
+            {
+                // Group by BOTH eventType AND sessionId to avoid duplicates
+                $group: {
+                    _id: {
+                        eventType: '$eventType',
+                        sessionId: '$sessionId'
+                    }
+                }
+            },
+            {
+                // Now count the unique combinations
+                $group: {
+                    _id: '$_id.eventType',
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        const flowStats = {};
+        eventFlowStats.forEach(item => {
+            flowStats[item._id] = item.count;
+        });
 
         res.json({
             success: true,
             stats: {
-                recoveredRevenue: stats.totalRevenue || 0,
-                recoveryRate: stats.recoveryRate || 0,
-                totalAttempts: stats.totalAttempts || 0,
-                recoveredOrders: stats.converted || 0,
-                recoveryOpened: stats.opened || 0,
-                recoveryClicked: stats.clicked || 0,
-                averageRecoveryTime: stats.avgRecoveryTime || 0,
-                totalAbandonments: totalAbandonments,
-                // Additional stats from events
-                cartAbandoned: abandonmentStats.cart_abandoned || 0,
-                checkoutAbandoned: abandonmentStats.checkout_abandoned || 0,
-                productAbandoned: abandonmentStats.product_abandoned || 0,
-                wishlistAbandoned: abandonmentStats.wishlist_abandoned || 0,
-                cartRestored: eventStats.cart_restored || 0,
-                productViewed: eventStats.product_viewed || 0,
-                cartViewed: eventStats.cart_viewed || 0,
-                checkoutViewed: eventStats.checkout_viewed || 0,
-                wishlistViewed: eventStats.wishlist_viewed || 0
+                recoveredRevenue: totalRevenue || 0,
+                recoveryRate: recoveryRate || 0,
+                totalAttempts: sentCount || 0,
+                recoveredOrders: recoveredOrders || 0,
+                totalAbandonments: totalAbandonments || 0,
+                // Abandonment breakdown
+                cartAbandoned: abandonmentBreakdown.find(i => i._id === 'cart_abandoned')?.value || 0,
+                checkoutAbandoned: abandonmentBreakdown.find(i => i._id === 'checkout_abandoned')?.value || 0,
+                productAbandoned: abandonmentBreakdown.find(i => i._id === 'product_abandoned')?.value || 0,
+                wishlistAbandoned: abandonmentBreakdown.find(i => i._id === 'wishlist_abandoned')?.value || 0,
+                // Flow breakdown
+                cartRestored: flowStats.cart_restored || 0,
+                productViewed: flowStats.product_viewed || 0,
+                cartViewed: flowStats.cart_viewed || 0,
+                checkoutViewed: flowStats.checkout_viewed || 0
             },
             charts: {
                 abandonmentData,
@@ -148,6 +263,7 @@ export const getRecoveryStats = async (req, res) => {
  */
 export const getAllRecoveryEvents = async (req, res) => {
     try {
+        const merchantId = req.user._id;
         const {
             limit = 100,
             page = 1,
@@ -160,6 +276,7 @@ export const getAllRecoveryEvents = async (req, res) => {
         } = req.query;
 
         const filters = {
+            merchantId: merchantId,
             eventType: eventType && eventType !== 'all' ? eventType : null,
             recoveryStatus: status,
             customerId,
@@ -168,7 +285,6 @@ export const getAllRecoveryEvents = async (req, res) => {
             toDate
         };
 
-        // Remove null/undefined filters
         Object.keys(filters).forEach(key => {
             if (!filters[key]) delete filters[key];
         });
@@ -179,7 +295,6 @@ export const getAllRecoveryEvents = async (req, res) => {
             parseInt(page)
         );
 
-        // Get event types for filter dropdown
         const eventTypes = [...new Set(
             result.data.map(e => e.eventType)
         )];
@@ -205,64 +320,12 @@ export const getAllRecoveryEvents = async (req, res) => {
 };
 
 /**
- * Get abandonment reasons distribution
- */
-export const getAbandonmentReasons = async (req, res) => {
-    try {
-        const { period = '30' } = req.query;
-
-        const reasons = await eventService.getAbandonmentReasons(period);
-
-        // Format for frontend
-        const formattedReasons = reasons.map(reason => ({
-            name: reason._id,
-            count: reason.count,
-            percentage: 0
-        }));
-
-        const total = reasons.reduce((sum, r) => sum + r.count, 0);
-
-        res.json({
-            success: true,
-            data: formattedReasons,
-            total
-        });
-    } catch (error) {
-        console.error('Error getting abandonment reasons:', error);
-        res.status(500).json({
-            success: false,
-            message: error.message || 'Failed to get abandonment reasons'
-        });
-    }
-};
-
-/**
- * Get recovery trends data
- */
-export const getRecoveryTrends = async (req, res) => {
-    try {
-        const { period = '30' } = req.query;
-        const trends = await getTrendData(period);
-
-        res.json({
-            success: true,
-            data: trends
-        });
-    } catch (error) {
-        console.error('Error getting trends:', error);
-        res.status(500).json({
-            success: false,
-            message: error.message || 'Failed to get recovery trends'
-        });
-    }
-};
-
-/**
  * Detect abandonments (manual trigger)
  */
 export const detectAbandonments = async (req, res) => {
     try {
-        const results = await abandonmentService.detectAbandonments();
+        const merchantId = req.user._id;
+        const results = await abandonmentService.detectAbandonments(merchantId);
 
         res.json({
             success: true,
@@ -285,112 +348,15 @@ export const detectAbandonments = async (req, res) => {
     }
 };
 
-/**
- * Track email open (webhook/pixel)
- */
-export const trackEmailOpen = async (req, res) => {
-    try {
-        const { recoveryId } = req.params;
-
-        if (!recoveryId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Recovery ID is required'
-            });
-        }
-
-        const recovery = await recoveryService.trackEmailOpen(recoveryId);
-
-        // Return a 1x1 pixel or success response
-        res.json({
-            success: true,
-            message: 'Email open tracked successfully'
-        });
-    } catch (error) {
-        console.error('Error tracking email open:', error);
-        // Still return success to not break the tracking pixel
-        res.json({
-            success: false,
-            message: error.message
-        });
-    }
-};
 
 /**
- * Track email click (webhook)
+ * Generate trend data for charts based on the actual Events collection
  */
-export const trackEmailClick = async (req, res) => {
-    try {
-        const { recoveryId } = req.params;
-
-        if (!recoveryId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Recovery ID is required'
-            });
-        }
-
-        const recovery = await recoveryService.trackEmailClick(recoveryId);
-
-        res.json({
-            success: true,
-            message: 'Email click tracked successfully',
-            data: recovery
-        });
-    } catch (error) {
-        console.error('Error tracking email click:', error);
-        res.status(500).json({
-            success: false,
-            message: error.message || 'Failed to track email click'
-        });
-    }
-};
-
-/**
- * Mark recovery as converted (when purchase is completed)
- */
-export const markRecoveryConverted = async (req, res) => {
-    try {
-        const { recoveryId } = req.params;
-        const { orderValue } = req.body;
-
-        if (!recoveryId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Recovery ID is required'
-            });
-        }
-
-        const recovery = await recoveryService.markConverted(
-            recoveryId,
-            orderValue
-        );
-
-        res.json({
-            success: true,
-            message: 'Recovery marked as converted',
-            data: recovery
-        });
-    } catch (error) {
-        console.error('Error marking conversion:', error);
-        res.status(500).json({
-            success: false,
-            message: error.message || 'Failed to mark recovery as converted'
-        });
-    }
-};
-
-// ==================== HELPER FUNCTIONS ====================
-
-/**
- * Generate trend data for charts
- */
-const getTrendData = async (period = 30) => {
+const getTrendData = async (merchantId, period = 30) => {
     const days = parseInt(period);
     const trends = [];
     const now = new Date();
 
-    // Get recovery data for each day
     for (let i = days - 1; i >= 0; i--) {
         const date = new Date(now);
         date.setDate(date.getDate() - i);
@@ -401,52 +367,34 @@ const getTrendData = async (period = 30) => {
         const endOfDay = new Date(date);
         endOfDay.setHours(23, 59, 59, 999);
 
-        // Query for this day's data (this would be optimized in a real implementation)
-        const dayData = await getDayData(startOfDay, endOfDay);
-
-        trends.push({
-            date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-            revenue: dayData.revenue || 0,
-            orders: dayData.orders || 0,
-            attempts: dayData.attempts || 0,
-            conversions: dayData.conversions || 0
-        });
-    }
-
-    return trends;
-};
-
-/**
- * Get data for a specific day (simplified version)
- * In production, this would query the database directly
- */
-const getDayData = async (startDate, endDate) => {
-    try {
-        const Recovery = (await import('../models/Recovery.js')).default;
-
-        const result = await Recovery.aggregate([
+        // Force MongoDB to treat cartTotal as a number
+        const revenueData = await Event.aggregate([
             {
                 $match: {
-                    createdAt: { $gte: startDate, $lte: endDate }
+                    merchantId: merchantId,
+                    eventType: 'purchase_completed',
+                    // Also accept 'pending' here
+                    recoveryStatus: { $in: ['converted', 'pending'] },
+                    createdAt: { $gte: startOfDay, $lte: endOfDay }
                 }
             },
             {
                 $group: {
                     _id: null,
-                    attempts: { $sum: 1 },
-                    conversions: {
-                        $sum: { $cond: [{ $eq: ['$recoveryStatus', 'converted'] }, 1, 0] }
-                    },
-                    revenue: {
-                        $sum: { $cond: [{ $eq: ['$recoveryStatus', 'converted'] }, '$recoveryValue', 0] }
-                    }
+                    totalRevenue: { $sum: { $ifNull: ['$cartTotal', 0] } },
+                    count: { $sum: 1 }
                 }
             }
         ]);
 
-        return result[0] || { attempts: 0, conversions: 0, revenue: 0 };
-    } catch (error) {
-        console.error('Error getting day data:', error);
-        return { attempts: 0, conversions: 0, revenue: 0 };
+        const dayResult = revenueData[0] || { totalRevenue: 0, count: 0 };
+
+        trends.push({
+            date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            revenue: dayResult.totalRevenue || 0,
+            orders: dayResult.count || 0
+        });
     }
+
+    return trends;
 };

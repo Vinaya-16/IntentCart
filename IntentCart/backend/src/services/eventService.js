@@ -2,14 +2,30 @@ import Event from '../models/Event.js';
 import Recovery from '../models/Recovery.js';
 
 class EventService {
-    /**
-     * Track an event
-     */
+    //  * Track an event
     async trackEvent(data) {
         try {
+            const allowedEventTypes = [
+                'product_viewed', 'add_to_cart', 'cart_viewed',
+                'checkout_started', 'wishlist_viewed', 'payment_failed',
+                'purchase_completed', 'cart_restored', 'cart_abandoned',
+                'checkout_abandoned', 'product_abandoned', 'wishlist_abandoned',
+                'recovery_email_sent',
+                'recovery_email_opened', 'recovery_email_clicked',
+                'recovery_converted'
+            ];
+
+            // If the event type is NOT in the allowed list, ignore it silently.
+            if (!allowedEventTypes.includes(data.eventType)) {
+                // console.warn(`Ignoring unsupported event type: ${data.eventType}`);
+                return null;
+            }
+            // ==========================================
+
             const event = new Event({
                 sessionId: data.sessionId,
                 customerId: data.customerId,
+                merchantId: data.merchantId,
                 eventType: data.eventType,
                 productId: data.productId,
                 productIds: data.productIds,
@@ -44,6 +60,7 @@ class EventService {
         const recovery = new Recovery({
             sessionId: event.sessionId,
             customerId: event.customerId,
+            merchantId: event.merchantId,
             eventId: event._id,
             abandonmentReason: event.abandonmentReason || 'other',
             cartItems: event.cartItems,
@@ -61,6 +78,7 @@ class EventService {
     async getEvents(filters = {}, limit = 100, page = 1) {
         const query = {};
 
+        if (filters.merchantId) query.merchantId = filters.merchantId;
         if (filters.sessionId) query.sessionId = filters.sessionId;
         if (filters.customerId) query.customerId = filters.customerId;
         if (filters.eventType) query.eventType = filters.eventType;

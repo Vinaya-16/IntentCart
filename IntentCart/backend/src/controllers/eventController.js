@@ -1,5 +1,6 @@
 import eventService from '../services/eventService.js';
 import abandonmentService from '../services/abandonmentService.js';
+import Product from '../models/Product.js';
 
 /**
  * Track a single event
@@ -17,8 +18,24 @@ export const trackEvent = async (req, res) => {
             url
         } = req.body;
 
-        // Get user info from request (if authenticated)
+        // Get user info from request
         const customerId = req.user?._id || sessionId;
+
+        // STEP 1: DETERMINE MERCHANT ID
+        let merchantId = null;
+        try {
+            if (productId) {
+                // If it's a single product view
+                const product = await Product.findById(productId).select('merchantId');
+                if (product) merchantId = product.merchantId;
+            } else if (cartItems && cartItems.length > 0) {
+                // If it's a cart event, grab the merchant from the first item
+                const firstProduct = await Product.findById(cartItems[0].productId).select('merchantId');
+                if (firstProduct) merchantId = firstProduct.merchantId;
+            }
+        } catch (err) {
+            console.warn("Could not fetch merchantId for tracking event:", err.message);
+        }
 
         // Validate required fields
         if (!sessionId || !eventType) {
@@ -37,6 +54,7 @@ export const trackEvent = async (req, res) => {
         const event = await eventService.trackEvent({
             sessionId,
             customerId,
+            merchantId,
             eventType,
             productId,
             productIds,
@@ -88,9 +106,20 @@ export const trackBatchEvents = async (req, res) => {
 
         for (const eventData of events) {
             try {
+                // STEP 2: DETERMINE MERCHANT ID FOR EACH BATCH EVENT
+                let merchantId = null;
+                if (eventData.productId) {
+                    const product = await Product.findById(eventData.productId).select('merchantId');
+                    if (product) merchantId = product.merchantId;
+                } else if (eventData.cartItems && eventData.cartItems.length > 0) {
+                    const firstProduct = await Product.findById(eventData.cartItems[0].productId).select('merchantId');
+                    if (firstProduct) merchantId = firstProduct.merchantId;
+                }
+
                 const event = await eventService.trackEvent({
                     ...eventData,
                     customerId,
+                    merchantId,
                     userAgent,
                     ipAddress,
                     referrer

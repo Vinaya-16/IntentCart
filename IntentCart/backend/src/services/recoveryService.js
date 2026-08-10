@@ -6,11 +6,12 @@ class RecoveryService {
     /**
      * Trigger recovery for an abandoned cart
      */
-    async triggerRecovery(sessionId, customerId, method = 'email') {
+    async triggerRecovery(sessionId, customerId, merchantId, method = 'email') {
         try {
             // Find or create recovery record
             let recovery = await Recovery.findOne({
                 sessionId,
+                merchantId: merchantId,
                 recoveryStatus: { $in: ['pending', 'sent', 'opened', 'clicked'] }
             });
 
@@ -18,6 +19,7 @@ class RecoveryService {
                 // Find the abandonment event
                 const abandonmentEvent = await Event.findOne({
                     sessionId,
+                    merchantId: merchantId,
                     eventType: { $in: ['cart_abandoned', 'checkout_abandoned', 'product_abandoned', 'wishlist_abandoned'] }
                 }).sort({ createdAt: -1 });
 
@@ -28,6 +30,7 @@ class RecoveryService {
                 recovery = new Recovery({
                     sessionId,
                     customerId,
+                    merchantId: merchantId,
                     eventId: abandonmentEvent._id,
                     abandonmentReason: abandonmentEvent.abandonmentReason || 'other',
                     cartItems: abandonmentEvent.cartItems || [],
@@ -55,6 +58,7 @@ class RecoveryService {
                 await eventService.trackEvent({
                     sessionId,
                     customerId,
+                    merchantId: merchantId,
                     eventType: 'recovery_email_sent',
                     cartItems: recovery.cartItems,
                     cartTotal: recovery.cartTotal,
@@ -89,7 +93,7 @@ class RecoveryService {
         switch (reason) {
             case 'cart_aged':
                 subject = 'Your cart is waiting for you!';
-                content = `You have ${itemCount} items in your cart worth ₹${total}. Come back and complete your purchase!`;
+                content = `You have ${itemCount} items in your cart worth Rs.${total}. Come back and complete your purchase!`;
                 break;
             case 'checkout_complex':
                 subject = 'Complete your checkout!';
@@ -131,8 +135,6 @@ class RecoveryService {
      * Send recovery notification
      */
     async sendRecoveryNotification(customerId, content, method) {
-        // This is a mock implementation
-        // In production, integrate with email service (SendGrid, Mailgun, etc.)
         // console.log(`Sending ${method} recovery notification:`, {
         //     customerId,
         //     subject: content.subject,
@@ -162,6 +164,7 @@ class RecoveryService {
             await eventService.trackEvent({
                 sessionId: recovery.sessionId,
                 customerId: recovery.customerId,
+                merchantId: recovery.merchantId,
                 eventType: 'recovery_email_opened',
                 metadata: { recoveryId: recovery._id }
             });
@@ -188,6 +191,7 @@ class RecoveryService {
             await eventService.trackEvent({
                 sessionId: recovery.sessionId,
                 customerId: recovery.customerId,
+                merchantId: recovery.merchantId,
                 eventType: 'recovery_email_clicked',
                 metadata: { recoveryId: recovery._id }
             });
@@ -215,6 +219,7 @@ class RecoveryService {
             await eventService.trackEvent({
                 sessionId: recovery.sessionId,
                 customerId: recovery.customerId,
+                merchantId: recovery.merchantId,
                 eventType: 'recovery_converted',
                 cartTotal: orderValue || recovery.cartTotal || 0,
                 metadata: {
@@ -227,6 +232,7 @@ class RecoveryService {
             await eventService.trackEvent({
                 sessionId: recovery.sessionId,
                 customerId: recovery.customerId,
+                merchantId: recovery.merchantId,
                 eventType: 'cart_restored',
                 cartItems: recovery.cartItems,
                 cartTotal: orderValue || recovery.cartTotal || 0
@@ -239,13 +245,14 @@ class RecoveryService {
     /**
      * Get recovery statistics
      */
-    async getRecoveryStats(period = 30) {
+    async getRecoveryStats(merchantId, period = 30) {
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - parseInt(period));
 
         const stats = await Recovery.aggregate([
             {
                 $match: {
+                    merchantId: merchantId,
                     createdAt: { $gte: startDate }
                 }
             },
@@ -295,8 +302,8 @@ class RecoveryService {
     /**
      * Get recovery details
      */
-    async getRecoveryDetails(filters = {}, limit = 100, page = 1) {
-        const query = {};
+    async getRecoveryDetails(merchantId, filters = {}, limit = 100, page = 1) {
+        const query = { merchantId: merchantId };
 
         if (filters.sessionId) query.sessionId = filters.sessionId;
         if (filters.customerId) query.customerId = filters.customerId;

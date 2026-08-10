@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 const eventSchema = new mongoose.Schema({
+    // Identity
     sessionId: {
         type: String,
         required: true,
@@ -11,69 +12,37 @@ const eventSchema = new mongoose.Schema({
         ref: 'User',
         index: true
     },
+    merchantId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
+
+    // Core Event Type 
     eventType: {
         type: String,
         enum: [
-            // Product related
             'product_viewed',
-            'product_search',
-            'product_abandoned',
-            
-            // Cart related
-            'cart_viewed',
             'add_to_cart',
-            'remove_from_cart',
-            'cart_abandoned',
-            'cart_restored',
-            
-            // Checkout related
+            'cart_viewed',
             'checkout_started',
-            'checkout_viewed',
-            'checkout_abandoned',
-            
-            // Payment related
-            'payment_failed',
-            'payment_success',
-            
-            // Purchase related
-            'purchase_completed',
-            
-            // Wishlist related
             'wishlist_viewed',
-            'wishlist_added',
-            'wishlist_removed',
+            'payment_failed',
+
+            'purchase_completed',
+            'cart_restored',
+
+            'cart_abandoned',
+            'checkout_abandoned',
+            'product_abandoned',
             'wishlist_abandoned',
-            
-            // Category related
-            'category_viewed',
-            'homepage_viewed',
-            
-            // Recovery related
-            'recovery_email_sent',
-            'recovery_email_opened',
-            'recovery_email_clicked',
-            'recovery_converted',
-            
-            // Page tracking
-            'page_view',
-            
-            // Tab visibility
-            'tab_hidden',
-            'tab_visible',
-            
-            // User related
-            'user_login',
-            'user_logout',
-            
-            // Order related
-            'order_success_viewed',
-            
-            // Generic
-            'other'
+            'recovery_email_sent'
         ],
         required: true,
         index: true
     },
+
+    // Product Data
     productId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Product'
@@ -82,6 +51,8 @@ const eventSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Product'
     }],
+
+    // Cart Data 
     cartItems: [{
         productId: {
             type: mongoose.Schema.Types.ObjectId,
@@ -95,6 +66,8 @@ const eventSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+
+    // Abandonment Analysis
     abandonmentReason: {
         type: String,
         enum: [
@@ -113,51 +86,41 @@ const eventSchema = new mongoose.Schema({
             'other'
         ]
     },
+
+    // Recovery Lifecycle Status
     recoveryStatus: {
         type: String,
         enum: ['pending', 'sent', 'opened', 'clicked', 'converted', 'failed', 'expired'],
         default: 'pending'
     },
-    recoverySentAt: Date,
-    recoveryOpenedAt: Date,
-    recoveryClickedAt: Date,
-    recoveredAt: Date,
-    metadata: {
-        type: Map,
-        of: mongoose.Schema.Types.Mixed
-    },
-    userAgent: String,
-    ipAddress: String,
-    referrer: String,
-    url: String,
+
+    // Timestamps (Only the ones used by the dashboard)
+    recoveredAt: Date,      // When the user finally bought it
     createdAt: {
         type: Date,
         default: Date.now,
         index: true
-    },
-    updatedAt: {
-        type: Date,
-        default: Date.now
     }
 });
 
-// Indexes for performance
+// PERFORMANCE INDEXES
 eventSchema.index({ sessionId: 1, createdAt: -1 });
 eventSchema.index({ customerId: 1, createdAt: -1 });
 eventSchema.index({ eventType: 1, createdAt: -1 });
 eventSchema.index({ recoveryStatus: 1 });
 eventSchema.index({ createdAt: -1 });
 
-// Pre-save middleware
-eventSchema.pre('save', function(next) {
-    this.updatedAt = Date.now();
+eventSchema.pre('save', function (next) {
+    // Only update updatedAt if it's not a new document
+    if (!this.isNew) {
+        this.updatedAt = Date.now();
+    }
     next();
 });
 
-// Static method to get abandonment stats
-eventSchema.statics.getAbandonmentStats = async function(sessionId) {
+eventSchema.statics.getAbandonmentStats = async function (sessionId) {
     const events = await this.find({ sessionId }).sort({ createdAt: -1 });
-    
+
     const stats = {
         hasAddToCart: false,
         hasCheckoutStart: false,

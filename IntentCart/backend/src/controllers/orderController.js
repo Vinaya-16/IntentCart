@@ -3,6 +3,7 @@ import Order from '../models/Order.js';
 import Cart from '../models/Cart.js';
 import Product from '../models/Product.js';
 import User from '../models/User.js';
+import Event from '../models/Event.js';
 import {
     triggerOrderPlacedNotification
 } from '../utils/notificationTriggers.js';
@@ -12,13 +13,10 @@ import { notifyMerchantNewOrder } from '../utils/notificationTriggers.js';
 
 // @desc    Create order
 // @route   POST /api/customer/orders
-// @access  Private (Customer)
 export const createOrder = async (req, res) => {
     try {
         const customerId = req.user._id;
-        const { shippingAddress, paymentMethod } = req.body;
-
-        // console.log('Creating order for customer:', customerId);
+        const { shippingAddress, paymentMethod, sessionId: reqSessionId } = req.body;
 
         // Get cart
         const cart = await Cart.findOne({ customerId })
@@ -31,12 +29,10 @@ export const createOrder = async (req, res) => {
             });
         }
 
-        // console.log('Cart items:', cart.items.length);
-
         // Check stock and calculate totals
         let subtotal = 0;
         const orderItems = [];
-        let merchantId = null;
+        let productMerchantId = null;
 
         for (const item of cart.items) {
             const product = await Product.findById(item.productId._id);
@@ -54,12 +50,10 @@ export const createOrder = async (req, res) => {
                 });
             }
 
-            // Get merchantId from product
             if (product.merchantId) {
-                merchantId = product.merchantId;
+                productMerchantId = product.merchantId;
             }
 
-            // Update product stock
             product.stock -= item.quantity;
             await product.save();
 
@@ -80,12 +74,10 @@ export const createOrder = async (req, res) => {
         const tax = Math.round(subtotal * 0.05);
         const total = subtotal + shippingCost + tax;
 
-        // console.log('Order totals:', { subtotal, shippingCost, tax, total });
-
-        // Create order - let orderId auto-generate
+        // Create order
         const order = new Order({
             customerId,
-            merchantId: merchantId,
+            merchantId: productMerchantId,
             items: orderItems,
             subtotal,
             shippingCost,
@@ -94,12 +86,67 @@ export const createOrder = async (req, res) => {
             shippingAddress,
             paymentMethod,
             status: 'pending',
-            // Set payment status based on payment method
             paymentStatus: paymentMethod === 'cod' ? 'pending' : 'paid'
         });
 
         await order.save();
-        // console.log('Order created:', order.orderId);
+
+        // DYNAMIC RECOVERY LINKING
+
+        try {
+            const dashboardMerchantId = req.user._id; 
+            let sessionId = reqSessionId;
+
+            // DYNAMIC FALLBACK: If frontend didn't send sessionId, find the most recent abandonment
+            if (!sessionId) {
+                const lastAbandoned = await Event.findOne({
+                    customerId: customerId,
+                    merchantId: dashboardMerchantId,
+                    eventType: { $in: ['cart_abandoned', 'checkout_abandoned'] }
+                }).sort({ createdAt: -1 });
+
+                if (lastAbandoned) {
+                    sessionId = lastAbandoned.sessionId;
+                }
+            }
+
+            // If we successfully found a sessionId to link to, mark it as converted
+            if (sessionId && dashboardMerchantId) {
+                // 1. Mark the old abandoned cart as Converted
+                await Event.findOneAndUpdate(
+                    {
+                        sessionId: sessionId,
+                        merchantId: dashboardMerchantId,
+                        eventType: { $in: ['cart_abandoned', 'checkout_abandoned', 'product_abandoned', 'wishlist_abandoned'] }
+                    },
+                    {
+                        $set: {
+                            recoveryStatus: 'converted',
+                            recoveredAt: new Date(),
+                            cartTotal: total
+                        }
+                    }
+                );
+
+                // 2. Attach 'converted' to the purchase_completed event itself
+                await Event.findOneAndUpdate(
+                    {
+                        sessionId: sessionId,
+                        merchantId: dashboardMerchantId,
+                        eventType: 'purchase_completed'
+                    },
+                    {
+                        $set: {
+                            recoveryStatus: 'converted',
+                            cartTotal: total
+                        }
+                    },
+                    { upsert: true }
+                );
+            }
+        } catch (error) {
+            console.error("Error updating recovery status:", error);
+        }
 
         // Clear cart
         cart.items = [];
@@ -110,14 +157,13 @@ export const createOrder = async (req, res) => {
         // Update user's total orders
         await User.findByIdAndUpdate(customerId, { $inc: { totalOrders: 1 } });
 
-        // TRIGGER: Order Placed Notification (Customer)
+        // Trigger Notifications
         await triggerOrderPlacedNotification(customerId, order.orderId, total);
 
-        // TRIGGER: New Order Notification (Merchant)
-        if (merchantId) {
+        if (productMerchantId) {
             const customer = await User.findById(customerId);
             await notifyMerchantNewOrder(
-                merchantId,
+                productMerchantId,
                 order.orderId,
                 customer?.username || 'Customer'
             );
@@ -135,8 +181,6 @@ export const createOrder = async (req, res) => {
         });
     } catch (error) {
         console.error('Error creating order:', error);
-
-        // Handle validation errors
         if (error.name === 'ValidationError') {
             const errors = Object.values(error.errors).map(err => err.message);
             return res.status(400).json({
@@ -145,7 +189,6 @@ export const createOrder = async (req, res) => {
                 errors: errors
             });
         }
-
         res.status(500).json({
             success: false,
             message: 'Server error',
@@ -201,18 +244,13 @@ export const getOrderById = async (req, res) => {
         const customerId = req.user._id;
         const { id } = req.params;
 
-        // console.log('Fetching order:', id);
-
         let query = { customerId };
-        
-        // Check if the id is a valid ObjectId or a string
+
         if (mongoose.Types.ObjectId.isValid(id)) {
             query._id = id;
         } else {
             query.orderId = id;
         }
-
-        // console.log('Query:', query);
 
         const order = await Order.findOne(query)
             .populate('customerId', 'username email')
@@ -247,7 +285,7 @@ export const cancelOrder = async (req, res) => {
     try {
         const customerId = req.user._id;
         const { id } = req.params;
-        const { reason } = req.body;
+        const { reason, sessionId, totalAmount } = req.body;
 
         const order = await Order.findOne({ _id: id, customerId });
         if (!order) {
@@ -277,6 +315,45 @@ export const cancelOrder = async (req, res) => {
 
         await order.save();
 
+        // USE req.user._id for Cancellation as well
+        try {
+            const dashboardMerchantId = req.user._id; 
+
+            if (sessionId && dashboardMerchantId) {
+                await Event.findOneAndUpdate(
+                    {
+                        sessionId: sessionId,
+                        merchantId: dashboardMerchantId, 
+                        eventType: { $in: ['cart_abandoned', 'checkout_abandoned', 'product_abandoned', 'wishlist_abandoned'] }
+                    },
+                    {
+                        $set: {
+                            recoveryStatus: 'converted',
+                            recoveredAt: new Date(),
+                            cartTotal: totalAmount || order.total
+                        }
+                    }
+                );
+
+                // Also update the purchase_completed event if it exists
+                await Event.findOneAndUpdate(
+                    {
+                        sessionId: sessionId,
+                        merchantId: dashboardMerchantId, 
+                        eventType: 'purchase_completed'
+                    },
+                    {
+                        $set: {
+                            recoveryStatus: 'converted',
+                            cartTotal: totalAmount || order.total
+                        }
+                    }
+                );
+            }
+        } catch (error) {
+            console.error("Error updating recovery status:", error);
+        }
+
         res.status(200).json({
             success: true,
             message: 'Order cancelled successfully',
@@ -292,7 +369,6 @@ export const cancelOrder = async (req, res) => {
     }
 };
 
-// In orderController.js - Admin function to update payment status
 // @desc    Update order payment status
 // @route   PUT /api/admin/orders/:id/payment
 // @access  Private/Admin

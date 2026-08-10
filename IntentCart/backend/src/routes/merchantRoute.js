@@ -65,11 +65,6 @@ import {
     getAllRecoveryEvents,
     detectAbandonments,
     triggerRecovery,
-    trackEmailOpen,
-    trackEmailClick,
-    markRecoveryConverted,
-    getAbandonmentReasons,
-    getRecoveryTrends
 } from '../controllers/recoveryController.js';
 
 const router = express.Router();
@@ -130,31 +125,9 @@ router.post('/campaigns/validate-coupon', validateCoupon);
 router.post('/campaigns/apply-coupon', applyCoupon);
 
 // ==================== RECOVERY DASHBOARD ====================
-// Get recovery statistics
 router.get('/recovery/stats', getRecoveryStats);
-
-// Get all recovery events with pagination and filters
 router.get('/recovery/events', getAllRecoveryEvents);
-
-// Get abandonment reasons distribution
-router.get('/recovery/abandonment-reasons', getAbandonmentReasons);
-
-// Get recovery trends data
-router.get('/recovery/trends', getRecoveryTrends);
-
-// Detect abandonments (manual trigger)
 router.post('/recovery/detect-abandonments', detectAbandonments);
-
-// Trigger recovery for a specific session
 router.post('/recovery/trigger', triggerRecovery);
-
-// Track email open (webhook/pixel)
-router.post('/recovery/open/:recoveryId', trackEmailOpen);
-
-// Track email click (webhook)
-router.post('/recovery/click/:recoveryId', trackEmailClick);
-
-// Mark recovery as converted (when purchase is completed)
-router.post('/recovery/convert/:recoveryId', markRecoveryConverted);
 
 export default router;
