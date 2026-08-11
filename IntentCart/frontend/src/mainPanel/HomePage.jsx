@@ -10,7 +10,6 @@ import {
   Check,
   Clock
 } from 'lucide-react';
-import axios from 'axios';
 import { toast, Toaster } from 'react-hot-toast';
 import Header from '../components/Header.jsx';
 import Categories from '../components/CategoryBar.jsx';
@@ -31,7 +30,6 @@ export default function HomePage() {
   const [activeCampaignsCount, setActiveCampaignsCount] = useState(0);
   const [error, setError] = useState(null);
 
-  // Fallback data - Always use this if no campaigns exist
   const fallbackData = {
     saleHighlights: [
       {
@@ -41,7 +39,8 @@ export default function HomePage() {
         offer: 'Buy 2 Get 2',
         discount: 'Free',
         bg: 'bg-indigo-500',
-        couponCode: 'USPOLOB2G2'
+        couponCode: 'USPOLOB2G2',
+        imageUrl: null
       },
       {
         _id: '2',
@@ -49,7 +48,8 @@ export default function HomePage() {
         offer: 'Buy 2 Get',
         discount: '40% Off',
         bg: 'bg-indigo-400',
-        couponCode: 'LEVIS40'
+        couponCode: 'LEVIS40',
+        imageUrl: null
       },
       {
         _id: '3',
@@ -57,7 +57,8 @@ export default function HomePage() {
         offer: 'min .',
         discount: '30% Off',
         bg: 'bg-indigo-900',
-        couponCode: 'FAHREN30'
+        couponCode: 'FAHREN30',
+        imageUrl: null
       },
       {
         _id: '4',
@@ -66,21 +67,23 @@ export default function HomePage() {
         offer: 'Up to 50% + Extra 10%',
         discount: '50% Off',
         bg: 'bg-indigo-500',
-        couponCode: 'EOSS50'
+        couponCode: 'EOSS50',
+        imageUrl: null
       },
     ],
     dealCorner: [
-      { _id: '5', brand: 'Allen Solly', offer: 'Buy 2 Get 40% Off', couponCode: 'ALLEN40' },
-      { _id: '6', brand: 'ELLE', offer: 'Flat 30% Off', couponCode: 'ELLE30' },
-      { _id: '7', brand: 'Elli', offer: 'Flat 30% Off', couponCode: 'ELLI30' },
-      { _id: '8', brand: 'Code', offer: 'Flat 30% Off', couponCode: 'CODE30' },
-      { _id: '9', brand: 'Ginger', offer: 'Flat 50% Off', couponCode: 'GINGER50' },
-      { _id: '10', brand: 'Fastrack', offer: 'Flat 50% Off', couponCode: 'FASTRACK50' },
+      { _id: '5', brand: 'Allen Solly', offer: 'Buy 2 Get 40% Off', couponCode: 'ALLEN40', imageUrl: null },
+      { _id: '6', brand: 'ELLE', offer: 'Flat 30% Off', couponCode: 'ELLE30', imageUrl: null },
+      { _id: '7', brand: 'Elli', offer: 'Flat 30% Off', couponCode: 'ELLI30', imageUrl: null },
+      { _id: '8', brand: 'Code', offer: 'Flat 30% Off', couponCode: 'CODE30', imageUrl: null },
+      { _id: '9', brand: 'Ginger', offer: 'Flat 50% Off', couponCode: 'GINGER50', imageUrl: null },
+      { _id: '10', brand: 'Fastrack', offer: 'Flat 50% Off', couponCode: 'FASTRACK50', imageUrl: null },
     ],
     promoBanner: {
       text: 'EOSS | Up to 50% + Extra 10% Off | Free Shipping on all orders',
       couponCode: 'EOSS50',
-      extraDiscount: '10%'
+      extraDiscount: '10%',
+      imageUrl: null
     },
     bannerCampaigns: [
       {
@@ -90,7 +93,8 @@ export default function HomePage() {
         couponCode: 'FLASH20',
         discount: '20% Off',
         type: 'flash_sale',
-        bg: 'from-red-600 to-orange-600'
+        bg: 'from-red-600 to-orange-600',
+        imageUrl: null
       },
       {
         _id: 'banner2',
@@ -99,7 +103,8 @@ export default function HomePage() {
         couponCode: 'USPOLOB2G2',
         discount: 'Buy 2 Get 2 Free',
         type: 'bogo',
-        bg: 'from-purple-600 to-pink-600'
+        bg: 'from-purple-600 to-pink-600',
+        imageUrl: null
       }
     ]
   };
@@ -119,44 +124,26 @@ export default function HomePage() {
     }
   }, [bannerCampaigns]);
 
-  // Fetch campaigns from backend
+  // Fetch campaigns from backend using fetch
   const fetchCampaigns = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Get token from localStorage
-      const token = localStorage.getItem('token');
-      console.log('Token:', token ? 'Present' : 'Missing');
+      // Use the public endpoint - no authentication needed
+      const response = await fetch(`${API_BASE_URL}/merchant/campaigns/public`);
 
-      if (!token) {
-        console.warn('No token found, using fallback data');
-        useFallbackData();
-        setLoading(false);
-        return;
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      console.log('Fetching campaigns from:', `${API_BASE_URL}/merchant/campaigns`);
+      const data = await response.json();
 
-      const response = await axios.get(
-        `${API_BASE_URL}/merchant/campaigns`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      console.log('API Response:', response.data);
-
-      if (response.data.success) {
-        const campaigns = response.data.campaigns || [];
-        // console.log('Campaigns fetched:', campaigns.length);
+      if (data.success) {
+        const campaigns = data.campaigns || [];
 
         // If no campaigns, use fallback data
         if (campaigns.length === 0) {
-          // console.log('No campaigns found, using fallback data');
           useFallbackData();
           setLoading(false);
           return;
@@ -165,28 +152,22 @@ export default function HomePage() {
         // Count active campaigns
         const active = campaigns.filter(c => c.status === 'active');
         setActiveCampaignsCount(active.length);
-        // console.log('Active campaigns:', active.length);
 
         // Process campaigns
         processCampaigns(campaigns);
       } else {
-        console.error('API returned error:', response.data);
         useFallbackData();
       }
     } catch (error) {
       console.error('Error fetching campaigns:', error);
-      console.error('Error details:', error.response?.data || error.message);
-
-      // Use fallback data
       useFallbackData();
 
-      // Show error toast only once
-      if (error.response?.status === 401) {
+      if (error.message.includes('401')) {
         toast.error('Please login to view campaigns');
-      } else if (error.response?.status === 404) {
-        toast.error('Campaign API not found. Please check your backend.');
+      } else if (error.message.includes('404')) {
+        toast.error('Campaign API not found');
       } else {
-        toast.error('Failed to load campaigns. Showing demo data.');
+        toast.error('Failed to load campaigns');
       }
     } finally {
       setLoading(false);
@@ -195,7 +176,6 @@ export default function HomePage() {
 
   // Use fallback data
   const useFallbackData = () => {
-    // console.log('Using fallback data');
     setSaleHighlights(fallbackData.saleHighlights);
     setDealCorner(fallbackData.dealCorner);
     setPromoBanner(fallbackData.promoBanner);
@@ -207,16 +187,13 @@ export default function HomePage() {
   const processCampaigns = (campaigns) => {
     // Filter only active campaigns
     const activeCampaigns = campaigns.filter(c => c.status === 'active');
-    // console.log('Processing active campaigns:', activeCampaigns.length);
 
-    // If no active campaigns, use fallback
     if (activeCampaigns.length === 0) {
-      // console.log('No active campaigns, using fallback data');
       useFallbackData();
       return;
     }
 
-    // 1. Sale Highlights (metadata.section === 'sale_highlights')
+    // 1. Sale Highlights
     let highlights = activeCampaigns
       .filter(c => c.metadata?.section === 'sale_highlights')
       .map(c => ({
@@ -227,10 +204,9 @@ export default function HomePage() {
         discount: c.metadata?.discount || formatDiscount(c),
         bg: c.metadata?.bg || getRandomColor(),
         couponCode: c.couponCode,
-        type: c.type
+        type: c.type,
+        imageUrl: c.imageUrl || c.image || null
       }));
-
-    // console.log('Sale highlights found:', highlights.length);
 
     // If no sale highlights, create from other campaigns
     if (highlights.length === 0) {
@@ -245,20 +221,19 @@ export default function HomePage() {
           discount: formatDiscount(c),
           bg: getRandomColor(),
           couponCode: c.couponCode,
-          type: c.type
+          type: c.type,
+          imageUrl: c.imageUrl || c.image || null
         }));
 
       if (fallbackHighlights.length > 0) {
-        // console.log('Created fallback highlights:', fallbackHighlights.length);
         highlights = fallbackHighlights;
       } else {
-        // Use hardcoded fallback
         highlights = fallbackData.saleHighlights;
       }
     }
     setSaleHighlights(highlights);
 
-    // 2. Deal Corner (metadata.section === 'deal_corner')
+    // 2. Deal Corner 
     let deals = activeCampaigns
       .filter(c => c.metadata?.section === 'deal_corner')
       .map(c => ({
@@ -266,10 +241,9 @@ export default function HomePage() {
         brand: c.metadata?.brand || c.name,
         offer: c.metadata?.offer || formatDiscount(c),
         couponCode: c.couponCode,
-        type: c.type
+        type: c.type,
+        imageUrl: c.imageUrl || c.image || null
       }));
-
-    // console.log('Deal corner found:', deals.length);
 
     if (deals.length === 0) {
       const fallbackDeals = activeCampaigns
@@ -280,11 +254,11 @@ export default function HomePage() {
           brand: c.name,
           offer: formatDiscount(c),
           couponCode: c.couponCode,
-          type: c.type
+          type: c.type,
+          imageUrl: c.imageUrl || c.image || null
         }));
 
       if (fallbackDeals.length > 0) {
-        // console.log('Created fallback deals:', fallbackDeals.length);
         deals = fallbackDeals;
       } else {
         deals = fallbackData.dealCorner;
@@ -298,21 +272,20 @@ export default function HomePage() {
       setPromoBanner({
         text: promo.description || `${promo.name} | ${formatDiscount(promo)}`,
         couponCode: promo.couponCode,
-        extraDiscount: promo.metadata?.extraDiscount || ''
+        extraDiscount: promo.metadata?.extraDiscount || '',
+        imageUrl: promo.imageUrl || promo.image || null
       });
-      // console.log('Promo banner found:', promo.name);
     } else {
       const firstWithCoupon = activeCampaigns.find(c => c.couponCode);
       if (firstWithCoupon) {
         setPromoBanner({
           text: `${firstWithCoupon.name} | ${formatDiscount(firstWithCoupon)}`,
           couponCode: firstWithCoupon.couponCode,
-          extraDiscount: ''
+          extraDiscount: '',
+          imageUrl: firstWithCoupon.imageUrl || firstWithCoupon.image || null
         });
-        // console.log('Created promo banner from:', firstWithCoupon.name);
       } else {
         setPromoBanner(fallbackData.promoBanner);
-        // console.log('Using default promo banner');
       }
     }
 
@@ -323,18 +296,16 @@ export default function HomePage() {
       .map(c => ({
         _id: c._id,
         name: c.name,
-        description: c.description,
+        description: c.description || `${formatDiscount(c)} on ${c.name}`,
         couponCode: c.couponCode,
         discount: formatDiscount(c),
         type: c.type,
-        bg: getGradientColor(c.type)
+        bg: getGradientColor(c.type),
+        imageUrl: c.imageUrl || c.image || null
       }));
-
-    // console.log('Banner campaigns found:', banners.length);
 
     if (banners.length === 0) {
       banners = fallbackData.bannerCampaigns;
-      // console.log('Using default banner');
     }
     setBannerCampaigns(banners);
   };
@@ -486,13 +457,24 @@ export default function HomePage() {
 
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-10">
 
-        {/* Hero Slider Section */}
+        {/* Hero Slider Section WITH IMAGES */}
         <section className="relative bg-slate-200 rounded-xl overflow-hidden h-[380px] flex items-center justify-center group">
           {bannerCampaigns.length > 0 && (
             <div className="absolute inset-0 transition-all duration-700">
               <div className={`w-full h-full bg-gradient-to-r ${bannerCampaigns[currentBannerIndex]?.bg || 'from-purple-600 to-indigo-600'} flex items-center justify-center relative`}>
-                <div className="absolute inset-0 bg-black/30 flex items-center justify-center p-8">
-                  <div className="text-center text-white max-w-2xl">
+                {/* Banner Image */}
+                {bannerCampaigns[currentBannerIndex]?.imageUrl ? (
+                  <img
+                    src={bannerCampaigns[currentBannerIndex].imageUrl}
+                    alt={bannerCampaigns[currentBannerIndex].name}
+                    className="absolute inset-0 w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                ) : null}
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center p-8">
+                  <div className="text-center text-white max-w-2xl relative z-10">
                     <h2 className="text-4xl md:text-5xl font-bold mb-3">
                       {bannerCampaigns[currentBannerIndex]?.name}
                     </h2>
@@ -555,7 +537,7 @@ export default function HomePage() {
           )}
         </section>
 
-        {/* Sale Highlight Section */}
+        {/* Sale Highlight Section WITH IMAGES */}
         <section>
           <div className="mb-4 flex items-center justify-between">
             <div>
@@ -571,11 +553,24 @@ export default function HomePage() {
             {saleHighlights.map((item) => (
               <div
                 key={item._id}
-                className={`relative rounded-2xl h-80 ${item.bg} overflow-hidden shadow-sm flex flex-col justify-end p-6 text-white text-center group cursor-pointer transition-transform hover:scale-[1.02]`}
+                className={`relative rounded-2xl h-80 overflow-hidden shadow-sm flex flex-col justify-end p-6 text-white text-center group cursor-pointer transition-transform hover:scale-[1.02] ${item.bg}`}
               >
-                <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                  <ImageIcon className="w-12 h-12 text-white/30" />
-                </div>
+                {/* Sale Highlight Image */}
+                {item.imageUrl ? (
+                  <img
+                    src={item.imageUrl}
+                    alt={item.title}
+                    className="absolute inset-0 w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                    <ImageIcon className="w-12 h-12 text-white/30" />
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
 
                 <div className="relative z-10 space-y-1">
                   <p className="text-xs font-semibold tracking-wider uppercase opacity-90">{item.title}</p>
@@ -609,7 +604,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Deal Corner Section */}
+        {/* Deal Corner Section WITH IMAGES */}
         <section>
           <div className="mb-4 flex items-center justify-between">
             <div>
@@ -627,20 +622,39 @@ export default function HomePage() {
                 key={item._id}
                 className="relative bg-amber-100/70 border border-amber-200/50 rounded-xl h-44 flex flex-col justify-center items-center text-center p-3 shadow-sm overflow-hidden group cursor-pointer hover:shadow-md transition-all"
               >
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <ImageIcon className="w-10 h-10 text-amber-800/20" />
-                </div>
+                {/* Deal Image */}
+                {item.imageUrl ? (
+                  <img
+                    src={item.imageUrl}
+                    alt={item.brand}
+                    className="absolute inset-0 w-full h-full object-cover opacity-30 group-hover:opacity-40 transition-opacity"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <ImageIcon className="w-10 h-10 text-amber-800/20" />
+                  </div>
+                )}
 
-                <div className="relative z-10 bg-white/40 backdrop-blur-[2px] p-2 rounded-lg w-full">
-                  <p className="font-bold text-sm text-indigo-950">{item.brand}</p>
-                  <p className="text-xs font-extrabold text-indigo-900 mt-0.5">{item.offer}</p>
+                <div className={`relative z-10 p-2 rounded-lg w-full ${item.imageUrl ? 'bg-black/20 backdrop-blur-sm' : 'bg-white/40 backdrop-blur-[2px]'}`}>
+                  <p className={`font-bold text-sm truncate ${item.imageUrl ? 'text-white' : 'text-indigo-950'}`}>
+                    {item.brand}
+                  </p>
+                  <p className={`text-xs font-extrabold mt-0.5 ${item.imageUrl ? 'text-yellow-300' : 'text-indigo-900'}`}>
+                    {item.offer}
+                  </p>
                   {item.couponCode && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleCopyCoupon(item.couponCode);
                       }}
-                      className="mt-1.5 text-[10px] bg-indigo-600/80 text-white px-2 py-0.5 rounded-full hover:bg-indigo-700 transition-all flex items-center gap-1 mx-auto"
+                      className={`mt-1.5 text-[10px] px-2 py-0.5 rounded-full transition-all flex items-center gap-1 mx-auto ${item.imageUrl
+                          ? 'bg-white/20 text-white hover:bg-white/30'
+                          : 'bg-indigo-600/80 text-white hover:bg-indigo-700'
+                        }`}
                     >
                       {copiedCode === item.couponCode ? (
                         <>

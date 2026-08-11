@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
     Bell, User, ChevronDown, Plus, Search, Filter, Calendar as CalendarIcon,
     Clock, Eye, Edit, Trash2, Play, Pause, CheckCircle, XCircle, Copy,
-    RefreshCw, TrendingUp, Users, DollarSign, Tag, Percent, Gift, Truck, Zap
+    RefreshCw, TrendingUp, Users, DollarSign, Tag, Percent, Gift, Truck, Zap,
+    Image as ImageIcon
 } from 'lucide-react';
 import {
     ResponsiveContainer,
@@ -298,6 +299,11 @@ const CampaignManagement = () => {
         }).format(amount);
     };
 
+    // Get image URL with fallback
+    const getImageUrl = (campaign) => {
+        return campaign?.imageUrl || null;
+    };
+
     // Prepare chart data from backend stats only
     const getChannelPerformanceData = () => {
         if (stats.channelPerformance && stats.channelPerformance.length > 0) {
@@ -554,7 +560,7 @@ const CampaignManagement = () => {
                             </div>
                         </div>
 
-                        {/* CAMPAIGNS TABLE */}
+                        {/* CAMPAIGNS TABLE WITH IMAGE COLUMN */}
                         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                             <div className="p-4 border-b border-slate-200 flex items-center justify-between">
                                 <h3 className="text-sm font-bold text-slate-800">All Campaigns</h3>
@@ -593,6 +599,7 @@ const CampaignManagement = () => {
                                     <table className="w-full">
                                         <thead className="bg-slate-50">
                                             <tr>
+                                                <th className="text-left text-xs font-semibold text-slate-600 px-4 py-3">Image</th>
                                                 <th className="text-left text-xs font-semibold text-slate-600 px-4 py-3">Name</th>
                                                 <th className="text-left text-xs font-semibold text-slate-600 px-4 py-3">Type</th>
                                                 <th className="text-left text-xs font-semibold text-slate-600 px-4 py-3">Status</th>
@@ -604,114 +611,134 @@ const CampaignManagement = () => {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
-                                            {campaigns.map((campaign) => (
-                                                <tr key={campaign._id} className="hover:bg-slate-50 transition-colors">
-                                                    <td className="px-4 py-3">
-                                                        <div>
-                                                            <div className="font-medium text-slate-800 text-sm">{campaign.name}</div>
-                                                            {campaign.couponCode && (
-                                                                <div className="text-xs font-mono text-blue-600 mt-0.5">
-                                                                    {campaign.couponCode}
+                                            {campaigns.map((campaign) => {
+                                                const imageUrl = getImageUrl(campaign);
+                                                return (
+                                                    <tr key={campaign._id} className="hover:bg-slate-50 transition-colors">
+                                                        <td className="px-4 py-3">
+                                                            {imageUrl ? (
+                                                                <img
+                                                                    src={imageUrl}
+                                                                    alt={campaign.name}
+                                                                    className="w-12 h-12 rounded-lg object-cover border border-slate-200"
+                                                                    onError={(e) => {
+                                                                        e.target.style.display = 'none';
+                                                                        e.target.parentElement.innerHTML = '<div class="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center"><ImageIcon className="w-6 h-6 text-slate-400" /></div>';
+                                                                    }}
+                                                                />
+                                                            ) : (
+                                                                <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center">
+                                                                    <ImageIcon className="w-6 h-6 text-slate-400" />
                                                                 </div>
                                                             )}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <span className="text-sm capitalize">{campaign.type?.replace('_', ' ') || 'N/A'}</span>
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {renderStatusBadge(campaign.status)}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <div className="text-sm">
-                                                            {campaign.budget > 0 ? formatCurrency(campaign.budget) : 'N/A'}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <div className="text-sm">
-                                                            {campaign.totalUses || 0}
-                                                            {campaign.maxUses > 0 && (
-                                                                <span className="text-xs text-slate-500"> / {campaign.maxUses}</span>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <div className="text-sm font-medium text-green-600">
-                                                            {formatCurrency(campaign.totalRevenue || 0)}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <div className="text-xs">
-                                                            <div>{formatDate(campaign.startDate)}</div>
-                                                            <div className="text-slate-500">{formatDate(campaign.endDate)}</div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <div className="flex items-center justify-end gap-1">
-                                                            <button
-                                                                onClick={() => handleViewCampaign(campaign)}
-                                                                className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors"
-                                                                title="View Details"
-                                                            >
-                                                                <Eye className="w-4 h-4 text-slate-500" />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleEditCampaign(campaign)}
-                                                                className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors"
-                                                                title="Edit"
-                                                                disabled={campaign.status === 'active'}
-                                                            >
-                                                                <Edit className={`w-4 h-4 ${campaign.status === 'active' ? 'text-slate-300' : 'text-blue-500'}`} />
-                                                            </button>
-                                                            {campaign.status === 'draft' && (
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <div>
+                                                                <div className="font-medium text-slate-800 text-sm">{campaign.name}</div>
+                                                                {campaign.couponCode && (
+                                                                    <div className="text-xs font-mono text-blue-600 mt-0.5">
+                                                                        {campaign.couponCode}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <span className="text-sm capitalize">{campaign.type?.replace('_', ' ') || 'N/A'}</span>
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            {renderStatusBadge(campaign.status)}
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <div className="text-sm">
+                                                                {campaign.budget > 0 ? formatCurrency(campaign.budget) : 'N/A'}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <div className="text-sm">
+                                                                {campaign.totalUses || 0}
+                                                                {campaign.maxUses > 0 && (
+                                                                    <span className="text-xs text-slate-500"> / {campaign.maxUses}</span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <div className="text-sm font-medium text-green-600">
+                                                                {formatCurrency(campaign.totalRevenue || 0)}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <div className="text-xs">
+                                                                <div>{formatDate(campaign.startDate)}</div>
+                                                                <div className="text-slate-500">{formatDate(campaign.endDate)}</div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <div className="flex items-center justify-end gap-1">
                                                                 <button
-                                                                    onClick={() => handleStatusChange(campaign._id, 'scheduled')}
-                                                                    className="p-1.5 hover:bg-blue-100 rounded-lg transition-colors"
-                                                                    title="Schedule"
+                                                                    onClick={() => handleViewCampaign(campaign)}
+                                                                    className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors"
+                                                                    title="View Details"
                                                                 >
-                                                                    <CalendarIcon className="w-4 h-4 text-blue-500" />
+                                                                    <Eye className="w-4 h-4 text-slate-500" />
                                                                 </button>
-                                                            )}
-                                                            {campaign.status === 'scheduled' && (
                                                                 <button
-                                                                    onClick={() => handleStatusChange(campaign._id, 'active')}
-                                                                    className="p-1.5 hover:bg-green-100 rounded-lg transition-colors"
-                                                                    title="Activate"
+                                                                    onClick={() => handleEditCampaign(campaign)}
+                                                                    className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors"
+                                                                    title="Edit"
+                                                                    disabled={campaign.status === 'active'}
                                                                 >
-                                                                    <Play className="w-4 h-4 text-green-500" />
+                                                                    <Edit className={`w-4 h-4 ${campaign.status === 'active' ? 'text-slate-300' : 'text-blue-500'}`} />
                                                                 </button>
-                                                            )}
-                                                            {(campaign.status === 'active' || campaign.status === 'scheduled') && (
-                                                                <button
-                                                                    onClick={() => handleStatusChange(campaign._id, 'paused')}
-                                                                    className="p-1.5 hover:bg-yellow-100 rounded-lg transition-colors"
-                                                                    title="Pause"
-                                                                >
-                                                                    <Pause className="w-4 h-4 text-yellow-500" />
-                                                                </button>
-                                                            )}
-                                                            {campaign.status === 'paused' && (
-                                                                <button
-                                                                    onClick={() => handleStatusChange(campaign._id, 'active')}
-                                                                    className="p-1.5 hover:bg-green-100 rounded-lg transition-colors"
-                                                                    title="Resume"
-                                                                >
-                                                                    <Play className="w-4 h-4 text-green-500" />
-                                                                </button>
-                                                            )}
-                                                            {campaign.status !== 'active' && campaign.status !== 'completed' && (
-                                                                <button
-                                                                    onClick={() => handleDeleteCampaign(campaign._id)}
-                                                                    className="p-1.5 hover:bg-red-100 rounded-lg transition-colors"
-                                                                    title="Delete"
-                                                                >
-                                                                    <Trash2 className="w-4 h-4 text-red-500" />
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                                                {campaign.status === 'draft' && (
+                                                                    <button
+                                                                        onClick={() => handleStatusChange(campaign._id, 'scheduled')}
+                                                                        className="p-1.5 hover:bg-blue-100 rounded-lg transition-colors"
+                                                                        title="Schedule"
+                                                                    >
+                                                                        <CalendarIcon className="w-4 h-4 text-blue-500" />
+                                                                    </button>
+                                                                )}
+                                                                {campaign.status === 'scheduled' && (
+                                                                    <button
+                                                                        onClick={() => handleStatusChange(campaign._id, 'active')}
+                                                                        className="p-1.5 hover:bg-green-100 rounded-lg transition-colors"
+                                                                        title="Activate"
+                                                                    >
+                                                                        <Play className="w-4 h-4 text-green-500" />
+                                                                    </button>
+                                                                )}
+                                                                {(campaign.status === 'active' || campaign.status === 'scheduled') && (
+                                                                    <button
+                                                                        onClick={() => handleStatusChange(campaign._id, 'paused')}
+                                                                        className="p-1.5 hover:bg-yellow-100 rounded-lg transition-colors"
+                                                                        title="Pause"
+                                                                    >
+                                                                        <Pause className="w-4 h-4 text-yellow-500" />
+                                                                    </button>
+                                                                )}
+                                                                {campaign.status === 'paused' && (
+                                                                    <button
+                                                                        onClick={() => handleStatusChange(campaign._id, 'active')}
+                                                                        className="p-1.5 hover:bg-green-100 rounded-lg transition-colors"
+                                                                        title="Resume"
+                                                                    >
+                                                                        <Play className="w-4 h-4 text-green-500" />
+                                                                    </button>
+                                                                )}
+                                                                {campaign.status !== 'active' && campaign.status !== 'completed' && (
+                                                                    <button
+                                                                        onClick={() => handleDeleteCampaign(campaign._id)}
+                                                                        className="p-1.5 hover:bg-red-100 rounded-lg transition-colors"
+                                                                        title="Delete"
+                                                                    >
+                                                                        <Trash2 className="w-4 h-4 text-red-500" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
@@ -761,6 +788,20 @@ const CampaignManagement = () => {
             >
                 {modalType === 'view' ? (
                     <div className="space-y-6">
+                        {/* Campaign Image at top */}
+                        {selectedCampaign && getImageUrl(selectedCampaign) && (
+                            <div className="flex justify-center">
+                                <img
+                                    src={getImageUrl(selectedCampaign)}
+                                    alt={selectedCampaign.name}
+                                    className="max-h-64 rounded-lg border border-slate-200 object-cover"
+                                    onError={(e) => {
+                                        e.target.style.display = 'none';
+                                    }}
+                                />
+                            </div>
+                        )}
+
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <h4 className="text-sm font-medium text-slate-500">Name</h4>
@@ -834,6 +875,38 @@ const CampaignManagement = () => {
                                 <h4 className="text-sm font-medium text-slate-500">Description</h4>
                                 <p className="text-sm">{selectedCampaign?.description || 'No description'}</p>
                             </div>
+                            {/* Image URLs section in view modal */}
+                            {selectedCampaign && (
+                                <div className="col-span-2">
+                                    <h4 className="text-sm font-medium text-slate-500 mb-2">Campaign Images</h4>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        {selectedCampaign.imageUrl && (
+                                            <div>
+                                                <p className="text-xs text-slate-400">Main Image</p>
+                                                <img src={selectedCampaign.imageUrl} alt="Main" className="max-h-24 rounded border object-cover" />
+                                            </div>
+                                        )}
+                                        {selectedCampaign.bannerImageUrl && (
+                                            <div>
+                                                <p className="text-xs text-slate-400">Banner Image</p>
+                                                <img src={selectedCampaign.bannerImageUrl} alt="Banner" className="max-h-24 rounded border object-cover" />
+                                            </div>
+                                        )}
+                                        {selectedCampaign.thumbnailImageUrl && (
+                                            <div>
+                                                <p className="text-xs text-slate-400">Thumbnail</p>
+                                                <img src={selectedCampaign.thumbnailImageUrl} alt="Thumbnail" className="max-h-24 rounded border object-cover" />
+                                            </div>
+                                        )}
+                                        {selectedCampaign.mobileImageUrl && (
+                                            <div>
+                                                <p className="text-xs text-slate-400">Mobile Image</p>
+                                                <img src={selectedCampaign.mobileImageUrl} alt="Mobile" className="max-h-24 rounded border object-cover" />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div>

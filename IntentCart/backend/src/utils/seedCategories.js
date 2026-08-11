@@ -4,8 +4,20 @@ import Category from '../models/Category.js';
 
 dotenv.config();
 
+// Only top-level category images
+const CATEGORY_IMAGES = {
+  'Electronics & Gadgets': 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=200&h=200&fit=crop',
+  'Fashion & Apparel': 'https://images.unsplash.com/photo-1532453288672-3a27e9be9efd?w=200&h=200&fit=crop',
+  'Home, Kitchen & Living': 'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=200&h=200&fit=crop',
+  'Beauty & Personal Care': 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=200&h=200&fit=crop',
+  'Health & Wellness': 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=200&h=200&fit=crop',
+  'Sports, Fitness & Outdoors': 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=200&h=200&fit=crop',
+  'Toys, Baby & Kids': 'https://images.unsplash.com/photo-1558060370-d6441d64758a?w=200&h=200&fit=crop',
+  'Books, Media & Hobbies': 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=200&h=200&fit=crop',
+};
+
 const categories = [
-  // ============ LEVEL 0: Top Categories (6) ============
+  // ============ LEVEL 0: Top Categories (8) ============
   { name: 'Electronics & Gadgets', level: 0, order: 1 },
   { name: 'Fashion & Apparel', level: 0, order: 2 },
   { name: 'Home, Kitchen & Living', level: 0, order: 3 },
@@ -122,7 +134,7 @@ const seedCategories = async () => {
     console.log('Cleared existing categories');
 
     const categoryMap = {};
-    
+
     for (const cat of categories) {
       let parentId = null;
       if (cat.parentName) {
@@ -131,25 +143,30 @@ const seedCategories = async () => {
           parentId = parent._id;
         }
       }
-      
+
+      // Only add image for level 0 categories
+      const imgUrl = cat.level === 0 ? CATEGORY_IMAGES[cat.name] || null : null;
+
       const category = new Category({
         name: cat.name,
         level: cat.level,
         parentId: parentId,
         order: cat.order || 0,
-        isActive: true
+        isActive: true,
+        img: imgUrl // Only level 0 categories get images
       });
-      
+
       await category.save();
       categoryMap[cat.name] = category;
+      console.log(` Created: ${cat.name} ${imgUrl ? '' : ''}`);
     }
 
     console.log(`\nSeeded ${categories.length} categories successfully!`);
     console.log('Category breakdown:');
-    console.log(`   - Level 0 (Top): ${categories.filter(c => c.level === 0).length}`);
+    console.log(`   - Level 0 (Top): ${categories.filter(c => c.level === 0).length} (with images)`);
     console.log(`   - Level 1 (Sub): ${categories.filter(c => c.level === 1).length}`);
     console.log(`   - Level 2 (Micro): ${categories.filter(c => c.level === 2).length}`);
-    
+
     process.exit(0);
   } catch (error) {
     console.error('Error seeding categories:', error);

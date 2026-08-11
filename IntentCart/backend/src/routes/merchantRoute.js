@@ -60,7 +60,9 @@ import {
     getCampaignStats,
     getEligibleCampaigns,
     validateCampaignForCustomer,
-    calculateDiscount
+    calculateDiscount,
+    getPublicCampaigns,
+    getPublicCampaignsByCategory
 } from '../controllers/campaignController.js';
 
 import {
@@ -71,6 +73,12 @@ import {
 } from '../controllers/recoveryController.js';
 
 const router = express.Router();
+
+
+// ==================== PUBLIC ROUTES (No authentication required) ====================
+router.get('/campaigns/public', getPublicCampaigns);
+router.get('/campaigns/public/category/:categoryId', getPublicCampaignsByCategory);
+
 
 // All merchant routes require authentication
 router.use(protect);

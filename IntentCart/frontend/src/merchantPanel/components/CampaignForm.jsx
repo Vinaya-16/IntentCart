@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
-import { ChevronDown, ChevronRight, Settings, Target, Users } from 'lucide-react';
+import { ChevronDown, ChevronRight, Settings, Target, Users, Image as ImageIcon } from 'lucide-react';
 
 const CampaignForm = ({ initialData, onSubmit, onCancel, isEdit, isSubmitting }) => {
     const [formData, setFormData] = useState({
@@ -18,7 +18,10 @@ const CampaignForm = ({ initialData, onSubmit, onCancel, isEdit, isSubmitting })
         maxUsesPerCustomer: 1,
         budget: 0,
 
-        // Advanced (hidden by default)
+        // Single Image URL
+        imageUrl: '',
+        imageAlt: '',
+
         targetProducts: 'all',
         productIds: [],
         categoryIds: [],
@@ -27,6 +30,7 @@ const CampaignForm = ({ initialData, onSubmit, onCancel, isEdit, isSubmitting })
 
     // UI State
     const [showAdvanced, setShowAdvanced] = useState(false);
+    const [showImages, setShowImages] = useState(false);
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
 
@@ -47,6 +51,8 @@ const CampaignForm = ({ initialData, onSubmit, onCancel, isEdit, isSubmitting })
                 maxUses: initialData.maxUses || 0,
                 maxUsesPerCustomer: initialData.maxUsesPerCustomer || 1,
                 budget: initialData.budget || 0,
+                imageUrl: initialData.imageUrl || '',
+                imageAlt: initialData.imageAlt || '',
                 targetProducts: initialData.targetProducts || 'all',
                 productIds: initialData.productIds || [],
                 categoryIds: initialData.categoryIds || [],
@@ -57,7 +63,7 @@ const CampaignForm = ({ initialData, onSubmit, onCancel, isEdit, isSubmitting })
 
     const fetchProductsAndCategories = async () => {
         try {
-            // Mock data - replace with actual API calls
+            //  replace with actual API calls
             setProducts([
                 { _id: '1', name: 'US Polo ASSN. T-Shirt' },
                 { _id: '2', name: "Levi's Jeans" },
@@ -130,6 +136,8 @@ const CampaignForm = ({ initialData, onSubmit, onCancel, isEdit, isSubmitting })
             maxUses: formData.maxUses,
             maxUsesPerCustomer: formData.maxUsesPerCustomer,
             budget: formData.budget,
+            imageUrl: formData.imageUrl || undefined,
+            imageAlt: formData.imageAlt || undefined,
             targetProducts: formData.targetProducts,
             productIds: formData.productIds,
             categoryIds: formData.categoryIds,
@@ -342,6 +350,63 @@ const CampaignForm = ({ initialData, onSubmit, onCancel, isEdit, isSubmitting })
                         min="0"
                     />
                 </div>
+            </div>
+
+            {/* Image Section - Simplified */}
+            <div className="border-t pt-4 border-slate-200">
+                <button
+                    type="button"
+                    onClick={() => setShowImages(!showImages)}
+                    className="flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-800"
+                >
+                    <ImageIcon className="w-4 h-4" />
+                    Campaign Image
+                    {showImages ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                </button>
+
+                {showImages && (
+                    <div className="mt-4 space-y-3 p-4 bg-slate-50 rounded-lg">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                                Image URL
+                            </label>
+                            <input
+                                type="url"
+                                name="imageUrl"
+                                value={formData.imageUrl}
+                                onChange={handleChange}
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                placeholder="https://example.com/campaign-image.jpg"
+                            />
+                            {formData.imageUrl && (
+                                <div className="mt-2">
+                                    <img
+                                        src={formData.imageUrl}
+                                        alt="Preview"
+                                        className="max-h-32 rounded-lg border border-slate-200 object-cover"
+                                        onError={(e) => {
+                                            e.target.style.display = 'none';
+                                        }}
+                                    />
+                                </div>
+                            )}
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                                Image Alt Text (Accessibility)
+                            </label>
+                            <input
+                                type="text"
+                                name="imageAlt"
+                                value={formData.imageAlt}
+                                onChange={handleChange}
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                placeholder="Describe the image for accessibility"
+                            />
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Advanced Options (Collapsible) */}

@@ -174,6 +174,12 @@ const getProductCategories = async (productId) => {
     }
 };
 
+// Helper: Get image URL from campaign
+const getCampaignImage = (campaign) => {
+    if (!campaign) return null;
+    return campaign.imageUrl || null;
+};
+
 // ==================== CAMPAIGN MANAGEMENT ====================
 
 // @desc    Create campaign
@@ -211,7 +217,8 @@ export const createCampaign = async (req, res) => {
             eventType: 'created',
             metadata: {
                 campaignName: campaign.name,
-                section: campaign.metadata?.section || 'general'
+                section: campaign.metadata?.section || 'general',
+                imageUrl: campaign.imageUrl
             }
         });
 
@@ -251,13 +258,19 @@ export const getCampaigns = async (req, res) => {
 
         const total = await Campaign.countDocuments(query);
 
+        // Add image URL to response
+        const campaignsWithImages = campaigns.map(c => ({
+            ...c.toObject(),
+            image: getCampaignImage(c)
+        }));
+
         res.status(200).json({
             success: true,
             count: campaigns.length,
             total,
             pages: Math.ceil(total / parseInt(limit)),
             currentPage: parseInt(page),
-            campaigns
+            campaigns: campaignsWithImages
         });
     } catch (error) {
         console.error('Error fetching campaigns:', error);
@@ -292,9 +305,15 @@ export const getCampaignById = async (req, res) => {
             .limit(50)
             .populate('customerId', 'name email');
 
+        // Add image URL
+        const campaignWithImage = {
+            ...campaign.toObject(),
+            image: getCampaignImage(campaign)
+        };
+
         res.status(200).json({
             success: true,
-            campaign,
+            campaign: campaignWithImage,
             logs
         });
     } catch (error) {
@@ -371,7 +390,8 @@ export const updateCampaign = async (req, res) => {
             metadata: {
                 campaignName: updatedCampaign.name,
                 section: updatedCampaign.metadata?.section || 'general',
-                updatedFields: Object.keys(updates)
+                updatedFields: Object.keys(updates),
+                imageUpdated: !!updates.imageUrl
             }
         });
 
@@ -578,7 +598,8 @@ export const validateCoupon = async (req, res) => {
                 maxDiscountAmount: campaign.maxDiscountAmount,
                 minOrderAmount: campaign.minOrderAmount,
                 description: campaign.description,
-                name: campaign.name
+                name: campaign.name,
+                image: getCampaignImage(campaign)
             }
         });
     } catch (error) {
@@ -639,13 +660,22 @@ export const applyCoupon = async (req, res) => {
             panel: 'merchant',
             merchantId: campaign.merchantId,
             isGlobal: false,
-            metadata: { campaignId: campaign._id, orderId }
+            metadata: {
+                campaignId: campaign._id,
+                orderId,
+                couponCode: campaign.couponCode
+            }
         });
 
         res.status(200).json({
             success: true,
             message: 'Coupon applied successfully',
-            discount: campaign.discountValue
+            discount: campaign.discountValue,
+            campaign: {
+                id: campaign._id,
+                name: campaign.name,
+                image: getCampaignImage(campaign)
+            }
         });
     } catch (error) {
         console.error('Error applying coupon:', error);
@@ -767,8 +797,6 @@ const getTierDiscount = (campaign, customerTier) => {
     };
 };
 
-// ==================== ENHANCED CAMPAIGN VALIDATION ====================
-
 // @desc    Validate campaign for specific customer and products
 // @route   POST /api/merchant/campaigns/validate
 // @access  Private (Customer)
@@ -850,7 +878,8 @@ export const validateCampaignForCustomer = async (req, res) => {
                 customerTier,
                 eligibleProducts,
                 couponCode: campaign.couponCode,
-                description: campaign.description
+                description: campaign.description,
+                image: getCampaignImage(campaign)
             }
         });
     } catch (error) {
@@ -909,7 +938,8 @@ export const getEligibleCampaigns = async (req, res) => {
             eligibleCampaigns.push({
                 ...campaign.toObject(),
                 customerTier,
-                tierDiscount: discount
+                tierDiscount: discount,
+                image: getCampaignImage(campaign)
             });
         }
 
@@ -1014,7 +1044,8 @@ export const calculateDiscount = async (req, res) => {
                 id: campaign._id,
                 name: campaign.name,
                 type: campaign.type,
-                couponCode: campaign.couponCode
+                couponCode: campaign.couponCode,
+                image: getCampaignImage(campaign)
             },
             customerTier,
             totalOrderAmount: Math.round(totalOrderAmount),
@@ -1024,6 +1055,73 @@ export const calculateDiscount = async (req, res) => {
         });
     } catch (error) {
         console.error('Error calculating discount:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Get all active campaigns for public display
+// @route   GET /api/campaigns/public
+// @access  Public
+export const getPublicCampaigns = async (req, res) => {
+    try {
+        // Get all campaigns (for testing)
+        const campaigns = await Campaign.find({}).sort({ createdAt: -1 });
+
+        // Add image URL to each campaign
+        const campaignsWithImages = campaigns.map(c => ({
+            ...c.toObject(),
+            image: getCampaignImage(c)
+        }));
+
+        res.status(200).json({
+            success: true,
+            count: campaigns.length,
+            campaigns: campaignsWithImages
+        });
+    } catch (error) {
+        console.error('Error fetching public campaigns:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Get campaigns by category for public display
+// @route   GET /api/campaigns/public/category/:categoryId
+// @access  Public
+export const getPublicCampaignsByCategory = async (req, res) => {
+    try {
+        const { categoryId } = req.params;
+
+        const campaigns = await Campaign.find({
+            status: 'active',
+            startDate: { $lte: new Date() },
+            endDate: { $gte: new Date() },
+            $or: [
+                { targetProducts: 'all' },
+                { categoryIds: categoryId }
+            ]
+        }).sort({ createdAt: -1 });
+
+        // Add image URL to each campaign
+        const campaignsWithImages = campaigns.map(c => ({
+            ...c.toObject(),
+            image: getCampaignImage(c)
+        }));
+
+        res.status(200).json({
+            success: true,
+            count: campaigns.length,
+            campaigns: campaignsWithImages
+        });
+    } catch (error) {
+        console.error('Error fetching public campaigns by category:', error);
         res.status(500).json({
             success: false,
             message: 'Server error',

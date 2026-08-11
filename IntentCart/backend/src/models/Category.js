@@ -26,13 +26,13 @@ const categorySchema = new mongoose.Schema({
     },
     level: {
         type: Number,
-        default: 0 
+        default: 0
     },
     icon: {
         type: String,
         trim: true
     },
-    image: {
+    img: {
         type: String,
         trim: true
     },

@@ -113,10 +113,15 @@ const campaignSchema = new mongoose.Schema({
         description: 'Higher priority campaigns apply first (1-10)'
     },
 
-    // Optional: Add campaign image/banner
+    // ============ IMAGE FIELDS ============
     imageUrl: {
         type: String,
         trim: true
+    },
+    imageAlt: {
+        type: String,
+        trim: true,
+        maxlength: [200, 'Image alt text cannot exceed 200 characters']
     },
 
     // Performance Tracking
@@ -181,10 +186,63 @@ campaignSchema.pre('findOneAndUpdate', function (next) {
     next();
 });
 
+// Virtual: Get appropriate image based on device
+campaignSchema.virtual('image').get(function () {
+    return this.imageUrl || this.thumbnailImageUrl || this.bannerImageUrl || null;
+});
+
+// Virtual: Get banner image for hero
+campaignSchema.virtual('bannerImage').get(function () {
+    return this.bannerImageUrl || this.imageUrl || null;
+});
+
+// Virtual: Get thumbnail for cards
+campaignSchema.virtual('thumbnail').get(function () {
+    return this.thumbnailImageUrl || this.imageUrl || null;
+});
+
+// Virtual: Get mobile image
+campaignSchema.virtual('mobileImage').get(function () {
+    return this.mobileImageUrl || this.thumbnailImageUrl || this.imageUrl || null;
+});
+
+// Ensure virtuals are included in JSON output
+campaignSchema.set('toJSON', { virtuals: true });
+campaignSchema.set('toObject', { virtuals: true });
+
 // Indexes
 campaignSchema.index({ merchantId: 1, status: 1 });
 campaignSchema.index({ merchantId: 1, startDate: 1, endDate: 1 });
 campaignSchema.index({ couponCode: 1 });
+campaignSchema.index({ status: 1, startDate: 1, endDate: 1 }); // For finding active campaigns
+
+// Virtual: Check if campaign is currently active
+campaignSchema.virtual('isCurrentlyActive').get(function () {
+    const now = new Date();
+    return this.status === 'active' &&
+        this.startDate <= now &&
+        this.endDate >= now;
+});
+
+// Virtual: Check if campaign is upcoming
+campaignSchema.virtual('isUpcoming').get(function () {
+    const now = new Date();
+    return this.status === 'scheduled' && this.startDate > now;
+});
+
+// Virtual: Check if campaign is expired
+campaignSchema.virtual('isExpired').get(function () {
+    const now = new Date();
+    return this.endDate < now;
+});
+
+// Pre-save middleware: Validate dates
+campaignSchema.pre('save', function (next) {
+    if (this.startDate && this.endDate && this.startDate >= this.endDate) {
+        next(new Error('End date must be after start date'));
+    }
+    next();
+});
 
 const Campaign = mongoose.model('Campaign', campaignSchema);
 export default Campaign;
