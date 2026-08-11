@@ -2,12 +2,14 @@ import User from '../models/User.js';
 import Notification from '../models/Notifications.js';
 import Product from '../models/Product.js';
 import Category from '../models/Category.js';
+import Order from '../models/Order.js'; 
+import Event from '../models/Event.js';  
 
 // ==================== HELPER: Create Admin Notification ====================
 
 const createAdminNotification = async (title, message, type, category, metadata = {}) => {
   try {
-    await Notification.create({
+    await Notification.create({ 
       title,
       message,
       type: type || 'info',
@@ -82,7 +84,6 @@ export const deleteUser = async (req, res) => {
       });
     }
 
-    // Create admin notification for user deletion
     await createAdminNotification(
       `User Deleted: ${user.username}`,
       `User ${user.username} (${user.email}) was deleted from the system.`,
@@ -127,7 +128,6 @@ export const toggleBlockUser = async (req, res) => {
       });
     }
 
-    // Create admin notification for block/unblock
     if (!isActive) {
       await createAdminNotification(
         `User Blocked: ${user.username}`,
@@ -216,7 +216,6 @@ export const approveMerchant = async (req, res) => {
       { new: true }
     ).select('-password');
 
-    // Create admin notification for merchant approval
     await createAdminNotification(
       `Merchant Approved: ${user.businessName || user.username}`,
       `Merchant ${user.businessName || user.username} (${user.email}) has been approved and can now sell products.`,
@@ -273,7 +272,6 @@ export const rejectMerchant = async (req, res) => {
       { new: true }
     ).select('-password');
 
-    // Create admin notification for merchant rejection
     await createAdminNotification(
       `Merchant Rejected: ${user.businessName || user.username}`,
       `Merchant ${user.businessName || user.username} (${user.email}) has been rejected. Reason: ${reason || 'No reason provided'}`,
@@ -330,7 +328,6 @@ export const resetMerchantStatus = async (req, res) => {
       { new: true }
     ).select('-password');
 
-    // Create admin notification for merchant status reset
     await createAdminNotification(
       `Merchant Reset: ${user.businessName || user.username}`,
       `Merchant ${user.businessName || user.username} (${user.email}) has been reset to pending status for re-review.`,
@@ -404,8 +401,25 @@ export const getAdminProfile = async (req, res) => {
       });
     }
 
-    let totalRevenue = 0;
-    let avgRevenueSize = 0;
+    //  Calculate REAL Revenue and Orders from the Order collection
+    const revenueStats = await Order.aggregate([
+      {
+        $match: {
+          status: { $in: ['completed', 'delivered'] }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: '$total' },
+          totalOrders: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const totalRevenue = revenueStats[0]?.totalRevenue || 0;
+    const totalOrders = revenueStats[0]?.totalOrders || 0;
+    const avgRevenueSize = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
     const totalMerchants = await User.countDocuments({ role: 'merchant' });
     const totalCustomers = await User.countDocuments({ role: 'customer' });
@@ -429,8 +443,8 @@ export const getAdminProfile = async (req, res) => {
         day: 'numeric'
       }) : '',
       account: admin.role || 'Admin',
-      totalRevenue: `$ ${totalRevenue.toLocaleString()}`,
-      avgRevenueSize: `$ ${avgRevenueSize.toLocaleString()}`,
+      totalRevenue: `Rs.${totalRevenue.toLocaleString()}`,
+      avgRevenueSize: `Rs.${avgRevenueSize.toLocaleString()}`,
       avatarUrl: admin.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250',
       username: admin.username,
       role: admin.role,
@@ -494,7 +508,6 @@ export const updateAdminProfile = async (req, res) => {
       });
     }
 
-    // Create admin notification for profile update
     await createAdminNotification(
       'Profile Updated',
       `Admin profile was updated successfully.`,
@@ -583,7 +596,6 @@ export const changeAdminPassword = async (req, res) => {
     admin.password = newPassword;
     await admin.save();
 
-    // Create admin notification for password change
     await createAdminNotification(
       'Password Changed',
       `Admin password was changed successfully.`,
@@ -648,6 +660,7 @@ export const updateAdminAvatar = async (req, res) => {
 
 export const getDashboardStats = async (req, res) => {
   try {
+    // User Counts
     const totalUsers = await User.countDocuments();
     const totalAdmins = await User.countDocuments({ role: 'admin' });
     const totalMerchants = await User.countDocuments({ role: 'merchant' });
@@ -658,35 +671,72 @@ export const getDashboardStats = async (req, res) => {
     const blockedUsers = await User.countDocuments({ isActive: false });
     const activeUsers = totalUsers - blockedUsers;
 
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+    // Months for charts
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const now = new Date();
     const currentMonth = now.getMonth();
 
+    // 1. Total Products
+    const totalProducts = await Product.countDocuments();
+
+    // 2. Total Orders & Total Revenue
+    const orderAggregation = await Order.aggregate([
+      {
+        $match: {
+          status: { $in: ['completed', 'delivered'] }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalOrders: { $sum: 1 },
+          totalRevenue: { $sum: '$total' }
+        }
+      }
+    ]);
+
+    const totalOrders = orderAggregation[0]?.totalOrders || 0;
+    const totalRevenue = orderAggregation[0]?.totalRevenue || 0;
+
+    // 3. Monthly Revenue Chart (Last 6 months)
+    const monthlyRevenue = [];
     const userGrowth = [];
     const merchantGrowth = [];
-    const monthlyRevenue = [];
 
     for (let i = 5; i >= 0; i--) {
       const month = new Date(now.getFullYear(), currentMonth - i, 1);
       const nextMonth = new Date(now.getFullYear(), currentMonth - i + 1, 1);
 
+      // Users registered in this month
       const userCount = await User.countDocuments({
         createdAt: { $gte: month, $lt: nextMonth }
       });
       userGrowth.push(userCount);
 
+      // Merchants registered in this month
       const merchantCount = await User.countDocuments({
         role: 'merchant',
         createdAt: { $gte: month, $lt: nextMonth }
       });
       merchantGrowth.push(merchantCount);
 
-      monthlyRevenue.push(0);
+      // Revenue generated in this month
+      const revenueAgg = await Order.aggregate([
+        {
+          $match: {
+            status: { $in: ['completed', 'delivered'] },
+            createdAt: { $gte: month, $lt: nextMonth }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: '$total' }
+          }
+        }
+      ]);
+      monthlyRevenue.push(revenueAgg[0]?.total || 0);
     }
-
-    const totalProducts = 0;
-    const totalOrders = 0;
-    const totalRevenue = 0;
 
     res.status(200).json({
       success: true,
@@ -711,7 +761,7 @@ export const getDashboardStats = async (req, res) => {
           totalProducts: totalProducts
         },
         charts: {
-          months: months,
+          months: months.slice(currentMonth - 5, currentMonth + 1),
           userGrowth: userGrowth,
           merchantGrowth: merchantGrowth,
           monthlyRevenue: monthlyRevenue
@@ -730,9 +780,6 @@ export const getDashboardStats = async (req, res) => {
 
 // ==================== ADMIN NOTIFICATIONS ====================
 
-// @desc    Get admin notifications
-// @route   GET /api/admin/notifications
-// @access  Admin only
 export const getAdminNotifications = async (req, res) => {
   try {
     const { limit = 50, page = 1, read } = req.query;
@@ -775,9 +822,6 @@ export const getAdminNotifications = async (req, res) => {
   }
 };
 
-// @desc    Create admin notification (manual)
-// @route   POST /api/admin/notifications
-// @access  Admin only
 export const createAdminNotificationManual = async (req, res) => {
   try {
     const { title, message, type, category, actionLink, actionLabel, metadata } = req.body;
@@ -809,9 +853,6 @@ export const createAdminNotificationManual = async (req, res) => {
   }
 };
 
-// @desc    Mark admin notification as read
-// @route   PUT /api/admin/notifications/:id/read
-// @access  Admin only
 export const markAdminNotificationAsRead = async (req, res) => {
   try {
     const { id } = req.params;
@@ -847,9 +888,6 @@ export const markAdminNotificationAsRead = async (req, res) => {
   }
 };
 
-// @desc    Mark all admin notifications as read
-// @route   PUT /api/admin/notifications/read-all
-// @access  Admin only
 export const markAllAdminNotificationsAsRead = async (req, res) => {
   try {
     await Notification.updateMany(
@@ -874,9 +912,6 @@ export const markAllAdminNotificationsAsRead = async (req, res) => {
   }
 };
 
-// @desc    Delete admin notification
-// @route   DELETE /api/admin/notifications/:id
-// @access  Admin only
 export const deleteAdminNotification = async (req, res) => {
   try {
     const { id } = req.params;
@@ -907,9 +942,6 @@ export const deleteAdminNotification = async (req, res) => {
   }
 };
 
-// @desc    Get admin unread count
-// @route   GET /api/admin/notifications/unread-count
-// @access  Admin only
 export const getAdminUnreadCount = async (req, res) => {
   try {
     const count = await Notification.countDocuments({
@@ -933,7 +965,6 @@ export const getAdminUnreadCount = async (req, res) => {
 
 // ==================== HELPER: Notification Triggers ====================
 
-// Trigger: Product Approved Notification (to merchant)
 const triggerProductApprovedNotification = async (merchantId, productName, productId) => {
     try {
         await Notification.create({
@@ -948,13 +979,11 @@ const triggerProductApprovedNotification = async (merchantId, productName, produ
             actionLabel: 'View Product',
             metadata: { productId, productName }
         });
-        // console.log(`Product approval notification sent to merchant: ${merchantId}`);
     } catch (error) {
         console.error('Error creating product approval notification:', error);
     }
 };
 
-// Trigger: Product Rejected Notification (to merchant)
 const triggerProductRejectedNotification = async (merchantId, productName, productId, reason) => {
     try {
         await Notification.create({
@@ -969,13 +998,11 @@ const triggerProductRejectedNotification = async (merchantId, productName, produ
             actionLabel: 'View Details',
             metadata: { productId, productName, reason }
         });
-        // console.log(`Product rejection notification sent to merchant: ${merchantId}`);
     } catch (error) {
         console.error('Error creating product rejection notification:', error);
     }
 };
 
-// Trigger: Admin Notification for new product
 const triggerAdminNewProductNotification = async (productName, merchantName) => {
     try {
         await Notification.create({
@@ -987,7 +1014,6 @@ const triggerAdminNewProductNotification = async (productName, merchantName) => 
             isGlobal: true,
             metadata: { productName, merchantName }
         });
-        // console.log(`Admin notification sent for new product: ${productName}`);
     } catch (error) {
         console.error('Error creating admin notification:', error);
     }
@@ -995,16 +1021,12 @@ const triggerAdminNewProductNotification = async (productName, merchantName) => 
 
 // ==================== PRODUCT MODERATION ====================
 
-// @desc    Get all products for admin moderation
-// @route   GET /api/admin/products
-// @access  Admin only
 export const getAdminProducts = async (req, res) => {
     try {
         const { status, page = 1, limit = 20, search } = req.query;
 
         let query = {};
 
-        // Filter by approval status
         if (status) {
             if (status === 'pending') {
                 query.approvalStatus = 'pending';
@@ -1015,7 +1037,6 @@ export const getAdminProducts = async (req, res) => {
             }
         }
 
-        // Search by product name
         if (search) {
             query.name = { $regex: search, $options: 'i' };
         }
@@ -1036,7 +1057,6 @@ export const getAdminProducts = async (req, res) => {
         const approvedCount = await Product.countDocuments({ approvalStatus: 'approved' });
         const rejectedCount = await Product.countDocuments({ approvalStatus: 'rejected' });
 
-        // Format products for frontend
         const formattedProducts = products.map(product => ({
             id: product._id,
             productId: product._id.toString().slice(-6).toUpperCase(),
@@ -1079,9 +1099,6 @@ export const getAdminProducts = async (req, res) => {
     }
 };
 
-// @desc    Get single product for moderation
-// @route   GET /api/admin/products/:id
-// @access  Admin only
 export const getAdminProductById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -1113,9 +1130,6 @@ export const getAdminProductById = async (req, res) => {
     }
 };
 
-// @desc    Approve product
-// @route   PUT /api/admin/products/:id/approve
-// @access  Admin only
 export const approveProduct = async (req, res) => {
     try {
         const { id } = req.params;
@@ -1130,13 +1144,11 @@ export const approveProduct = async (req, res) => {
             });
         }
 
-        // Update product status
         product.approvalStatus = 'approved';
         product.status = 'active';
         product.approvalReason = notes || '';
         await product.save();
 
-        // TRIGGER: Notify merchant that product is approved
         await triggerProductApprovedNotification(
             product.merchantId._id,
             product.name,
@@ -1158,9 +1170,6 @@ export const approveProduct = async (req, res) => {
     }
 };
 
-// @desc    Reject product
-// @route   PUT /api/admin/products/:id/reject
-// @access  Admin only
 export const rejectProduct = async (req, res) => {
     try {
         const { id } = req.params;
@@ -1182,13 +1191,11 @@ export const rejectProduct = async (req, res) => {
             });
         }
 
-        // Update product status
         product.approvalStatus = 'rejected';
         product.status = 'inactive';
         product.approvalReason = reason;
         await product.save();
 
-        // TRIGGER: Notify merchant that product is rejected
         await triggerProductRejectedNotification(
             product.merchantId._id,
             product.name,
@@ -1211,9 +1218,6 @@ export const rejectProduct = async (req, res) => {
     }
 };
 
-// @desc    Get product statistics for admin dashboard
-// @route   GET /api/admin/products/stats
-// @access  Admin only
 export const getProductStats = async (req, res) => {
     try {
         const totalProducts = await Product.countDocuments();
@@ -1223,7 +1227,6 @@ export const getProductStats = async (req, res) => {
         const activeProducts = await Product.countDocuments({ status: 'active', approvalStatus: 'approved' });
         const outOfStock = await Product.countDocuments({ stock: 0, status: 'active' });
 
-        // Get products by category
         const categoryStats = await Product.aggregate([
             {
                 $group: {
@@ -1269,9 +1272,6 @@ export const getProductStats = async (req, res) => {
     }
 };
 
-// @desc    Bulk approve products
-// @route   PUT /api/admin/products/bulk-approve
-// @access  Admin only
 export const bulkApproveProducts = async (req, res) => {
     try {
         const { productIds } = req.body;
@@ -1292,7 +1292,6 @@ export const bulkApproveProducts = async (req, res) => {
             await product.save();
             updatedCount++;
 
-            // Send notification to each merchant
             await triggerProductApprovedNotification(
                 product.merchantId._id,
                 product.name,
@@ -1315,9 +1314,6 @@ export const bulkApproveProducts = async (req, res) => {
     }
 };
 
-// @desc    Bulk reject products
-// @route   PUT /api/admin/products/bulk-reject
-// @access  Admin only
 export const bulkRejectProducts = async (req, res) => {
     try {
         const { productIds, reason } = req.body;
@@ -1346,7 +1342,6 @@ export const bulkRejectProducts = async (req, res) => {
             await product.save();
             updatedCount++;
 
-            // Send notification to each merchant
             await triggerProductRejectedNotification(
                 product.merchantId._id,
                 product.name,
@@ -1370,9 +1365,6 @@ export const bulkRejectProducts = async (req, res) => {
     }
 };
 
-// @desc    Reset product status to pending (for re-review)
-// @route   PUT /api/admin/products/:id/reset
-// @access  Admin only
 export const resetProductStatus = async (req, res) => {
     try {
         const { id } = req.params;
@@ -1386,7 +1378,6 @@ export const resetProductStatus = async (req, res) => {
             });
         }
 
-        // Reset product status
         product.approvalStatus = 'pending';
         product.status = 'draft';
         product.approvalReason = '';

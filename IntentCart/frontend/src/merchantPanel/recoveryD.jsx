@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Loader2,
     TrendingUp,
-    DollarSign,
+    IndianRupee,
     ShoppingCart,
     Clock,
     Mail,
@@ -76,14 +76,14 @@ const RecoveryDashboard = () => {
         'checkout_complex': { label: 'Checkout Abandoned', icon: XCircle, color: '#ef4444' },
         'wishlist_abandoned': { label: 'Wishlist to Cart', icon: Heart, color: '#ec4899' },
         'high_interest_no_purchase': { label: 'Product Obsession', icon: Eye, color: '#8b5cf6' },
-        'high_price': { label: 'High Price', icon: DollarSign, color: '#f97316' },
+        'high_price': { label: 'High Price', icon: IndianRupee, color: '#f97316' },
         'shipping_costs': { label: 'Shipping Costs', icon: Truck, color: '#06b6d4' },
         'payment_issue': { label: 'Payment Issue', icon: AlertCircle, color: '#ef4444' },
         'just_browsing': { label: 'Just Browsing', icon: Eye, color: '#94a3b8' },
         'account_creation': { label: 'Account Creation', icon: User, color: '#6366f1' },
         'technical_issue': { label: 'Technical Issue', icon: AlertCircle, color: '#dc2626' },
         'comparing_products': { label: 'Comparing Products', icon: ShoppingCart, color: '#3b82f6' },
-        'waiting_for_discount': { label: 'Waiting for Discount', icon: DollarSign, color: '#10b981' },
+        'waiting_for_discount': { label: 'Waiting for Discount', icon: IndianRupee, color: '#10b981' },
         'other': { label: 'Other', icon: AlertCircle, color: '#94a3b8' }
     };
 
@@ -300,7 +300,7 @@ const RecoveryDashboard = () => {
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-emerald-50 rounded-lg"><DollarSign className="w-5 h-5 text-emerald-600" /></div>
+                                    <div className="p-2 bg-emerald-50 rounded-lg"><IndianRupee className="w-5 h-5 text-emerald-600" /></div>
                                     <div>
                                         <h3 className="text-slate-600 text-sm font-medium">Recovered Revenue</h3>
                                         <p className="text-2xl font-extrabold text-[#1e3a6a]">{formatCurrency(stats.recoveredRevenue || 0)}</p>

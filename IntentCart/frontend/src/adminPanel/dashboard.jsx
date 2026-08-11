@@ -1,47 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     TrendingUp,
     Users,
     ShoppingBag,
-    DollarSign,
+    IndianRupee,
     UserCheck,
-    UserX,
     RefreshCw,
-    WifiOff,
     Package,
     Clock,
     Cross
 } from 'lucide-react';
 import {
-    Chart as ChartJS,
-    CategoryScale,
-    LinearScale,
-    BarElement,
-    Title,
+    ResponsiveContainer,
+    LineChart,
+    Line,
+    XAxis,
+    YAxis,
+    CartesianGrid,
     Tooltip,
     Legend,
-    ArcElement,
-    PointElement,
-    LineElement,
-    Filler
-} from 'chart.js';
-import { Line, Doughnut } from 'react-chartjs-2';
+    PieChart,
+    Pie,
+    Cell,
+    Area,
+    AreaChart
+} from 'recharts';
 import Header from './components/header.jsx';
 import Sidebar from './components/sidebar.jsx';
-
-// Register ChartJS components
-ChartJS.register(
-    CategoryScale,
-    LinearScale,
-    BarElement,
-    Title,
-    Tooltip,
-    Legend,
-    ArcElement,
-    PointElement,
-    LineElement,
-    Filler
-);
 
 const API_URL = 'http://localhost:5000/api/admin';
 
@@ -63,12 +48,13 @@ const AdminDashboard = () => {
     });
 
     const getToken = () => localStorage.getItem('token');
+    const COLORS = ['#2a1a6f', '#38bdf8', '#94a3b8'];
 
     const fetchDashboardStats = async () => {
         try {
             setLoading(true);
             setError('');
-            
+
             const token = getToken();
             if (!token) {
                 setError('Please login first');
@@ -96,7 +82,17 @@ const AdminDashboard = () => {
 
             const data = await response.json();
             if (data.success) {
-                setStats(data.stats);
+                //  Fallback: If backend sends empty arrays, use default safe arrays
+                const safeStats = {
+                    ...data.stats,
+                    charts: {
+                        months: data.stats.charts?.months?.length > 0 ? data.stats.charts.months : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                        userGrowth: data.stats.charts?.userGrowth || [0, 0, 0, 0, 0, 0],
+                        merchantGrowth: data.stats.charts?.merchantGrowth || [0, 0, 0, 0, 0, 0],
+                        monthlyRevenue: data.stats.charts?.monthlyRevenue || [0, 0, 0, 0, 0, 0]
+                    }
+                };
+                setStats(safeStats);
             }
         } catch (err) {
             console.error('Error fetching stats:', err);
@@ -110,159 +106,74 @@ const AdminDashboard = () => {
         fetchDashboardStats();
     }, []);
 
-    // Stats Cards Data
-    const statsCards = [
-        { 
-            label: 'Total Users', 
-            value: stats.users.total.toLocaleString(), 
-            change: '+12%', 
-            icon: Users, 
+    const userGrowthData = useMemo(() => {
+        return stats.charts.months.map((month, index) => ({
+            month,
+            Users: stats.charts.userGrowth[index] || 0,
+            Merchants: stats.charts.merchantGrowth[index] || 0
+        }));
+    }, [stats.charts]);
+
+    const revenueData = useMemo(() => {
+        return stats.charts.months.map((month, index) => ({
+            month,
+            Revenue: stats.charts.monthlyRevenue[index] || 0
+        }));
+    }, [stats.charts]);
+
+    const merchantStatusData = useMemo(() => [
+        { name: 'Approved', value: stats.merchants.approved },
+        { name: 'Pending', value: stats.merchants.pending },
+        { name: 'Rejected', value: stats.merchants.rejected }
+    ], [stats.merchants]);
+
+    //  STATS CARDS
+
+    const statsCards = useMemo(() => [
+        {
+            label: 'Total Users',
+            value: stats.users.total.toLocaleString(),
+            change: '+12%',
+            icon: Users,
             isPositive: true,
             color: 'blue'
         },
-        { 
-            label: 'Total Merchants', 
-            value: stats.merchants.total.toLocaleString(), 
-            change: '+5%', 
-            icon: UserCheck, 
+        {
+            label: 'Total Merchants',
+            value: stats.merchants.total.toLocaleString(),
+            change: '+5%',
+            icon: UserCheck,
             isPositive: true,
             color: 'emerald'
         },
-        { 
-            label: 'Total Products', 
-            value: stats.revenue.totalProducts.toLocaleString(), 
-            change: '0%', 
-            icon: Package, 
+        {
+            label: 'Total Products',
+            value: stats.revenue.totalProducts.toLocaleString(),
+            change: '0%',
+            icon: Package,
             isPositive: true,
             color: 'purple'
         },
-        { 
-            label: 'Revenue', 
-            value: `$${stats.revenue.total.toLocaleString()}`, 
-            change: '+18%', 
-            icon: DollarSign, 
+        {
+            label: 'Total Revenue',
+            value: `RS.${stats.revenue.total.toLocaleString()}`,
+            change: '+18%',
+            icon: IndianRupee,
             isPositive: true,
             color: 'amber'
         },
-    ];
+    ], [stats]);
 
-    // User Growth Chart Data
-    const userGrowthData = {
-        labels: stats.charts.months,
-        datasets: [
-            {
-                label: 'Total Users',
-                data: stats.charts.userGrowth,
-                backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                borderColor: 'rgb(59, 130, 246)',
-                borderWidth: 2,
-                tension: 0.4,
-                fill: true
-            },
-            {
-                label: 'Merchants',
-                data: stats.charts.merchantGrowth,
-                backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                borderColor: 'rgb(16, 185, 129)',
-                borderWidth: 2,
-                tension: 0.4,
-                fill: true
-            }
-        ]
-    };
-
-    // Revenue Chart Data
-    const revenueData = {
-        labels: stats.charts.months,
-        datasets: [
-            {
-                label: 'Revenue',
-                data: stats.charts.monthlyRevenue,
-                backgroundColor: 'rgba(251, 191, 36, 0.1)',
-                borderColor: 'rgb(251, 191, 36)',
-                borderWidth: 2,
-                tension: 0.4,
-                fill: true
-            }
-        ]
-    };
-
-    // Merchant Status Doughnut Chart
-    const merchantStatusData = {
-        labels: ['Approved', 'Pending', 'Rejected'],
-        datasets: [
-            {
-                data: [
-                    stats.merchants.approved,
-                    stats.merchants.pending,
-                    stats.merchants.rejected
-                ],
-                backgroundColor: [
-                    'rgb(16, 185, 129)',
-                    'rgb(251, 191, 36)',
-                    'rgb(239, 68, 68)'
-                ],
-                borderWidth: 0
-            }
-        ]
-    };
-
-    const merchantStatusOptions = {
-        plugins: {
-            legend: {
-                position: 'bottom',
-                labels: {
-                    padding: 20,
-                    usePointStyle: true,
-                    pointStyle: 'circle'
-                }
-            }
-        },
-        cutout: '70%'
-    };
-
-    const chartOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                position: 'bottom',
-                labels: {
-                    padding: 20,
-                    usePointStyle: true,
-                    pointStyle: 'circle'
-                }
-            }
-        },
-        scales: {
-            y: {
-                beginAtZero: true,
-                grid: {
-                    display: true,
-                    color: 'rgba(0, 0, 0, 0.05)'
-                }
-            },
-            x: {
-                grid: {
-                    display: false
-                }
-            }
-        }
-    };
-
-    const revenueChartOptions = {
-        ...chartOptions,
-        plugins: {
-            ...chartOptions.plugins,
-            legend: {
-                display: false
-            }
-        }
+    const colorClasses = {
+        blue: 'bg-blue-50 text-blue-600',
+        emerald: 'bg-emerald-50 text-emerald-600',
+        purple: 'bg-purple-50 text-purple-600',
+        amber: 'bg-amber-50 text-amber-600'
     };
 
     return (
         <div className="flex h-screen bg-gray-50 text-slate-800 font-sans">
-            <Sidebar 
+            <Sidebar
                 activeTab='Dashboard'
                 isOpen={isSidebarOpen}
                 setIsOpen={setIsSidebarOpen}
@@ -312,15 +223,10 @@ const AdminDashboard = () => {
                         </div>
                     ) : (
                         <>
+                            {/* STATS CARDS */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                                 {statsCards.map((stat, index) => {
                                     const Icon = stat.icon;
-                                    const colorClasses = {
-                                        blue: 'bg-blue-50 text-blue-600',
-                                        emerald: 'bg-emerald-50 text-emerald-600',
-                                        purple: 'bg-purple-50 text-purple-600',
-                                        amber: 'bg-amber-50 text-amber-600'
-                                    };
                                     return (
                                         <div key={index} className="p-5 rounded-xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-all">
                                             <div className="flex items-center justify-between">
@@ -344,7 +250,9 @@ const AdminDashboard = () => {
                                 })}
                             </div>
 
+                            {/* MAIN CHARTS GRID */}
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                {/* USER GROWTH CHART (Area Chart) */}
                                 <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
                                     <div className="flex items-center justify-between mb-4">
                                         <h3 className="text-sm font-semibold text-slate-700">
@@ -352,41 +260,104 @@ const AdminDashboard = () => {
                                         </h3>
                                         <div className="flex items-center gap-4 text-xs">
                                             <span className="flex items-center gap-1">
-                                                <span className="w-3 h-3 rounded-full bg-blue-500"></span>
+                                                <span className="w-3 h-0.5 bg-[#2a1a6f] inline-block"></span>
                                                 Users
                                             </span>
                                             <span className="flex items-center gap-1">
-                                                <span className="w-3 h-3 rounded-full bg-emerald-500"></span>
+                                                <span className="w-3 h-0.5 bg-[#38bdf8] inline-block"></span>
                                                 Merchants
                                             </span>
                                         </div>
                                     </div>
-                                    <div className="h-64">
-                                        <Line data={userGrowthData} options={chartOptions} />
+                                    <div className="h-64 w-full">
+                                        {userGrowthData.some(d => d.Users > 0 || d.Merchants > 0) ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <AreaChart data={userGrowthData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                                    <CartesianGrid vertical={false} stroke="#e2e8f0" />
+                                                    <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} />
+                                                    <YAxis domain={[0, 'auto']} axisLine={false} tickLine={false} fontSize={11} />
+                                                    <Tooltip />
+                                                    <Area type="monotone" dataKey="Users" stroke="#2a1a6f" fill="#2a1a6f" fillOpacity={0.1} strokeWidth={2} />
+                                                    <Area type="monotone" dataKey="Merchants" stroke="#38bdf8" fill="#38bdf8" fillOpacity={0.1} strokeWidth={2} />
+                                                </AreaChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+                                                No user growth data available
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
+                                {/* MERCHANT STATUS (Pie Chart) */}
                                 <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
                                     <h3 className="text-sm font-semibold text-slate-700 mb-4">
                                         Merchant Status
                                     </h3>
-                                    <div className="h-64 flex items-center justify-center">
-                                        <Doughnut data={merchantStatusData} options={merchantStatusOptions} />
+                                    <div className="h-64 w-full flex items-center justify-center">
+                                        {merchantStatusData.some(d => d.value > 0) ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <PieChart>
+                                                    <Pie
+                                                        data={merchantStatusData}
+                                                        cx="50%"
+                                                        cy="50%"
+                                                        innerRadius={45}
+                                                        outerRadius={80}
+                                                        paddingAngle={2}
+                                                        dataKey="value"
+                                                    >
+                                                        {merchantStatusData.map((entry, index) => (
+                                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                        ))}
+                                                    </Pie>
+                                                    <Tooltip />
+                                                </PieChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <div className="text-gray-400 text-sm">
+                                                No merchant data available
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex justify-center gap-6 mt-2 text-xs font-medium text-slate-600">
+                                        {merchantStatusData.map((item, idx) => (
+                                            <div key={idx} className="flex items-center gap-1.5">
+                                                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
+                                                <span>{item.name}</span>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
 
+                            {/* REVENUE CHART */}
                             <div className="mt-6 bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
                                 <div className="flex items-center justify-between mb-4">
                                     <h3 className="text-sm font-semibold text-slate-700">
                                         Revenue Overview
                                     </h3>
                                 </div>
-                                <div className="h-48">
-                                    <Line data={revenueData} options={revenueChartOptions} />
+                                <div className="h-48 w-full">
+                                    {revenueData.some(d => d.Revenue > 0) ? (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <LineChart data={revenueData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                                <CartesianGrid vertical={false} stroke="#e2e8f0" />
+                                                <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} />
+                                                <YAxis domain={[0, 'auto']} axisLine={false} tickLine={false} fontSize={11} />
+                                                <Tooltip formatter={(value) => `RS.${value.toLocaleString()}`} />
+                                                <Line type="monotone" dataKey="Revenue" stroke="#f59e0b" strokeWidth={2} dot={{ r: 5, fill: '#f59e0b' }} />
+                                            </LineChart>
+                                        </ResponsiveContainer>
+                                    ) : (
+                                        <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+                                            No revenue data available
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
+                            {/* BOTTOM STATS CARDS */}
                             <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                                     <div className="flex items-center gap-3">

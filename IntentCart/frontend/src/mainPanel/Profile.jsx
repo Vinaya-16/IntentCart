@@ -989,7 +989,7 @@ export default function CustomerProfile() {
                               <div className="flex items-center gap-4">
                                 <div className="text-right">
                                   <p className="text-xs text-slate-500">Total</p>
-                                  <p className="text-sm font-bold text-indigo-600">₹{order.total?.toLocaleString()}</p>
+                                  <p className="text-sm font-bold text-indigo-600">RS.{order.total?.toLocaleString()}</p>
                                 </div>
                                 <div className="text-right">
                                   <p className="text-xs text-slate-500">Items</p>

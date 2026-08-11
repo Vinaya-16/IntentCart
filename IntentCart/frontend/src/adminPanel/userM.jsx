@@ -3,7 +3,7 @@ import {
     Users,
     UserCheck,
     UserX,
-    DollarSign,
+    IndianRupee,
     Search,
     Edit2,
     Trash2,
@@ -14,8 +14,9 @@ import {
     EyeOff,
     WifiOff,
     RefreshCw,
-    Cross,
+    X,       
     MoveRight,
+    CheckCircle 
 } from 'lucide-react';
 import Sidebar from './components/sidebar.jsx';
 import Header from './components/header.jsx';
@@ -33,6 +34,7 @@ const UserManagement = () => {
     const [success, setSuccess] = useState('');
     const [isServerDown, setIsServerDown] = useState(false);
     const [actionLoading, setActionLoading] = useState(null);
+    const [revenue, setRevenue] = useState(0);
 
     // Get token from localStorage
     const getToken = () => localStorage.getItem('token');
@@ -52,39 +54,39 @@ const UserManagement = () => {
                 return;
             }
 
-            // console.log('Fetching all users...');
+            //  Fetch Stats and Users in parallel
+            const [usersRes, statsRes] = await Promise.all([
+                fetch(`${API_URL}/users`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }),
+                fetch(`${API_URL}/dashboard-stats`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                })
+            ]);
 
-            const response = await fetch(`${API_URL}/users`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (response.status === 401) {
+            // Handle 401 for both
+            if (usersRes.status === 401 || statsRes.status === 401) {
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');
                 window.location.href = '/intentCart-auth';
                 return;
             }
 
-            if (response.status === 403) {
-                const errorData = await response.json();
-                setError('You do not have admin access. Please contact administrator.');
-                setLoading(false);
-                return;
-            }
-
-            if (!response.ok) {
+            if (!usersRes.ok) {
                 throw new Error('Failed to fetch users');
             }
 
-            const data = await response.json();
-            // console.log('Users fetched:', data);
-
-            if (data.success) {
-                const formattedUsers = data.users.map(user => ({
+            const usersData = await usersRes.json();
+            
+            if (usersData.success) {
+                const formattedUsers = usersData.users.map(user => ({
                     id: user._id || user.id,
                     name: user.username || user.name || 'Unknown',
                     email: user.email,
@@ -103,9 +105,18 @@ const UserManagement = () => {
                 }));
                 
                 setUsers(formattedUsers);
-                setError('');
-                setIsServerDown(false);
             }
+
+            //  Fetch Revenue from Dashboard Stats
+            if (statsRes.ok) {
+                const statsData = await statsRes.json();
+                if (statsData.success) {
+                    setRevenue(statsData.stats.revenue.total || 0);
+                }
+            }
+
+            setError('');
+            setIsServerDown(false);
         } catch (err) {
             console.error('Error fetching users:', err);
             
@@ -137,8 +148,6 @@ const UserManagement = () => {
             const newStatus = currentStatus === 'Active' ? false : true;
             const action = newStatus ? 'unblocked' : 'blocked';
 
-            console.log(`${action} user with ID:`, userId);
-
             const response = await fetch(`${API_URL}/users/${userId}/block`, {
                 method: 'PUT',
                 headers: {
@@ -157,9 +166,7 @@ const UserManagement = () => {
             }
 
             const data = await response.json();
-            // console.log('User status updated:', data);
             
-            // Update local state
             setUsers(prevUsers => 
                 prevUsers.map(user => 
                     user.id === userId 
@@ -202,8 +209,6 @@ const UserManagement = () => {
                 return;
             }
 
-            // console.log(`Deleting user: ${userId}`);
-
             const response = await fetch(`${API_URL}/users/${userId}`, {
                 method: 'DELETE',
                 headers: {
@@ -218,9 +223,7 @@ const UserManagement = () => {
             }
 
             const data = await response.json();
-            // console.log('User deleted:', data);
             
-            // Update local state
             setUsers(prevUsers => prevUsers.filter(user => user.id !== userId));
 
             setSuccess(`User deleted successfully!`);
@@ -281,10 +284,10 @@ const UserManagement = () => {
         },
         { 
             label: 'Revenue', 
-            value: '$0', 
-            change: '0%', 
+            value: `RS.${revenue.toLocaleString()}`, 
+            change: '+0%', 
             isPositive: true, 
-            icon: DollarSign 
+            icon: IndianRupee 
         },
     ];
 
@@ -362,12 +365,12 @@ const UserManagement = () => {
 
                     {!isServerDown && error && (
                         <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg border border-red-200">
-                            <Cross /> {error}
+                            <X className="w-4 h-4" /> {error} {/*  Changed to X */}
                         </div>
                     )}
                     {success && (
                         <div className="mb-4 p-3 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-200">
-                            <MoveRight /> {success}
+                            <CheckCircle className="w-4 h-4" /> {success} {/*  Changed to CheckCircle */}
                         </div>
                     )}
 

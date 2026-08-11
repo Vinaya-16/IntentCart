@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Bell, User, ChevronDown, Plus, Search, Filter, Calendar as CalendarIcon,
     Clock, Eye, Edit, Trash2, Play, Pause, CheckCircle, XCircle, Copy,
-    RefreshCw, TrendingUp, Users, DollarSign, Tag, Percent, Gift, Truck, Zap,
+    RefreshCw, TrendingUp, Users, IndianRupee, Tag, Percent, Gift, Truck, Zap,
     Image as ImageIcon
 } from 'lucide-react';
 import {

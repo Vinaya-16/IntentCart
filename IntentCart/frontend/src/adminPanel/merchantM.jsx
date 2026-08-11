@@ -10,7 +10,7 @@ import {
     UserCheck,
     UserX,
     TrendingUp,
-    DollarSign,
+    IndianRupee,
     MoveRight,
 } from 'lucide-react';
 import Sidebar from './components/sidebar.jsx';

@@ -10,7 +10,7 @@ import {
     Eye,
     TrendingUp,
     Users,
-    DollarSign,
+    IndianRupee,
     UserPlus,
     ChevronRight,
     X,
@@ -256,7 +256,7 @@ const CustomerAnalysis = () => {
                             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                                 <div className="flex items-center gap-3">
                                     <div className="p-2 bg-emerald-50 rounded-lg">
-                                        <DollarSign className="w-5 h-5 text-emerald-600" />
+                                        <IndianRupee className="w-5 h-5 text-emerald-600" />
                                     </div>
                                     <div>
                                         <h3 className="text-slate-600 text-sm font-medium">Avg Customer LTV</h3>
