@@ -57,7 +57,10 @@ import {
     deleteCampaign,
     validateCoupon,
     applyCoupon,
-    getCampaignStats
+    getCampaignStats,
+    getEligibleCampaigns,
+    validateCampaignForCustomer,
+    calculateDiscount
 } from '../controllers/campaignController.js';
 
 import {
@@ -123,6 +126,11 @@ router.put('/campaigns/:id/status', updateCampaignStatus);
 router.delete('/campaigns/:id', deleteCampaign);
 router.post('/campaigns/validate-coupon', validateCoupon);
 router.post('/campaigns/apply-coupon', applyCoupon);
+
+// Customer-facing routes for campaign eligibility
+router.get('/campaigns/eligible', getEligibleCampaigns);
+router.post('/campaigns/validate', validateCampaignForCustomer);
+router.post('/campaigns/calculate-discount', calculateDiscount);
 
 // ==================== RECOVERY DASHBOARD ====================
 router.get('/recovery/stats', getRecoveryStats);

@@ -11,13 +11,43 @@ import {
     Filter,
     Clock,
     X,
-    Search
+    Search,
+    Tag,
+    Copy,
+    Check,
+    Zap
 } from 'lucide-react';
+import axios from 'axios';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import eventTracker from '../utils/eventTracker';
 
 const API_URL = 'http://localhost:5000/api';
+
+// Fallback Deal Corner Data from your JSON
+const FALLBACK_DEALS = [
+    { _id: '1', brand: 'Allen Solly', offer: 'Buy 2 Get 40% Off', couponCode: 'ALLEN40' },
+    { _id: '2', brand: 'ELLE', offer: 'Flat 30% Off', couponCode: 'ELLE30' },
+    { _id: '3', brand: 'Elli', offer: 'Flat 30% Off', couponCode: 'ELLI30' },
+    { _id: '4', brand: 'Code', offer: 'Flat 30% Off', couponCode: 'CODE30' },
+    { _id: '5', brand: 'Ginger', offer: 'Flat 50% Off', couponCode: 'GINGER50' },
+    { _id: '6', brand: 'Fastrack', offer: 'Flat 50% Off', couponCode: 'FASTRACK50' },
+];
+
+// Fallback Sale Highlights
+const FALLBACK_HIGHLIGHTS = [
+    { _id: 'h1', title: 'US Polo ASSN.', subtitle: 'Since 1980', offer: 'Buy 2 Get 2', discount: 'Free', bg: 'bg-indigo-500', couponCode: 'USPOLOB2G2' },
+    { _id: 'h2', title: 'Levis', offer: 'Buy 2 Get', discount: '40% Off', bg: 'bg-indigo-400', couponCode: 'LEVIS40' },
+    { _id: 'h3', title: 'Fahrenheit', offer: 'min .', discount: '30% Off', bg: 'bg-indigo-900', couponCode: 'FAHREN30' },
+    { _id: 'h4', title: 'EOSS Promo', subtitle: 'End of Season Sale', offer: 'Up to 50% + Extra 10%', discount: '50% Off', bg: 'bg-indigo-500', couponCode: 'EOSS50' },
+];
+
+// Fallback Promo Banner
+const FALLBACK_PROMO = {
+    text: 'EOSS | Up to 50% + Extra 10% Off | Free Shipping on all orders',
+    couponCode: 'EOSS50',
+    extraDiscount: '10%'
+};
 
 export default function CategoryPage() {
     const { path } = useParams();
@@ -29,6 +59,13 @@ export default function CategoryPage() {
     const [products, setProducts] = useState([]);
     const [breadcrumbs, setBreadcrumbs] = useState([]);
     const [totalProducts, setTotalProducts] = useState(0);
+
+    // Deal Corner State - Initialize with fallback data
+    const [dealCornerCampaigns, setDealCornerCampaigns] = useState(FALLBACK_DEALS);
+    const [saleHighlightCampaigns, setSaleHighlightCampaigns] = useState(FALLBACK_HIGHLIGHTS);
+    const [promoBannerCampaign, setPromoBannerCampaign] = useState(FALLBACK_PROMO);
+    const [copiedCode, setCopiedCode] = useState(null);
+    const [campaignsLoaded, setCampaignsLoaded] = useState(false);
 
     // Active filters
     const [selectedPrice, setSelectedPrice] = useState(5000);
@@ -48,7 +85,6 @@ export default function CategoryPage() {
     // Track product views when products change
     useEffect(() => {
         if (products.length > 0 && categoryData) {
-            // Track product views in batch (limit to first 10 to avoid spam)
             const productsToTrack = products.slice(0, 10);
             productsToTrack.forEach(product => {
                 eventTracker.trackProductView(product._id, {
@@ -60,12 +96,155 @@ export default function CategoryPage() {
         }
     }, [products, categoryData]);
 
+    // Fetch campaigns for deal corner
+    useEffect(() => {
+        fetchCampaigns();
+    }, []);
+
     useEffect(() => {
         if (!path) return;
         const controller = new AbortController();
         fetchCategoryData(path, controller.signal);
         return () => controller.abort();
     }, [path]);
+
+    const fetchCampaigns = async () => {
+        try {
+            const token = localStorage.getItem('token');
+
+            if (!token) {
+                // Use fallback data if no token
+                setDealCornerCampaigns(FALLBACK_DEALS);
+                setSaleHighlightCampaigns(FALLBACK_HIGHLIGHTS);
+                setPromoBannerCampaign(FALLBACK_PROMO);
+                setCampaignsLoaded(true);
+                return;
+            }
+
+            const response = await axios.get(
+                `${API_URL}/merchant/campaigns`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+
+            if (response.data.success) {
+                const campaigns = response.data.campaigns || [];
+                const activeCampaigns = campaigns.filter(c => c.status === 'active');
+
+                // Get deal corner campaigns
+                const deals = activeCampaigns
+                    .filter(c => c.metadata?.section === 'deal_corner')
+                    .map(c => ({
+                        _id: c._id,
+                        brand: c.metadata?.brand || c.name,
+                        offer: c.metadata?.offer || formatDiscount(c),
+                        couponCode: c.couponCode,
+                        type: c.type,
+                        discountValue: c.discountValue,
+                        discountType: c.discountType,
+                        description: c.description,
+                        endDate: c.endDate,
+                        bg: getDealColor()
+                    }));
+
+                // If we have real deals, use them; otherwise keep fallback
+                if (deals.length > 0) {
+                    setDealCornerCampaigns(deals);
+                }
+
+                // Get sale highlights
+                const highlights = activeCampaigns
+                    .filter(c => c.metadata?.section === 'sale_highlights')
+                    .map(c => ({
+                        _id: c._id,
+                        title: c.metadata?.title || c.name,
+                        subtitle: c.metadata?.subtitle || '',
+                        offer: c.metadata?.offer || formatOffer(c),
+                        discount: c.metadata?.discount || formatDiscount(c),
+                        bg: c.metadata?.bg || getRandomColor(),
+                        couponCode: c.couponCode,
+                        type: c.type
+                    }));
+
+                if (highlights.length > 0) {
+                    setSaleHighlightCampaigns(highlights);
+                }
+
+                // Get promo banner
+                const promo = activeCampaigns.find(c => c.metadata?.section === 'promo_banner');
+                if (promo) {
+                    setPromoBannerCampaign({
+                        text: promo.description || `${promo.name} | ${formatDiscount(promo)}`,
+                        couponCode: promo.couponCode,
+                        extraDiscount: promo.metadata?.extraDiscount || ''
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching campaigns, using fallback:', error);
+            // Keep fallback data
+        } finally {
+            setCampaignsLoaded(true);
+        }
+    };
+
+    // Helper: Format discount
+    const formatDiscount = (campaign) => {
+        if (!campaign) return 'Special Offer';
+        if (campaign.discountType === 'percentage') {
+            return `${campaign.discountValue}% Off`;
+        } else if (campaign.discountType === 'fixed') {
+            return `Rs.${campaign.discountValue} Off`;
+        } else if (campaign.discountType === 'free_shipping') {
+            return 'Free Shipping';
+        }
+        return 'Special Offer';
+    };
+
+    // Helper: Format offer
+    const formatOffer = (campaign) => {
+        if (!campaign) return 'Special Offer';
+        if (campaign.type === 'bogo') return 'Buy 1 Get 1';
+        if (campaign.type === 'flash_sale') return 'Flash Sale';
+        if (campaign.type === 'free_shipping') return 'Free Shipping';
+        return campaign.name || 'Special Offer';
+    };
+
+    // Helper: Get random color
+    const getRandomColor = () => {
+        const colors = [
+            'bg-indigo-500', 'bg-indigo-400', 'bg-indigo-900',
+            'bg-purple-500', 'bg-blue-500', 'bg-teal-500',
+            'bg-rose-500', 'bg-amber-500', 'bg-emerald-500'
+        ];
+        return colors[Math.floor(Math.random() * colors.length)];
+    };
+
+    // Helper: Get deal color
+    const getDealColor = () => {
+        const colors = [
+            'bg-amber-100/70 border-amber-200/50',
+            'bg-pink-100/70 border-pink-200/50',
+            'bg-green-100/70 border-green-200/50',
+            'bg-purple-100/70 border-purple-200/50',
+            'bg-blue-100/70 border-blue-200/50',
+            'bg-yellow-100/70 border-yellow-200/50'
+        ];
+        return colors[Math.floor(Math.random() * colors.length)];
+    };
+
+    // Handle coupon copy
+    const handleCopyCoupon = (couponCode) => {
+        if (couponCode) {
+            navigator.clipboard.writeText(couponCode);
+            setCopiedCode(couponCode);
+            setTimeout(() => setCopiedCode(null), 3000);
+        }
+    };
 
     const fetchCategoryData = async (categoryPath, signal) => {
         try {
@@ -100,7 +279,6 @@ export default function CategoryPage() {
         if (currentPathSegments.includes(slug)) return;
         const newPath = [...currentPathSegments, slug].join('/');
 
-        // Track subcategory navigation
         const subcategory = subcategories.find(s => s.slug === slug);
         if (subcategory) {
             eventTracker.trackCategoryView(subcategory._id, subcategory.name);
@@ -144,7 +322,6 @@ export default function CategoryPage() {
     const getFilteredProducts = () => {
         let filtered = getSortedProducts();
 
-        // Filter by search query
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase().trim();
             filtered = filtered.filter(p =>
@@ -154,7 +331,6 @@ export default function CategoryPage() {
             );
         }
 
-        // Filter by subcategories
         if (selectedCategories.length > 0) {
             filtered = filtered.filter(p =>
                 selectedCategories.includes(p.categoryId) ||
@@ -163,10 +339,8 @@ export default function CategoryPage() {
             );
         }
 
-        // Filter by price
         filtered = filtered.filter(p => p.price <= selectedPrice);
 
-        // Filter by brands
         if (selectedBrands.length > 0) {
             filtered = filtered.filter(p =>
                 selectedBrands.includes(p.brand) ||
@@ -177,7 +351,6 @@ export default function CategoryPage() {
         return filtered;
     };
 
-    // Handle search with tracking
     const handleSearch = (e) => {
         e.preventDefault();
         const query = searchQuery.trim();
@@ -187,7 +360,6 @@ export default function CategoryPage() {
         }
     };
 
-    // Handle wishlist toggle with tracking
     const handleWishlistToggle = async (productId, e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -203,7 +375,6 @@ export default function CategoryPage() {
             const product = products.find(p => p._id === productId);
             if (!product) return;
 
-            // Check if in wishlist
             const checkResponse = await fetch(`${API_URL}/customer/wishlist/check/${productId}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -228,7 +399,6 @@ export default function CategoryPage() {
                 throw new Error('Failed to update wishlist');
             }
 
-            // Track wishlist action
             if (inWishlist) {
                 await eventTracker.trackWishlistRemove(productId, { name: product.name, price: product.price });
                 alert('Removed from wishlist');
@@ -237,7 +407,6 @@ export default function CategoryPage() {
                 alert('Added to wishlist');
             }
 
-            // Refresh products to update wishlist status
             fetchCategoryData(path);
         } catch (err) {
             console.error('Error updating wishlist:', err);
@@ -245,7 +414,6 @@ export default function CategoryPage() {
         }
     };
 
-    // Handle product click tracking
     const handleProductClick = (product) => {
         eventTracker.trackProductView(product._id, {
             name: product.name,
@@ -257,7 +425,6 @@ export default function CategoryPage() {
     const filteredProducts = getFilteredProducts();
     const brands = getUniqueBrands();
 
-    // Clear all filters
     const clearFilters = () => {
         setSelectedPrice(5000);
         setSelectedCategories([]);
@@ -265,7 +432,6 @@ export default function CategoryPage() {
         setSearchQuery('');
     };
 
-    // Count active filters
     const activeFilterCount = selectedCategories.length + selectedBrands.length + (searchQuery.trim() ? 1 : 0);
 
     if (loading) {
@@ -300,8 +466,35 @@ export default function CategoryPage() {
         <div className="w-full bg-white text-gray-800">
             <Header />
 
-            <div className="bg-indigo-900 text-white text-center py-2 text-xs font-semibold tracking-wide">
-                EOSS | Up to 50% + Extra 10% Off | Free Shipping on all orders
+            {/* Promo Banner with Campaign Data */}
+            <div className="bg-indigo-900 text-white text-center py-2 text-xs font-semibold tracking-wide flex items-center justify-center gap-3 flex-wrap">
+                <span>{promoBannerCampaign?.text || 'EOSS | Up to 50% + Extra 10% Off | Free Shipping on all orders'}</span>
+                {promoBannerCampaign?.couponCode && (
+                    <button
+                        onClick={() => handleCopyCoupon(promoBannerCampaign.couponCode)}
+                        className="bg-white/20 hover:bg-white/30 px-3 py-0.5 rounded-full text-[10px] font-mono flex items-center gap-1 transition-all"
+                    >
+                        {copiedCode === promoBannerCampaign.couponCode ? (
+                            <>
+                                <Check className="w-3 h-3" />
+                                Copied!
+                            </>
+                        ) : (
+                            <>
+                                <Copy className="w-3 h-3" />
+                                {promoBannerCampaign.couponCode}
+                            </>
+                        )}
+                    </button>
+                )}
+                {promoBannerCampaign?.extraDiscount && (
+                    <span className="bg-yellow-400 text-indigo-900 px-2 py-0.5 rounded-full font-bold text-[10px]">
+                        + {promoBannerCampaign.extraDiscount} Extra
+                    </span>
+                )}
+                <span className="text-[10px] opacity-75">
+                    {dealCornerCampaigns.length} deals available
+                </span>
             </div>
 
             <div className="max-w-7xl mx-auto px-4 py-4">
@@ -408,7 +601,6 @@ export default function CategoryPage() {
                 <div className="flex flex-col md:flex-row gap-8">
                     {/* Left Sidebar Filters */}
                     <aside className={`w-full md:w-64 shrink-0 space-y-6 ${showFilters ? 'block' : 'hidden md:block'}`}>
-                        {/* Clear Filters Button (Desktop) */}
                         {activeFilterCount > 0 && (
                             <button
                                 onClick={clearFilters}
@@ -418,7 +610,6 @@ export default function CategoryPage() {
                             </button>
                         )}
 
-                        {/* Categories Filter */}
                         {subcategories.length > 0 && (
                             <div className="border-b pb-4">
                                 <h3 className="font-bold text-sm text-gray-900 mb-3">Categories</h3>
@@ -445,7 +636,6 @@ export default function CategoryPage() {
                             </div>
                         )}
 
-                        {/* Brand Filter */}
                         {brands.length > 0 && (
                             <div className="border-b pb-4">
                                 <h3 className="font-bold text-sm text-gray-900 mb-3">Brand</h3>
@@ -471,9 +661,8 @@ export default function CategoryPage() {
                             </div>
                         )}
 
-                        {/* Price Filter */}
                         <div>
-                            <h3 className="font-bold text-sm text-gray-900 mb-3">Max Price: ₹{selectedPrice}</h3>
+                            <h3 className="font-bold text-sm text-gray-900 mb-3">Max Price: Rs.{selectedPrice}</h3>
                             <input
                                 type="range"
                                 min="100"
@@ -484,12 +673,11 @@ export default function CategoryPage() {
                                 className="w-full accent-indigo-600"
                             />
                             <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>₹100</span>
-                                <span>₹10,000</span>
+                                <span>Rs.100</span>
+                                <span>Rs.10,000</span>
                             </div>
                         </div>
 
-                        {/* Active Filters Summary */}
                         {activeFilterCount > 0 && (
                             <div className="pt-4 border-t">
                                 <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Active Filters</h4>
@@ -557,66 +745,66 @@ export default function CategoryPage() {
                             </span>
                         </div>
 
-                        {/* Subcategories Grid */}
-                        {/* {subcategories.length > 0 && !searchQuery && (
-                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-10">
-                                {subcategories.map((sub) => (
-                                    <button
-                                        key={sub._id}
-                                        onClick={() => handleSubcategoryNavigate(sub.slug)}
-                                        className="flex flex-col items-center group text-center focus:outline-none"
-                                    >
-                                        <div className="w-full aspect-[4/5] bg-gray-100 rounded-xl overflow-hidden mb-2 group-hover:opacity-90 transition border">
-                                            {sub.image ? (
-                                                <img
-                                                    src={sub.image}
-                                                    alt={sub.name}
-                                                    className="w-full h-full object-cover"
-                                                    onError={(e) => {
-                                                        e.target.style.display = 'none';
-                                                        e.target.parentElement.innerHTML = '<div class="w-full h-full bg-gray-200 flex items-center justify-center text-xs text-gray-400">No Image</div>';
-                                                    }}
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full bg-gray-200 flex items-center justify-center text-xs text-gray-400">
-                                                    No Image
-                                                </div>
-                                            )}
-                                        </div>
-                                        <span className="text-xs font-semibold text-gray-800 group-hover:text-indigo-600">
-                                            {sub.name}
-                                        </span>
-                                        <span className="text-[10px] text-gray-400">
-                                            {sub.productCount || 0} products
-                                        </span>
-                                    </button>
-                                ))}
-                            </div>
-                        )} */}
-
-                        {/* Deal Corner Section */}
+                        {/* Real Deal Corner Section - Always shows fallback data */}
                         <section className="mt-8 mb-10">
                             <div className="flex items-center gap-2 mb-4">
                                 <h2 className="text-lg font-bold text-gray-900 border-b-2 border-indigo-600 inline-block pb-1">
                                     Deal Corner
                                 </h2>
                                 <Clock className="w-4 h-4 text-indigo-600" />
+                                {dealCornerCampaigns.length > 0 && (
+                                    <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">
+                                        {dealCornerCampaigns.length} Active
+                                    </span>
+                                )}
                             </div>
 
-                            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border-2 border-dashed border-indigo-300 rounded-xl p-8 text-center">
-                                <div className="flex flex-col items-center justify-center">
-                                    <Clock className="w-16 h-16 text-indigo-400 mb-4" />
-                                    <h3 className="text-xl font-bold text-gray-700 mb-2">🚀 Exciting Deals Coming Soon!</h3>
-                                    <p className="text-gray-500 max-w-md">
-                                        We're working on bringing you the best deals and discounts.
-                                        Stay tuned for amazing offers!
-                                    </p>
-                                    <div className="mt-4 flex gap-2 flex-wrap justify-center">
-                                        <span className="px-3 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-full">50% Off</span>
-                                        <span className="px-3 py-1 bg-pink-100 text-pink-700 text-xs rounded-full">Buy 1 Get 1</span>
-                                        <span className="px-3 py-1 bg-green-100 text-green-700 text-xs rounded-full">Free Shipping</span>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                                {dealCornerCampaigns.map((deal) => (
+                                    <div
+                                        key={deal._id}
+                                        className={`relative rounded-xl h-44 flex flex-col justify-center items-center text-center p-3 shadow-sm overflow-hidden group cursor-pointer hover:shadow-md transition-all ${deal.bg || 'bg-amber-100/70 border-amber-200/50 border'}`}
+                                    >
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <Tag className="w-10 h-10 text-amber-800/20" />
+                                        </div>
+
+                                        <div className="relative z-10 bg-white/40 backdrop-blur-[2px] p-2 rounded-lg w-full">
+                                            <p className="font-bold text-sm text-indigo-950 truncate">
+                                                {deal.brand}
+                                            </p>
+                                            <p className="text-xs font-extrabold text-indigo-900 mt-0.5">
+                                                {deal.offer}
+                                            </p>
+                                            {deal.couponCode && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleCopyCoupon(deal.couponCode);
+                                                    }}
+                                                    className="mt-1.5 text-[10px] bg-indigo-600/80 text-white px-2 py-0.5 rounded-full hover:bg-indigo-700 transition-all flex items-center gap-1 mx-auto"
+                                                >
+                                                    {copiedCode === deal.couponCode ? (
+                                                        <>
+                                                            <Check className="w-2.5 h-2.5" />
+                                                            Copied
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Copy className="w-2.5 h-2.5" />
+                                                            {deal.couponCode}
+                                                        </>
+                                                    )}
+                                                </button>
+                                            )}
+                                            {deal.endDate && (
+                                                <p className="text-[8px] text-gray-400 mt-0.5">
+                                                    Ends {new Date(deal.endDate).toLocaleDateString()}
+                                                </p>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
+                                ))}
                             </div>
                         </section>
 
@@ -677,11 +865,11 @@ export default function CategoryPage() {
                                                 </h4>
                                                 <div className="flex items-center gap-2 mt-1">
                                                     <p className="text-xs font-bold text-indigo-600">
-                                                        ₹{product.price}
+                                                        Rs.{product.price}
                                                     </p>
                                                     {product.compareAtPrice && product.compareAtPrice > product.price && (
                                                         <p className="text-xs text-gray-400 line-through">
-                                                            ₹{product.compareAtPrice}
+                                                            Rs.{product.compareAtPrice}
                                                         </p>
                                                     )}
                                                 </div>

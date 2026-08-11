@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, User, ChevronDown, Plus, Search, Filter, Calendar as CalendarIcon, Clock, Eye, Edit, Trash2, Play, Pause, CheckCircle, XCircle, Copy, RefreshCw, TrendingUp, Users, DollarSign, Tag, Percent, Gift, Truck, Zap } from 'lucide-react';
+import {
+    Bell, User, ChevronDown, Plus, Search, Filter, Calendar as CalendarIcon,
+    Clock, Eye, Edit, Trash2, Play, Pause, CheckCircle, XCircle, Copy,
+    RefreshCw, TrendingUp, Users, DollarSign, Tag, Percent, Gift, Truck, Zap
+} from 'lucide-react';
 import {
     ResponsiveContainer,
     PieChart,
@@ -13,7 +17,10 @@ import {
     Tooltip,
     LineChart,
     Line,
-    Legend
+    Legend,
+    AreaChart,
+    Area,
+    ComposedChart
 } from 'recharts';
 import axios from 'axios';
 import { toast, Toaster } from 'react-hot-toast';
@@ -21,7 +28,6 @@ import Sidebar from './components/sidebar.jsx';
 import Header from './components/header.jsx';
 import Modal from './components/Modal';
 import CampaignForm from './components/CampaignForm';
-import CouponValidator from './components/CouponValidator';
 
 // API Configuration
 const API_BASE_URL = 'http://localhost:5000/api';
@@ -51,6 +57,7 @@ const CampaignManagement = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [logs, setLogs] = useState([]);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Fetch campaigns on component mount and filter changes
     useEffect(() => {
@@ -131,6 +138,7 @@ const CampaignManagement = () => {
     // Create new campaign
     const handleCreateCampaign = async (campaignData) => {
         try {
+            setIsSubmitting(true);
             const token = localStorage.getItem('token');
             const response = await axios.post(
                 `${API_BASE_URL}/merchant/campaigns`,
@@ -149,15 +157,24 @@ const CampaignManagement = () => {
         } catch (error) {
             console.error('Error creating campaign:', error);
             toast.error(error.response?.data?.message || 'Failed to create campaign');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
     // Update campaign
-    const handleUpdateCampaign = async (id, campaignData) => {
+    const handleUpdateCampaign = async (campaignId, campaignData) => {
         try {
+            setIsSubmitting(true);
             const token = localStorage.getItem('token');
+
+            if (!campaignId) {
+                toast.error('Campaign ID is required');
+                return;
+            }
+
             const response = await axios.put(
-                `${API_BASE_URL}/merchant/campaigns/${id}`,
+                `${API_BASE_URL}/merchant/campaigns/${campaignId}`,
                 campaignData,
                 {
                     headers: { Authorization: `Bearer ${token}` }
@@ -167,12 +184,15 @@ const CampaignManagement = () => {
             if (response.data.success) {
                 toast.success('Campaign updated successfully!');
                 setIsModalOpen(false);
+                setSelectedCampaign(null);
                 fetchCampaigns();
                 fetchStats();
             }
         } catch (error) {
             console.error('Error updating campaign:', error);
             toast.error(error.response?.data?.message || 'Failed to update campaign');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -220,54 +240,6 @@ const CampaignManagement = () => {
         } catch (error) {
             console.error('Error deleting campaign:', error);
             toast.error(error.response?.data?.message || 'Failed to delete campaign');
-        }
-    };
-
-    // Validate coupon
-    const handleValidateCoupon = async (couponData) => {
-        try {
-            const token = localStorage.getItem('token');
-            const response = await axios.post(
-                `${API_BASE_URL}/merchant/campaigns/validate-coupon`,
-                couponData,
-                {
-                    headers: { Authorization: `Bearer ${token}` }
-                }
-            );
-
-            if (response.data.success) {
-                toast.success('Coupon is valid!');
-                return response.data.coupon;
-            }
-        } catch (error) {
-            console.error('Error validating coupon:', error);
-            toast.error(error.response?.data?.message || 'Invalid coupon');
-            return null;
-        }
-    };
-
-    // Apply coupon to order
-    const handleApplyCoupon = async (couponData) => {
-        try {
-            const token = localStorage.getItem('token');
-            const response = await axios.post(
-                `${API_BASE_URL}/merchant/campaigns/apply-coupon`,
-                couponData,
-                {
-                    headers: { Authorization: `Bearer ${token}` }
-                }
-            );
-
-            if (response.data.success) {
-                toast.success('Coupon applied successfully!');
-                fetchCampaigns();
-                fetchStats();
-                return response.data;
-            }
-        } catch (error) {
-            console.error('Error applying coupon:', error);
-            toast.error(error.response?.data?.message || 'Failed to apply coupon');
-            return null;
         }
     };
 
@@ -326,21 +298,16 @@ const CampaignManagement = () => {
         }).format(amount);
     };
 
-    // Prepare chart data from real stats
+    // Prepare chart data from backend stats only
     const getChannelPerformanceData = () => {
         if (stats.channelPerformance && stats.channelPerformance.length > 0) {
-            return stats.channelPerformance.map(item => ({
+            return stats.channelPerformance.map((item, index) => ({
                 metric: item._id || 'Unknown',
                 count: item.count || 0,
-                fill: COLORS[Math.floor(Math.random() * COLORS.length)]
+                fill: COLORS[index % COLORS.length]
             }));
         }
-        // Fallback to sample data
-        return [
-            { metric: 'Open Rate', count: 350, fill: '#2a1a6f' },
-            { metric: 'Click Rate', count: 220, fill: '#0284c7' },
-            { metric: 'Conversion Rate', count: 50, fill: '#38bdf8' },
-        ];
+        return [];
     };
 
     const getCampaignTypesData = () => {
@@ -351,16 +318,10 @@ const CampaignManagement = () => {
                 color: COLORS[index % COLORS.length]
             }));
         }
-        // Fallback to sample data
-        return [
-            { name: 'Discount', value: 40, color: '#2a1a6f' },
-            { name: 'Coupon', value: 25, color: '#0284c7' },
-            { name: 'Free Shipping', value: 20, color: '#38bdf8' },
-            { name: 'Loyalty Reward', value: 15, color: '#64748b' },
-        ];
+        return [];
     };
 
-    // Get recent logs from real data
+    // Get recent logs from backend data
     const getRecentLogs = () => {
         if (logs && logs.length > 0) {
             return logs.slice(0, 4).map(log => ({
@@ -368,16 +329,10 @@ const CampaignManagement = () => {
                 time: new Date(log.createdAt).toLocaleString()
             }));
         }
-        // Fallback to sample logs
-        return [
-            { event: 'Summer Sale Draft Saved', time: '1 today' },
-            { event: 'Coupon Code Sent', time: '3 hours ago' },
-            { event: 'Summer Sale Draft Sale', time: '3 hours ago' },
-            { event: 'Coupon Code Sent', time: '2 hours ago' },
-        ];
+        return [];
     };
 
-    // Get active campaigns for calendar
+    // Get active campaigns for calendar from backend data
     const getActiveCampaignsForCalendar = () => {
         return campaigns
             .filter(c => c.status === 'active' || c.status === 'scheduled')
@@ -404,20 +359,11 @@ const CampaignManagement = () => {
         <div className="min-h-screen flex flex-col bg-slate-50">
             <Toaster position="top-right" />
 
-            {/* 2. Header placed at the top (full width) */}
             <Header />
-
-            {/* 3. Row layout below Header for Sidebar + Main Content */}
             <div className="flex flex-1 overflow-hidden">
-
-                {/* 4. Sidebar pinned on the left */}
                 <Sidebar />
-
-                {/* 5. Main Content takes up remaining space */}
                 <div className="flex-1 overflow-y-auto">
-                    {/* DASHBOARD BODY */}
                     <main className="flex-1 p-8 overflow-y-auto space-y-6">
-
                         {/* STATS CARDS SECTION */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
@@ -458,7 +404,6 @@ const CampaignManagement = () => {
                         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                             <div className="flex items-center justify-between mb-4">
                                 <h2 className="text-base font-bold text-slate-800">Campaign Calendar</h2>
-                                {/* Legend */}
                                 <div className="flex items-center gap-4 text-xs font-semibold text-slate-700">
                                     {activeCampaigns.map((campaign, index) => (
                                         <div key={index} className="flex items-center gap-1.5">
@@ -472,10 +417,8 @@ const CampaignManagement = () => {
                                 </div>
                             </div>
 
-                            {/* Calendar Table Container */}
                             <div className="border border-slate-200 rounded-lg overflow-x-auto">
                                 <div className="min-w-[600px]">
-                                    {/* Days Header */}
                                     <div className="grid grid-cols-6 border-b border-slate-200 bg-slate-50/50 text-center text-xs font-semibold text-slate-700 py-2">
                                         <div>Sun</div>
                                         <div>Mon</div>
@@ -484,8 +427,6 @@ const CampaignManagement = () => {
                                         <div>Thu</div>
                                         <div>Fri</div>
                                     </div>
-
-                                    {/* Timeline Tracks */}
                                     <div className="grid grid-cols-6 divide-x divide-slate-200 min-h-[140px] relative p-2 space-y-2">
                                         {loading ? (
                                             <div className="col-span-6 flex justify-center items-center">
@@ -516,8 +457,6 @@ const CampaignManagement = () => {
 
                         {/* BOTTOM TRIPLE WIDGETS GRID */}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-                            {/* 1. RECENT CAMPAIGN LOGS */}
                             <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
                                 <h3 className="text-sm font-bold text-slate-800 mb-3">Recent Campaign Logs</h3>
                                 <div className="space-y-2.5">
@@ -525,6 +464,8 @@ const CampaignManagement = () => {
                                         <div className="flex justify-center py-4">
                                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                                         </div>
+                                    ) : getRecentLogs().length === 0 ? (
+                                        <div className="text-center text-slate-400 py-4 text-sm">No recent activity</div>
                                     ) : (
                                         getRecentLogs().map((log, idx) => (
                                             <div key={idx} className="flex items-center justify-between text-xs py-1.5 border-b border-slate-100 last:border-0">
@@ -536,72 +477,81 @@ const CampaignManagement = () => {
                                 </div>
                             </div>
 
-                            {/* 2. CHANNEL PERFORMANCE BAR CHART */}
                             <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
                                 <h3 className="text-sm font-bold text-slate-800 mb-2">Channel Performance</h3>
-                                <div className="h-40 w-full relative">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart
-                                            data={getChannelPerformanceData()}
-                                            margin={{ top: 10, right: 75, left: -25, bottom: 0 }}
-                                        >
-                                            <CartesianGrid vertical={false} stroke="#e2e8f0" />
-                                            <XAxis dataKey="metric" hide />
-                                            <YAxis domain={[0, 400]} ticks={[0, 100, 200, 300, 400]} axisLine={false} tickLine={false} />
-                                            <Bar dataKey="count" radius={[2, 2, 0, 0]} barSize={24}>
-                                                {getChannelPerformanceData().map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                                                ))}
-                                            </Bar>
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                    {/* Custom Inline Label Legend on Right */}
-                                    <div className="absolute right-0 top-1/2 -translate-y-1/2 space-y-1.5 text-[10px] font-semibold text-slate-700">
-                                        {getChannelPerformanceData().map((item, idx) => (
-                                            <div key={idx} className="flex items-center gap-1.5">
-                                                <span>{item.metric}</span>
-                                                <span className="w-2 h-2 rounded-xs" style={{ backgroundColor: item.fill }} />
-                                            </div>
-                                        ))}
+                                {getChannelPerformanceData().length === 0 ? (
+                                    <div className="h-40 flex items-center justify-center text-slate-400 text-sm">
+                                        No channel data available
                                     </div>
-                                </div>
+                                ) : (
+                                    <div className="h-40 w-full relative">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart
+                                                data={getChannelPerformanceData()}
+                                                margin={{ top: 10, right: 75, left: -25, bottom: 0 }}
+                                            >
+                                                <CartesianGrid vertical={false} stroke="#e2e8f0" />
+                                                <XAxis dataKey="metric" hide />
+                                                <YAxis domain={[0, 'auto']} axisLine={false} tickLine={false} />
+                                                <Tooltip />
+                                                <Bar dataKey="count" radius={[2, 2, 0, 0]} barSize={24}>
+                                                    {getChannelPerformanceData().map((entry, index) => (
+                                                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                                                    ))}
+                                                </Bar>
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                        <div className="absolute right-0 top-1/2 -translate-y-1/2 space-y-1.5 text-[10px] font-semibold text-slate-700">
+                                            {getChannelPerformanceData().map((item, idx) => (
+                                                <div key={idx} className="flex items-center gap-1.5">
+                                                    <span>{item.metric}</span>
+                                                    <span className="w-2 h-2 rounded-xs" style={{ backgroundColor: item.fill }} />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
-                            {/* 3. CAMPAIGN TYPES OVERVIEW DONUT CHART */}
                             <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
                                 <h3 className="text-sm font-bold text-slate-800 mb-2">Campaign Types Overview</h3>
-                                <div className="flex items-center justify-center gap-2">
-                                    <div className="w-36 h-36">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <PieChart>
-                                                <Pie
-                                                    data={getCampaignTypesData()}
-                                                    cx="50%"
-                                                    cy="50%"
-                                                    innerRadius={32}
-                                                    outerRadius={55}
-                                                    paddingAngle={0}
-                                                    dataKey="value"
-                                                >
-                                                    {getCampaignTypesData().map((entry, index) => (
-                                                        <Cell key={`cell-${index}`} fill={entry.color} />
-                                                    ))}
-                                                </Pie>
-                                            </PieChart>
-                                        </ResponsiveContainer>
+                                {getCampaignTypesData().length === 0 ? (
+                                    <div className="h-40 flex items-center justify-center text-slate-400 text-sm">
+                                        No campaign types available
                                     </div>
-                                    {/* Custom Legend */}
-                                    <div className="space-y-1.5 text-[11px] font-semibold text-slate-700">
-                                        {getCampaignTypesData().map((item, idx) => (
-                                            <div key={idx} className="flex items-center gap-2">
-                                                <span className="w-2.5 h-2.5 shrink-0 rounded-xs" style={{ backgroundColor: item.color }} />
-                                                <span className="truncate">{item.name}</span>
-                                            </div>
-                                        ))}
+                                ) : (
+                                    <div className="flex items-center justify-center gap-2">
+                                        <div className="w-36 h-36">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <PieChart>
+                                                    <Pie
+                                                        data={getCampaignTypesData()}
+                                                        cx="50%"
+                                                        cy="50%"
+                                                        innerRadius={32}
+                                                        outerRadius={55}
+                                                        paddingAngle={0}
+                                                        dataKey="value"
+                                                    >
+                                                        {getCampaignTypesData().map((entry, index) => (
+                                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                                        ))}
+                                                    </Pie>
+                                                    <Tooltip />
+                                                </PieChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                        <div className="space-y-1.5 text-[11px] font-semibold text-slate-700">
+                                            {getCampaignTypesData().map((item, idx) => (
+                                                <div key={idx} className="flex items-center gap-2">
+                                                    <span className="w-2.5 h-2.5 shrink-0 rounded-xs" style={{ backgroundColor: item.color }} />
+                                                    <span className="truncate">{item.name}</span>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                             </div>
-
                         </div>
 
                         {/* CAMPAIGNS TABLE */}
@@ -790,7 +740,6 @@ const CampaignManagement = () => {
                                 </div>
                             )}
                         </div>
-
                     </main>
                 </div>
             </div>
@@ -812,7 +761,6 @@ const CampaignManagement = () => {
             >
                 {modalType === 'view' ? (
                     <div className="space-y-6">
-                        {/* Campaign Details */}
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <h4 className="text-sm font-medium text-slate-500">Name</h4>
@@ -888,7 +836,6 @@ const CampaignManagement = () => {
                             </div>
                         </div>
 
-                        {/* Campaign Logs */}
                         <div>
                             <h4 className="text-sm font-medium text-slate-500 mb-3">Activity Log</h4>
                             {logs.length === 0 ? (
@@ -926,7 +873,6 @@ const CampaignManagement = () => {
                             )}
                         </div>
 
-                        {/* Action Buttons */}
                         <div className="flex justify-end gap-3 pt-4 border-t">
                             <button
                                 onClick={() => setIsModalOpen(false)}
@@ -957,6 +903,7 @@ const CampaignManagement = () => {
                             setSelectedCampaign(null);
                         }}
                         isEdit={modalType === 'edit'}
+                        isSubmitting={isSubmitting}
                     />
                 )}
             </Modal>

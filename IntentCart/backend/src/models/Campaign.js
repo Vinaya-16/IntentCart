@@ -28,7 +28,8 @@ const campaignSchema = new mongoose.Schema({
         enum: ['draft', 'scheduled', 'active', 'paused', 'completed', 'cancelled'],
         default: 'draft'
     },
-    // Discount/Coupon Details
+
+    // Discount Details
     discountType: {
         type: String,
         enum: ['percentage', 'fixed', 'free_shipping'],
@@ -41,7 +42,8 @@ const campaignSchema = new mongoose.Schema({
     },
     maxDiscountAmount: {
         type: Number,
-        min: 0
+        min: 0,
+        default: 0
     },
     couponCode: {
         type: String,
@@ -49,15 +51,7 @@ const campaignSchema = new mongoose.Schema({
         unique: true,
         sparse: true
     },
-    // Targeting
-    targetSegments: [{
-        type: String,
-        enum: ['all', 'top_tier', 'middle_tier', 'bottom_tier', 'new_customers', 'inactive_customers']
-    }],
-    targetCustomerIds: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
-    }],
+
     // Schedule
     startDate: {
         type: Date,
@@ -67,8 +61,9 @@ const campaignSchema = new mongoose.Schema({
         type: Date,
         required: true
     },
-    // Budget & Limits
-    budget: {
+
+    // Limits
+    minOrderAmount: {
         type: Number,
         min: 0,
         default: 0
@@ -83,12 +78,48 @@ const campaignSchema = new mongoose.Schema({
         min: 0,
         default: 1
     },
-    minOrderAmount: {
+    budget: {
         type: Number,
         min: 0,
         default: 0
     },
-    // Performance
+
+    // Targeting (Optional - Advanced)
+    targetProducts: {
+        type: String,
+        enum: ['all', 'selected', 'categories'],
+        default: 'all'
+    },
+    productIds: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Product'
+    }],
+    categoryIds: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Category'
+    }],
+    customerTiers: {
+        type: String,
+        enum: ['all', 'platinum', 'gold', 'silver', 'bronze', 'new_customers', 'inactive_customers'],
+        default: 'all'
+    },
+
+    // Optional: Add priority for campaign stacking
+    priority: {
+        type: Number,
+        min: 0,
+        max: 10,
+        default: 5,
+        description: 'Higher priority campaigns apply first (1-10)'
+    },
+
+    // Optional: Add campaign image/banner
+    imageUrl: {
+        type: String,
+        trim: true
+    },
+
+    // Performance Tracking
     totalUses: {
         type: Number,
         default: 0
@@ -101,26 +132,53 @@ const campaignSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    // Products/Categories targeting
-    productIds: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Product'
-    }],
-    categoryIds: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Category'
-    }],
-    // Additional metadata
-    metadata: {
-        type: mongoose.Schema.Types.Mixed,
-        default: {}
-    },
+
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     }
 }, {
     timestamps: true
+});
+
+// Middleware to convert string arrays to ObjectId arrays before saving
+campaignSchema.pre('save', function (next) {
+    // Convert productIds
+    if (this.productIds && Array.isArray(this.productIds)) {
+        this.productIds = this.productIds
+            .filter(id => id && typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/))
+            .map(id => new mongoose.Types.ObjectId(id));
+    }
+
+    // Convert categoryIds
+    if (this.categoryIds && Array.isArray(this.categoryIds)) {
+        this.categoryIds = this.categoryIds
+            .filter(id => id && typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/))
+            .map(id => new mongoose.Types.ObjectId(id));
+    }
+
+    next();
+});
+
+// Middleware for findOneAndUpdate and updateMany
+campaignSchema.pre('findOneAndUpdate', function (next) {
+    const update = this.getUpdate();
+
+    // Convert productIds in update
+    if (update.$set && update.$set.productIds && Array.isArray(update.$set.productIds)) {
+        update.$set.productIds = update.$set.productIds
+            .filter(id => id && typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/))
+            .map(id => new mongoose.Types.ObjectId(id));
+    }
+
+    // Convert categoryIds in update
+    if (update.$set && update.$set.categoryIds && Array.isArray(update.$set.categoryIds)) {
+        update.$set.categoryIds = update.$set.categoryIds
+            .filter(id => id && typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/))
+            .map(id => new mongoose.Types.ObjectId(id));
+    }
+
+    next();
 });
 
 // Indexes

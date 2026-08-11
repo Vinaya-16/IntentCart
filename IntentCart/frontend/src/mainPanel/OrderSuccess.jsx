@@ -119,7 +119,7 @@ export default function OrderSuccess() {
               <p className="text-sm text-slate-600">Order Number</p>
               <p className="text-lg font-bold text-slate-900">{order.orderId}</p>
               <p className="text-sm text-slate-600 mt-2">Total Amount</p>
-              <p className="text-lg font-bold text-indigo-600">₹{order.total?.toLocaleString()}</p>
+              <p className="text-lg font-bold text-indigo-600">Rs.{order.total?.toLocaleString()}</p>
               <p className="text-sm text-slate-600 mt-2">Payment Status</p>
               <p className={`text-sm font-semibold ${order.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-amber-600'}`}>
                 {order.paymentStatus === 'paid' ? 'Paid' : 'Pending'}

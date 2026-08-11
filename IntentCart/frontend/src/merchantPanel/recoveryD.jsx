@@ -337,7 +337,7 @@ const RecoveryDashboard = () => {
                         </div>
 
                         {/* ABANDONMENT FLOW */}
-                        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        {/* <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                             <h3 className="text-sm font-bold text-slate-800 mb-4">Abandonment Flow Analysis</h3>
                             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                                 <div className="text-center p-3 bg-blue-50 rounded-lg">
@@ -361,7 +361,7 @@ const RecoveryDashboard = () => {
                                     <div className="text-lg font-bold text-emerald-600">{stats.recoveredOrders || 0}</div>
                                 </div>
                             </div>
-                        </div>
+                        </div> */}
 
                         {/* HEADING & ACTIONS */}
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

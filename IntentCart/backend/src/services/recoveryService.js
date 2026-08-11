@@ -113,7 +113,7 @@ class RecoveryService {
                 break;
             case 'waiting_for_discount':
                 subject = 'Your discount is ready!';
-                content = `We noticed you've been waiting. Here's a 10% discount on your cart of ₹${total}!`;
+                content = `We noticed you've been waiting. Here's a 10% discount on your cart of Rs.${total}!`;
                 break;
             case 'comparing_products':
                 subject = 'Compare products easily!';

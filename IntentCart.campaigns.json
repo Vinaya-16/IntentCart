@@ -1,0 +1,688 @@
+[{
+  "_id": {
+    "$oid": "6a7a15ab61a6ed132722a596"
+  },
+  "merchantId": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "name": "Flash Sale",
+  "description": "FLASH SALE: 20% OFF everything for the next 2 hours!",
+  "type": "coupon",
+  "status": "active",
+  "discountType": "percentage",
+  "discountValue": 20,
+  "maxDiscountAmount": 2500.1,
+  "couponCode": "FLASH20",
+  "targetSegments": [
+    "all"
+  ],
+  "targetCustomerIds": [],
+  "startDate": {
+    "$date": "2026-08-10T18:30:00.000Z"
+  },
+  "endDate": {
+    "$date": "2026-08-30T06:30:00.000Z"
+  },
+  "budget": 1500,
+  "maxUses": 0,
+  "maxUsesPerCustomer": 2,
+  "minOrderAmount": 5000,
+  "totalUses": 0,
+  "totalRevenue": 0,
+  "totalConversions": 0,
+  "productIds": [],
+  "categoryIds": [],
+  "createdBy": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "createdAt": {
+    "$date": "2026-08-10T18:17:15.878Z"
+  },
+  "updatedAt": {
+    "$date": "2026-08-10T18:32:23.414Z"
+  },
+  "__v": 0,
+  "metadata": {}
+},
+{
+  "_id": {
+    "$oid": "6a7a162861a6ed132722a5a8"
+  },
+  "merchantId": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "name": "Threshold Incentive",
+  "description": "\"Spend $75 and get a FREE Mystery Gift! Applied automatically at checkout.\"",
+  "type": "loyalty_reward",
+  "status": "active",
+  "discountType": "percentage",
+  "discountValue": 12,
+  "maxDiscountAmount": 500,
+  "couponCode": "",
+  "targetSegments": [
+    "all"
+  ],
+  "targetCustomerIds": [],
+  "startDate": {
+    "$date": "2026-08-10T00:00:00.000Z"
+  },
+  "endDate": {
+    "$date": "2026-09-01T00:00:00.000Z"
+  },
+  "budget": 500,
+  "maxUses": 0,
+  "maxUsesPerCustomer": 1,
+  "minOrderAmount": 2000,
+  "totalUses": 0,
+  "totalRevenue": 0,
+  "totalConversions": 0,
+  "productIds": [],
+  "categoryIds": [],
+  "createdBy": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "createdAt": {
+    "$date": "2026-08-10T18:19:20.941Z"
+  },
+  "updatedAt": {
+    "$date": "2026-08-10T18:32:16.243Z"
+  },
+  "__v": 0,
+  "metadata": {}
+},
+{
+  "_id": {
+    "$oid": "6a7a188584838001555d2e45"
+  },
+  "merchantId": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "name": "Shipping Nudge",
+  "description": "Free Shipping unlocked! Add just $15 more to skip the delivery fee.\"",
+  "type": "free_shipping",
+  "status": "active",
+  "discountType": "percentage",
+  "discountValue": 12,
+  "maxDiscountAmount": 2400,
+  "targetSegments": [
+    "all"
+  ],
+  "targetCustomerIds": [],
+  "startDate": {
+    "$date": "2026-08-11T00:00:00.000Z"
+  },
+  "endDate": {
+    "$date": "2026-08-30T00:00:00.000Z"
+  },
+  "budget": 1500,
+  "maxUses": 100,
+  "maxUsesPerCustomer": 1,
+  "minOrderAmount": 4000,
+  "totalUses": 0,
+  "totalRevenue": 0,
+  "totalConversions": 0,
+  "productIds": [],
+  "categoryIds": [],
+  "createdBy": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "createdAt": {
+    "$date": "2026-08-10T18:29:25.312Z"
+  },
+  "updatedAt": {
+    "$date": "2026-08-10T18:32:06.839Z"
+  },
+  "__v": 0,
+  "metadata": {}
+},
+{
+  "_id": {
+    "$oid": "6a7a18f884838001555d2e72"
+  },
+  "merchantId": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "name": "Welcome Offer",
+  "description": "Unlock 15% off your first order. Enter your email to grab your code.",
+  "type": "bogo",
+  "status": "paused",
+  "discountType": "percentage",
+  "discountValue": 12,
+  "maxDiscountAmount": 2009,
+  "targetSegments": [
+    "bottom_tier"
+  ],
+  "targetCustomerIds": [],
+  "startDate": {
+    "$date": "2026-08-11T00:00:00.000Z"
+  },
+  "endDate": {
+    "$date": "2026-09-11T00:00:00.000Z"
+  },
+  "budget": 150,
+  "maxUses": 100,
+  "maxUsesPerCustomer": 10,
+  "minOrderAmount": 3000,
+  "totalUses": 0,
+  "totalRevenue": 0,
+  "totalConversions": 0,
+  "productIds": [],
+  "categoryIds": [],
+  "createdBy": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "createdAt": {
+    "$date": "2026-08-10T18:31:20.341Z"
+  },
+  "updatedAt": {
+    "$date": "2026-08-10T18:33:13.173Z"
+  },
+  "__v": 0,
+  "metadata": {}
+},
+{
+  "_id": {
+    "$oid": "6a7a1c9a4aaef005b6c8049a"
+  },
+  "merchantId": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "name": "EOSS Promo Sale",
+  "description": "EOSS | Up to 50 % + Extra 10 % Off | Free Shipping on all orders",
+  "type": "flash_sale",
+  "status": "active",
+  "discountType": "percentage",
+  "discountValue": 50,
+  "maxDiscountAmount": 2000,
+  "couponCode": "EOSS50",
+  "targetSegments": [
+    "all"
+  ],
+  "targetCustomerIds": [],
+  "startDate": {
+    "$date": "2026-08-10T18:30:00.000Z"
+  },
+  "endDate": {
+    "$date": "2026-08-30T06:30:00.000Z"
+  },
+  "budget": 5000,
+  "maxUses": 0,
+  "maxUsesPerCustomer": 1,
+  "minOrderAmount": 0,
+  "totalUses": 0,
+  "totalRevenue": 0,
+  "totalConversions": 0,
+  "productIds": [],
+  "categoryIds": [],
+  "createdBy": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "createdAt": {
+    "$date": "2026-08-10T18:17:15.878Z"
+  },
+  "updatedAt": {
+    "$date": "2026-08-10T18:32:23.414Z"
+  },
+  "__v": 0,
+  "metadata": {
+    "section": "promo_banner",
+    "extraDiscount": "10%"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a7a1c9a4aaef005b6c8049b"
+  },
+  "merchantId": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "name": "US Polo ASSN. - Buy 2 Get 2 Free",
+  "description": "Buy 2 Get 2 Free on US Polo ASSN.",
+  "type": "bogo",
+  "status": "active",
+  "discountType": "percentage",
+  "discountValue": 100,
+  "maxDiscountAmount": 3000,
+  "couponCode": "USPOLOB2G2",
+  "targetSegments": [
+    "all"
+  ],
+  "targetCustomerIds": [],
+  "startDate": {
+    "$date": "2026-08-10T18:30:00.000Z"
+  },
+  "endDate": {
+    "$date": "2026-08-30T06:30:00.000Z"
+  },
+  "budget": 3000,
+  "maxUses": 0,
+  "maxUsesPerCustomer": 2,
+  "minOrderAmount": 0,
+  "totalUses": 0,
+  "totalRevenue": 0,
+  "totalConversions": 0,
+  "productIds": [],
+  "categoryIds": [],
+  "createdBy": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "createdAt": {
+    "$date": "2026-08-10T18:17:15.878Z"
+  },
+  "updatedAt": {
+    "$date": "2026-08-10T18:32:23.414Z"
+  },
+  "__v": 0,
+  "metadata": {
+    "title": "US Polo ASSN.",
+    "subtitle": "Since 1980",
+    "offer": "Buy 2 Get 2",
+    "discount": "Free",
+    "bg": "bg-indigo-500",
+    "section": "sale_highlights"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a7a1c9a4aaef005b6c8049c"
+  },
+  "merchantId": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "name": "Levis - Buy 2 Get 40% Off",
+  "description": "Buy 2 Get 40 % Off on Levis items",
+  "type": "discount",
+  "status": "active",
+  "discountType": "percentage",
+  "discountValue": 40,
+  "maxDiscountAmount": 2000,
+  "couponCode": "LEVIS40",
+  "targetSegments": [
+    "all"
+  ],
+  "targetCustomerIds": [],
+  "startDate": {
+    "$date": "2026-08-10T18:30:00.000Z"
+  },
+  "endDate": {
+    "$date": "2026-08-30T06:30:00.000Z"
+  },
+  "budget": 2000,
+  "maxUses": 0,
+  "maxUsesPerCustomer": 2,
+  "minOrderAmount": 0,
+  "totalUses": 0,
+  "totalRevenue": 0,
+  "totalConversions": 0,
+  "productIds": [],
+  "categoryIds": [],
+  "createdBy": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "createdAt": {
+    "$date": "2026-08-10T18:17:15.878Z"
+  },
+  "updatedAt": {
+    "$date": "2026-08-10T18:32:23.414Z"
+  },
+  "__v": 0,
+  "metadata": {
+    "title": "Levis",
+    "offer": "Buy 2 Get",
+    "discount": "40 % Off",
+    "bg": "bg-indigo-400",
+    "section": "sale_highlights"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a7a1c9a4aaef005b6c8049d"
+  },
+  "merchantId": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "name": "Fahrenheit - Min 30% Off",
+  "description": "Minimum 30 % Off on Fahrenheit collection",
+  "type": "discount",
+  "status": "active",
+  "discountType": "percentage",
+  "discountValue": 30,
+  "maxDiscountAmount": 1500,
+  "couponCode": "FAHREN30",
+  "targetSegments": [
+    "all"
+  ],
+  "targetCustomerIds": [],
+  "startDate": {
+    "$date": "2026-08-10T18:30:00.000Z"
+  },
+  "endDate": {
+    "$date": "2026-08-30T06:30:00.000Z"
+  },
+  "budget": 1500,
+  "maxUses": 0,
+  "maxUsesPerCustomer": 2,
+  "minOrderAmount": 0,
+  "totalUses": 0,
+  "totalRevenue": 0,
+  "totalConversions": 0,
+  "productIds": [],
+  "categoryIds": [],
+  "createdBy": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "createdAt": {
+    "$date": "2026-08-10T18:17:15.878Z"
+  },
+  "updatedAt": {
+    "$date": "2026-08-10T18:32:23.414Z"
+  },
+  "__v": 0,
+  "metadata": {
+    "title": "Fahrenheit",
+    "offer": "min .",
+    "discount": "30 % Off",
+    "bg": "bg-indigo-900",
+    "section": "sale_highlights"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a7a1c9a4aaef005b6c8049e"
+  },
+  "merchantId": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "name": "Allen Solly - Buy 2 Get 40% Off",
+  "description": "Allen Solly deal corner offer - Buy 2 Get 40 % Off",
+  "type": "discount",
+  "status": "active",
+  "discountType": "percentage",
+  "discountValue": 40,
+  "maxDiscountAmount": 2000,
+  "couponCode": "ALLEN40",
+  "targetSegments": [
+    "all"
+  ],
+  "targetCustomerIds": [],
+  "startDate": {
+    "$date": "2026-08-10T18:30:00.000Z"
+  },
+  "endDate": {
+    "$date": "2026-08-30T06:30:00.000Z"
+  },
+  "budget": 1000,
+  "maxUses": 0,
+  "maxUsesPerCustomer": 1,
+  "minOrderAmount": 0,
+  "totalUses": 0,
+  "totalRevenue": 0,
+  "totalConversions": 0,
+  "productIds": [],
+  "categoryIds": [],
+  "createdBy": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "createdAt": {
+    "$date": "2026-08-10T18:17:15.878Z"
+  },
+  "updatedAt": {
+    "$date": "2026-08-10T18:32:23.414Z"
+  },
+  "__v": 0,
+  "metadata": {
+    "brand": "Allen Solly",
+    "offer": "Buy 2 Get 40 % Off",
+    "section": "deal_corner"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a7a1c9a4aaef005b6c8049f"
+  },
+  "merchantId": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "name": "ELLE - Flat 30% Off",
+  "description": "ELLE deal corner offer - Flat 30 % Off",
+  "type": "discount",
+  "status": "active",
+  "discountType": "percentage",
+  "discountValue": 30,
+  "maxDiscountAmount": 1500,
+  "couponCode": "ELLE30",
+  "targetSegments": [
+    "all"
+  ],
+  "targetCustomerIds": [],
+  "startDate": {
+    "$date": "2026-08-10T18:30:00.000Z"
+  },
+  "endDate": {
+    "$date": "2026-08-30T06:30:00.000Z"
+  },
+  "budget": 1000,
+  "maxUses": 0,
+  "maxUsesPerCustomer": 1,
+  "minOrderAmount": 0,
+  "totalUses": 0,
+  "totalRevenue": 0,
+  "totalConversions": 0,
+  "productIds": [],
+  "categoryIds": [],
+  "createdBy": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "createdAt": {
+    "$date": "2026-08-10T18:17:15.878Z"
+  },
+  "updatedAt": {
+    "$date": "2026-08-10T18:32:23.414Z"
+  },
+  "__v": 0,
+  "metadata": {
+    "brand": "ELLE",
+    "offer": "Flat 30 % Off",
+    "section": "deal_corner"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a7a1c9a4aaef005b6c804a0"
+  },
+  "merchantId": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "name": "Elli - Flat 30% Off",
+  "description": "Elli deal corner offer - Flat 30 % Off",
+  "type": "discount",
+  "status": "active",
+  "discountType": "percentage",
+  "discountValue": 30,
+  "maxDiscountAmount": 1500,
+  "couponCode": "ELLI30",
+  "targetSegments": [
+    "all"
+  ],
+  "targetCustomerIds": [],
+  "startDate": {
+    "$date": "2026-08-10T18:30:00.000Z"
+  },
+  "endDate": {
+    "$date": "2026-08-30T06:30:00.000Z"
+  },
+  "budget": 1000,
+  "maxUses": 0,
+  "maxUsesPerCustomer": 1,
+  "minOrderAmount": 0,
+  "totalUses": 0,
+  "totalRevenue": 0,
+  "totalConversions": 0,
+  "productIds": [],
+  "categoryIds": [],
+  "createdBy": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "createdAt": {
+    "$date": "2026-08-10T18:17:15.878Z"
+  },
+  "updatedAt": {
+    "$date": "2026-08-10T18:32:23.414Z"
+  },
+  "__v": 0,
+  "metadata": {
+    "brand": "Elli",
+    "offer": "Flat 30 % Off",
+    "section": "deal_corner"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a7a1c9a4aaef005b6c804a1"
+  },
+  "merchantId": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "name": "Code - Flat 30% Off",
+  "description": "Code deal corner offer - Flat 30 % Off",
+  "type": "discount",
+  "status": "active",
+  "discountType": "percentage",
+  "discountValue": 30,
+  "maxDiscountAmount": 1500,
+  "couponCode": "CODE30",
+  "targetSegments": [
+    "all"
+  ],
+  "targetCustomerIds": [],
+  "startDate": {
+    "$date": "2026-08-10T18:30:00.000Z"
+  },
+  "endDate": {
+    "$date": "2026-08-30T06:30:00.000Z"
+  },
+  "budget": 1000,
+  "maxUses": 0,
+  "maxUsesPerCustomer": 1,
+  "minOrderAmount": 0,
+  "totalUses": 0,
+  "totalRevenue": 0,
+  "totalConversions": 0,
+  "productIds": [],
+  "categoryIds": [],
+  "createdBy": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "createdAt": {
+    "$date": "2026-08-10T18:17:15.878Z"
+  },
+  "updatedAt": {
+    "$date": "2026-08-10T18:32:23.414Z"
+  },
+  "__v": 0,
+  "metadata": {
+    "brand": "Code",
+    "offer": "Flat 30 % Off",
+    "section": "deal_corner"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a7a1c9a4aaef005b6c804a2"
+  },
+  "merchantId": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "name": "Ginger - Flat 50% Off",
+  "description": "Ginger deal corner offer - Flat 50 % Off",
+  "type": "discount",
+  "status": "active",
+  "discountType": "percentage",
+  "discountValue": 50,
+  "maxDiscountAmount": 2500,
+  "couponCode": "GINGER50",
+  "targetSegments": [
+    "all"
+  ],
+  "targetCustomerIds": [],
+  "startDate": {
+    "$date": "2026-08-10T18:30:00.000Z"
+  },
+  "endDate": {
+    "$date": "2026-08-30T06:30:00.000Z"
+  },
+  "budget": 1000,
+  "maxUses": 0,
+  "maxUsesPerCustomer": 1,
+  "minOrderAmount": 0,
+  "totalUses": 0,
+  "totalRevenue": 0,
+  "totalConversions": 0,
+  "productIds": [],
+  "categoryIds": [],
+  "createdBy": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "createdAt": {
+    "$date": "2026-08-10T18:17:15.878Z"
+  },
+  "updatedAt": {
+    "$date": "2026-08-10T18:32:23.414Z"
+  },
+  "__v": 0,
+  "metadata": {
+    "brand": "Ginger",
+    "offer": "Flat 50 % Off",
+    "section": "deal_corner"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a7a1c9a4aaef005b6c804a3"
+  },
+  "merchantId": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "name": "Fastrack - Flat 50% Off",
+  "description": "Fastrack deal corner offer - Flat 50 % Off",
+  "type": "discount",
+  "status": "active",
+  "discountType": "percentage",
+  "discountValue": 50,
+  "maxDiscountAmount": 2500,
+  "couponCode": "FASTRACK50",
+  "targetSegments": [
+    "all"
+  ],
+  "targetCustomerIds": [],
+  "startDate": {
+    "$date": "2026-08-10T18:30:00.000Z"
+  },
+  "endDate": {
+    "$date": "2026-08-30T06:30:00.000Z"
+  },
+  "budget": 1000,
+  "maxUses": 0,
+  "maxUsesPerCustomer": 1,
+  "minOrderAmount": 0,
+  "totalUses": 0,
+  "totalRevenue": 0,
+  "totalConversions": 0,
+  "productIds": [],
+  "categoryIds": [],
+  "createdBy": {
+    "$oid": "6a705b1d0bded7df22f1c4a5"
+  },
+  "createdAt": {
+    "$date": "2026-08-10T18:17:15.878Z"
+  },
+  "updatedAt": {
+    "$date": "2026-08-10T18:32:23.414Z"
+  },
+  "__v": 0,
+  "metadata": {
+    "brand": "Fastrack",
+    "offer": "Flat 50 % Off",
+    "section": "deal_corner"
+  }
+}]

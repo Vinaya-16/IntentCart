@@ -403,7 +403,7 @@ const OrderManagement = () => {
 
                             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                                 <h3 className="text-slate-600 text-sm font-medium mb-2">Total Revenue</h3>
-                                <p className="text-3xl font-extrabold text-[#1e3a6a]">₹ {stats.totalRevenue.toLocaleString()}</p>
+                                <p className="text-3xl font-extrabold text-[#1e3a6a]">Rs. {stats.totalRevenue.toLocaleString()}</p>
                             </div>
                         </div>
 
