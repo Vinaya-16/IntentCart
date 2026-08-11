@@ -17,6 +17,7 @@ import {
 
     //dashboard
     getMerchantDashboardStats,
+    getDashboard,
 
     // Notifications 
     getMerchantNotifications,
@@ -85,6 +86,7 @@ router.use(protect);
 
 // ==================== DASHBOARD ====================
 router.get('/dashboard-stats', getMerchantDashboardStats);
+router.get('/dashboard', getDashboard);
 
 // ==================== CATEGORY MANAGEMENT ====================
 router.get('/categories', getCategories);

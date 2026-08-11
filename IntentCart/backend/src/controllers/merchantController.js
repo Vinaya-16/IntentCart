@@ -2,6 +2,9 @@ import Product from '../models/Product.js';
 import Category from '../models/Category.js';
 import User from '../models/User.js';
 import Notification from '../models/Notifications.js';
+import Recovery from "../models/Recovery.js";
+import Event from "../models/Event.js";
+import Order from "../models/Order.js";
 
 // ==================== HELPER FUNCTIONS ====================
 
@@ -709,6 +712,180 @@ export const getMerchantDashboardStats = async (req, res) => {
         });
     } catch (error) {
         console.error('Error fetching dashboard stats:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Get merchant dashboard stats
+// @route   GET /api/merchant/dashboard-stats
+// @access  Private (Merchant)
+export const getDashboard = async (req, res) => {
+    try {
+        const merchantId = req.user._id;
+
+        // 1. Get total active products
+        const totalProducts = await Product.countDocuments({
+            merchantId,
+            status: 'active'
+        });
+
+        // 2. Fetch Order Statistics via Aggregation
+        const orderStats = await Order.aggregate([
+            { $match: { merchantId } },
+            {
+                $group: {
+                    _id: null,
+                    totalOrders: { $sum: 1 },
+                    totalSales: {
+                        $sum: { $ifNull: ["$totalAmount", { $ifNull: ["$total", { $ifNull: ["$amount", 0] }] }] }
+                    },
+                    totalRevenue: {
+                        $sum: {
+                            $cond: [
+                                { $in: [{ $toLower: "$status" }, ["completed", "delivered"]] },
+                                { $ifNull: ["$totalAmount", { $ifNull: ["$total", { $ifNull: ["$amount", 0] }] }] },
+                                0
+                            ]
+                        }
+                    },
+                    completed: { $sum: { $cond: [{ $eq: [{ $toLower: "$status" }, "completed"] }, 1, 0] } },
+                    delivered: { $sum: { $cond: [{ $eq: [{ $toLower: "$status" }, "delivered"] }, 1, 0] } },
+                    pending: { $sum: { $cond: [{ $eq: [{ $toLower: "$status" }, "pending"] }, 1, 0] } },
+                    cancelled: { $sum: { $cond: [{ $eq: [{ $toLower: "$status" }, "cancelled"] }, 1, 0] } },
+                    processing: { $sum: { $cond: [{ $eq: [{ $toLower: "$status" }, "processing"] }, 1, 0] } },
+                    shipped: { $sum: { $cond: [{ $eq: [{ $toLower: "$status" }, "shipped"] }, 1, 0] } }
+                }
+            }
+        ]);
+
+        const statsData = orderStats[0] || {
+            totalOrders: 0,
+            totalSales: 0,
+            totalRevenue: 0,
+            completed: 0,
+            delivered: 0,
+            pending: 0,
+            cancelled: 0,
+            processing: 0,
+            shipped: 0
+        };
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Get ALL Abandonments for this merchant
+        const totalAbandonments = await Event.countDocuments({
+            merchantId: merchantId,
+            eventType: {
+                $in: ['cart_abandoned', 'checkout_abandoned', 'product_abandoned', 'wishlist_abandoned']
+            }
+        });
+
+        // Get Recovered Carts (Where recoveryStatus === 'converted')
+        const recoveredCarts = await Event.countDocuments({
+            merchantId: merchantId,
+            eventType: {
+                $in: ['cart_abandoned', 'checkout_abandoned', 'product_abandoned', 'wishlist_abandoned']
+            },
+            recoveryStatus: 'converted'
+        });
+
+        // Get Recovery Attempts (Count of emails sent)
+        const recoveryAttempts = await Event.countDocuments({
+            merchantId: merchantId,
+            eventType: 'recovery_email_sent'
+        });
+        // ==========================================
+
+        // Dynamic rate calculations
+        const totalCartsCreated = statsData.totalOrders + totalAbandonments;
+        const cartAbandonmentRate = totalCartsCreated > 0
+            ? Math.round((totalAbandonments / totalCartsCreated) * 100)
+            : 0;
+
+        const recoveryRate = totalAbandonments > 0
+            ? Math.round((recoveredCarts / totalAbandonments) * 100)
+            : 0;
+
+        // 4. Monthly Trend Data (Last 6 Months)
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+        sixMonthsAgo.setDate(1);
+        sixMonthsAgo.setHours(0, 0, 0, 0);
+
+        const monthlyTrend = await Order.aggregate([
+            {
+                $match: {
+                    merchantId,
+                    createdAt: { $gte: sixMonthsAgo }
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        year: { $year: "$createdAt" },
+                        month: { $month: "$createdAt" }
+                    },
+                    Sales: {
+                        $sum: { $ifNull: ["$totalAmount", { $ifNull: ["$total", { $ifNull: ["$amount", 0] }] }] }
+                    },
+                    Revenue: {
+                        $sum: {
+                            $cond: [
+                                { $in: [{ $toLower: "$status" }, ["completed", "delivered"]] },
+                                { $ifNull: ["$totalAmount", { $ifNull: ["$total", { $ifNull: ["$amount", 0] }] }] },
+                                0
+                            ]
+                        }
+                    }
+                }
+            },
+            { $sort: { "_id.year": 1, "_id.month": 1 } }
+        ]);
+
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthlyData = monthlyTrend.map(item => ({
+            month: months[item._id.month - 1],
+            Sales: item.Sales,
+            Revenue: item.Revenue
+        }));
+
+        // Calculate Y-Axis upper bound dynamically
+        const maxVal = Math.max(...monthlyData.map(d => Math.max(d.Sales, d.Revenue)), 1000);
+        const yAxisMax = Math.ceil(maxVal / 1000) * 1000;
+
+        // Send Response
+        res.status(200).json({
+            success: true,
+            stats: {
+                totalProducts,
+                totalOrders: statsData.totalOrders,
+                totalSales: statsData.totalSales,
+                totalRevenue: statsData.totalRevenue,
+                cartAbandonmentRate,
+                recoveryRate,
+                totalAbandonments,
+                recoveredCarts,
+                recoveryAttempts,
+                orderStatus: {
+                    completed: statsData.completed,
+                    delivered: statsData.delivered,
+                    pending: statsData.pending,
+                    cancelled: statsData.cancelled,
+                    processing: statsData.processing,
+                    shipped: statsData.shipped
+                },
+                monthlyData,
+                chartConfig: { yAxisMax }
+            }
+        });
+
+    } catch (error) {
+        console.error('Error fetching merchant dashboard stats:', error);
         res.status(500).json({
             success: false,
             message: 'Server error',
