@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
-import { ChevronDown, ChevronRight, Settings, Target, Users, Image as ImageIcon } from 'lucide-react';
+import { ChevronDown, ChevronRight, Settings, Target, Users, Image as ImageIcon, Loader2 } from 'lucide-react';
+
+const API_URL = 'http://localhost:5000/api';
 
 const CampaignForm = ({ initialData, onSubmit, onCancel, isEdit, isSubmitting }) => {
     const [formData, setFormData] = useState({
@@ -33,9 +35,120 @@ const CampaignForm = ({ initialData, onSubmit, onCancel, isEdit, isSubmitting })
     const [showImages, setShowImages] = useState(false);
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+
+    // Fetch categories from backend
+    const fetchCategories = async () => {
+        try {
+            setLoading(true);
+            const token = localStorage.getItem('token');
+
+            if (!token) {
+                console.warn('No token found, using mock categories');
+                // Fallback mock categories if no token
+                setCategories([
+                    { _id: 'clothing', name: 'Clothing' },
+                    { _id: 'accessories', name: 'Accessories' },
+                ]);
+                setLoading(false);
+                return;
+            }
+
+            const response = await fetch(`${API_URL}/merchant/categories`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch categories');
+            }
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Flatten categories for display
+                const flatCategories = flattenCategories(data.categories);
+                setCategories(flatCategories);
+            } else {
+                setCategories([]);
+            }
+        } catch (error) {
+            console.error('Error fetching categories:', error);
+            setError('Failed to load categories');
+            // Fallback mock categories
+            setCategories([
+                { _id: 'clothing', name: 'Clothing' },
+                { _id: 'accessories', name: 'Accessories' },
+            ]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Flatten nested categories
+    const flattenCategories = (categories, prefix = '') => {
+        let result = [];
+        const sorted = [...categories].sort((a, b) => (a.order || 0) - (b.order || 0));
+
+        for (const cat of sorted) {
+            result.push({
+                _id: cat._id,
+                name: prefix + cat.name,
+                level: cat.level || 0,
+                originalName: cat.name,
+                children: cat.children || []
+            });
+
+            if (cat.children && cat.children.length > 0) {
+                const children = flattenCategories(cat.children, prefix + '— ');
+                result = result.concat(children);
+            }
+        }
+
+        return result;
+    };
+
+    // Fetch products (if needed for product targeting)
+    const fetchProducts = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+
+            const response = await fetch(`${API_URL}/merchant/products?limit=100`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch products');
+            }
+
+            const data = await response.json();
+
+            if (data.success) {
+                setProducts(data.products || []);
+            }
+        } catch (error) {
+            console.error('Error fetching products:', error);
+            // Fallback mock products
+            setProducts([
+                { _id: '1', name: 'US Polo ASSN. T-Shirt' },
+                { _id: '2', name: "Levi's Jeans" },
+                { _id: '3', name: 'Allen Solly Formal Shirt' },
+                { _id: '4', name: 'Fastrack Watch' },
+            ]);
+        }
+    };
 
     useEffect(() => {
-        fetchProductsAndCategories();
+        fetchCategories();
+        fetchProducts();
+
         if (initialData) {
             setFormData({
                 name: initialData.name || '',
@@ -60,24 +173,6 @@ const CampaignForm = ({ initialData, onSubmit, onCancel, isEdit, isSubmitting })
             });
         }
     }, [initialData]);
-
-    const fetchProductsAndCategories = async () => {
-        try {
-            //  replace with actual API calls
-            setProducts([
-                { _id: '1', name: 'US Polo ASSN. T-Shirt' },
-                { _id: '2', name: "Levi's Jeans" },
-                { _id: '3', name: 'Allen Solly Formal Shirt' },
-                { _id: '4', name: 'Fastrack Watch' },
-            ]);
-            setCategories([
-                { _id: 'clothing', name: 'Clothing' },
-                { _id: 'accessories', name: 'Accessories' },
-            ]);
-        } catch (error) {
-            console.error('Error fetching products:', error);
-        }
-    };
 
     const handleChange = (e) => {
         const { name, value, type } = e.target;
@@ -442,31 +537,49 @@ const CampaignForm = ({ initialData, onSubmit, onCancel, isEdit, isSubmitting })
 
                             {formData.targetProducts === 'selected' && (
                                 <div className="mt-2 max-h-32 overflow-y-auto border rounded p-2 bg-white">
-                                    {products.map(p => (
-                                        <label key={p._id} className="flex items-center gap-2 py-1 text-sm">
-                                            <input
-                                                type="checkbox"
-                                                checked={formData.productIds.includes(p._id)}
-                                                onChange={() => handleArrayToggle('productIds', p._id)}
-                                            />
-                                            <span>{p.name}</span>
-                                        </label>
-                                    ))}
+                                    {loading ? (
+                                        <div className="flex justify-center py-2">
+                                            <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                                        </div>
+                                    ) : products.length > 0 ? (
+                                        products.map(p => (
+                                            <label key={p._id} className="flex items-center gap-2 py-1 text-sm">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.productIds.includes(p._id)}
+                                                    onChange={() => handleArrayToggle('productIds', p._id)}
+                                                />
+                                                <span>{p.name}</span>
+                                            </label>
+                                        ))
+                                    ) : (
+                                        <p className="text-sm text-gray-400 py-2">No products available</p>
+                                    )}
                                 </div>
                             )}
 
                             {formData.targetProducts === 'categories' && (
                                 <div className="mt-2 max-h-32 overflow-y-auto border rounded p-2 bg-white">
-                                    {categories.map(c => (
-                                        <label key={c._id} className="flex items-center gap-2 py-1 text-sm">
-                                            <input
-                                                type="checkbox"
-                                                checked={formData.categoryIds.includes(c._id)}
-                                                onChange={() => handleArrayToggle('categoryIds', c._id)}
-                                            />
-                                            <span>{c.name}</span>
-                                        </label>
-                                    ))}
+                                    {loading ? (
+                                        <div className="flex justify-center py-2">
+                                            <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                                        </div>
+                                    ) : categories.length > 0 ? (
+                                        categories
+                                            .filter(c => c.level === 0)
+                                            .map(c => (
+                                                <label key={c._id} className="flex items-center gap-2 py-1 text-sm">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.categoryIds.includes(c._id)}
+                                                        onChange={() => handleArrayToggle('categoryIds', c._id)}
+                                                    />
+                                                    <span>{c.originalName}</span>
+                                                </label>
+                                            ))
+                                    ) : (
+                                        <p className="text-sm text-gray-400 py-2">No categories available</p>
+                                    )}
                                 </div>
                             )}
                         </div>

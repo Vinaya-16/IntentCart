@@ -110,7 +110,7 @@ export default function Header() {
         }
     };
 
-    // Search function - uses /api/product/search
+    // Search function - uses the correct endpoint
     const handleSearch = async (query) => {
         if (!query.trim() || query.length < 2) {
             setSearchResults([]);
@@ -122,19 +122,81 @@ export default function Header() {
         setShowSearchResults(true);
 
         try {
-            // Use /product/search endpoint
-            const response = await fetch(`${API_URL}/product/search?q=${encodeURIComponent(query)}`, {
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
+            // Try both possible endpoints
+            let response;
+            let data;
 
-            if (!response.ok) {
-                throw new Error('Search failed');
+            try {
+                response = await fetch(`${API_URL}/products/search?q=${encodeURIComponent(query)}`, {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    data = await response.json();
+                    setSearchResults(data.products || data.data || []);
+                    setIsSearching(false);
+                    return;
+                }
+            } catch (e) {
+                console.log('First endpoint failed, trying next...');
             }
 
-            const data = await response.json();
-            setSearchResults(data.products || []);
+            try {
+                response = await fetch(`${API_URL}/categories/search-products?q=${encodeURIComponent(query)}`, {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    data = await response.json();
+                    setSearchResults(data.products || data.data || []);
+                    setIsSearching(false);
+                    return;
+                }
+            } catch (e) {
+                console.log('Second endpoint failed, trying next...');
+            }
+
+            try {
+                response = await fetch(`${API_URL}/product/search?q=${encodeURIComponent(query)}`, {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    data = await response.json();
+                    setSearchResults(data.products || data.data || []);
+                    setIsSearching(false);
+                    return;
+                }
+            } catch (e) {
+                console.log('Third endpoint failed');
+            }
+
+            try {
+                response = await fetch(`${API_URL}/merchant/products?search=${encodeURIComponent(query)}`, {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    data = await response.json();
+                    setSearchResults(data.products || data.data || []);
+                    setIsSearching(false);
+                    return;
+                }
+            } catch (e) {
+                console.log('All endpoints failed');
+            }
+
+            // If all endpoints fail, set empty results
+            setSearchResults([]);
+
         } catch (error) {
             console.error('Search error:', error);
             setSearchResults([]);
@@ -288,7 +350,6 @@ export default function Header() {
                                                         className="w-full h-full object-cover"
                                                         onError={(e) => {
                                                             e.target.style.display = 'none';
-                                                            e.target.parentElement.innerHTML = '<div class="w-full h-full bg-gray-200 flex items-center justify-center text-gray-400"><ShoppingBag className="w-5 h-5" /></div>';
                                                         }}
                                                     />
                                                 ) : (
@@ -332,12 +393,10 @@ export default function Header() {
                     )}
                 </div>
 
-                {/* Action Buttons - Show different based on login status */}
+                {/* Action Buttons */}
                 <div className="flex items-center gap-3">
                     {isLoggedIn && user ? (
-                        // LOGGED IN: Show icons
                         <>
-                            {/* Notification Bell */}
                             <Link
                                 to="/main-notifications"
                                 className="relative p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
@@ -350,7 +409,6 @@ export default function Header() {
                                 )}
                             </Link>
 
-                            {/* Wishlist */}
                             <Link
                                 to="/main-wishlist"
                                 className="relative p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
@@ -363,7 +421,6 @@ export default function Header() {
                                 )}
                             </Link>
 
-                            {/* Cart */}
                             <Link
                                 to="/main-cart"
                                 className="relative p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
@@ -376,7 +433,6 @@ export default function Header() {
                                 )}
                             </Link>
 
-                            {/* Profile Dropdown */}
                             <div className="relative">
                                 <button
                                     onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -398,7 +454,6 @@ export default function Header() {
                                     </span>
                                 </button>
 
-                                {/* Dropdown Menu */}
                                 {isDropdownOpen && (
                                     <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-50">
                                         <div className="px-4 py-3 border-b border-gray-100">
@@ -410,15 +465,6 @@ export default function Header() {
                                                 {user.role || 'customer'}
                                             </span>
                                         </div>
-
-                                        {/* <Link
-                                            to={getDashboardLink()}
-                                            className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 transition-colors"
-                                            onClick={() => setIsDropdownOpen(false)}
-                                        >
-                                            <User className="w-4 h-4" />
-                                            Dashboard
-                                        </Link> */}
 
                                         <Link
                                             to={getProfileLink()}
@@ -443,7 +489,6 @@ export default function Header() {
                             </div>
                         </>
                     ) : (
-                        // NOT LOGGED IN: Show Sign Up / Sign In buttons
                         <>
                             <Link
                                 to="/intentCart-auth"

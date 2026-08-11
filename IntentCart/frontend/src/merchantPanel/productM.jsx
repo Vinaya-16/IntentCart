@@ -23,7 +23,9 @@ import {
     X,
     Image,
     Link2,
-    Cross
+    Cross,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react';
 import Header from './components/header.jsx';
 import Sidebar from './components/sidebar.jsx';
@@ -51,6 +53,12 @@ const Dashboard = () => {
     const [categories, setCategories] = useState([]);
     const [loadingCategories, setLoadingCategories] = useState(false);
 
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalProductsCount, setTotalProductsCount] = useState(0);
+    const itemsPerPage = 10;
+
     // New Product Form State
     const [productForm, setProductForm] = useState({
         name: '',
@@ -76,13 +84,10 @@ const Dashboard = () => {
     const getToken = () => localStorage.getItem('token');
 
     // Fetch dashboard stats
-    // Fetch dashboard stats - with better error handling
     const fetchStats = async () => {
         try {
             const token = getToken();
             if (!token) return;
-
-            // console.log('Fetching dashboard stats...');
 
             const response = await fetch(`${API_URL}/dashboard-stats`, {
                 headers: {
@@ -103,7 +108,6 @@ const Dashboard = () => {
             }
 
             const data = await response.json();
-            // console.log('Stats received:', data);
 
             if (data.success) {
                 setStats({
@@ -117,12 +121,11 @@ const Dashboard = () => {
             }
         } catch (err) {
             console.error('Error fetching stats:', err);
-            // Don't show error to user, just keep existing stats
         }
     };
 
-    // Fetch products
-    const fetchProducts = async () => {
+    // Fetch products with pagination
+    const fetchProducts = async (page = 1) => {
         try {
             setLoading(true);
             setError('');
@@ -135,12 +138,15 @@ const Dashboard = () => {
                 return;
             }
 
-            const response = await fetch(`${API_URL}/products`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
+            const response = await fetch(
+                `${API_URL}/products?page=${page}&limit=${itemsPerPage}`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
                 }
-            });
+            );
 
             if (response.status === 401) {
                 localStorage.removeItem('token');
@@ -155,12 +161,10 @@ const Dashboard = () => {
 
             const data = await response.json();
             if (data.success) {
-                setProducts(data.products);
-
-                // Debug: Check if images are coming from backend
-                if (data.products && data.products.length > 0) {
-                    // console.log('First product images:', data.products[0].images);
-                }
+                setProducts(data.products || []);
+                setTotalPages(data.pages || 1);
+                setTotalProductsCount(data.total || 0);
+                setCurrentPage(data.currentPage || page);
             }
         } catch (err) {
             console.error('Error fetching products:', err);
@@ -181,8 +185,6 @@ const Dashboard = () => {
             setLoadingCategories(true);
             const token = getToken();
             if (!token) return;
-
-            // console.log('Fetching categories...');
 
             const response = await fetch(`${API_URL}/categories`, {
                 headers: {
@@ -242,7 +244,6 @@ const Dashboard = () => {
             return;
         }
 
-        // Validate URL
         try {
             new URL(imageUrlInput);
         } catch {
@@ -266,7 +267,6 @@ const Dashboard = () => {
     // Remove image
     const handleRemoveImage = (index) => {
         const newImages = productForm.images.filter((_, i) => i !== index);
-        // If removing primary image, set the first remaining as primary
         if (newImages.length > 0 && productForm.images[index].isPrimary) {
             newImages[0].isPrimary = true;
         }
@@ -303,14 +303,12 @@ const Dashboard = () => {
                 return;
             }
 
-            // Validate category
             if (!productForm.categoryId) {
                 setError('Please select a category');
                 setActionLoading(null);
                 return;
             }
 
-            // Ensure images are properly formatted with required fields
             const formattedImages = productForm.images.map(img => ({
                 url: img.url,
                 alt: img.alt || productForm.name || 'Product image',
@@ -333,8 +331,6 @@ const Dashboard = () => {
                 images: formattedImages
             };
 
-            // console.log('Creating product with images:', JSON.stringify(productData, null, 2));
-
             const response = await fetch(`${API_URL}/products`, {
                 method: 'POST',
                 headers: {
@@ -350,13 +346,11 @@ const Dashboard = () => {
             }
 
             const data = await response.json();
-            // console.log('Product created:', data.product);
-            // console.log('Images saved:', data.product.images);
 
             setSuccess('Product created successfully!');
             setShowAddModal(false);
             resetForm();
-            fetchProducts();
+            fetchProducts(currentPage);
             fetchStats();
 
             setTimeout(() => setSuccess(''), 3000);
@@ -383,14 +377,12 @@ const Dashboard = () => {
                 return;
             }
 
-            // Validate category
             if (!productForm.categoryId) {
                 setError('Please select a category');
                 setActionLoading(null);
                 return;
             }
 
-            // Ensure images are properly formatted
             const formattedImages = productForm.images.map(img => ({
                 url: img.url,
                 alt: img.alt || productForm.name || 'Product image',
@@ -413,8 +405,6 @@ const Dashboard = () => {
                 images: formattedImages
             };
 
-            // console.log('Updating product:', JSON.stringify(productData, null, 2));
-
             const response = await fetch(`${API_URL}/products/${editingProduct._id}`, {
                 method: 'PUT',
                 headers: {
@@ -430,13 +420,12 @@ const Dashboard = () => {
             }
 
             const data = await response.json();
-            // console.log('Product updated:', data.product);
 
             setSuccess('Product updated successfully!');
             setEditingProduct(null);
             resetForm();
             setShowAddModal(false);
-            fetchProducts();
+            fetchProducts(currentPage);
             fetchStats();
 
             setTimeout(() => setSuccess(''), 3000);
@@ -480,7 +469,7 @@ const Dashboard = () => {
             }
 
             setSuccess('Product deleted successfully!');
-            fetchProducts();
+            fetchProducts(currentPage);
             fetchStats();
 
             setTimeout(() => setSuccess(''), 3000);
@@ -527,7 +516,7 @@ const Dashboard = () => {
 
             const data = await response.json();
             setSuccess('Stock updated successfully!');
-            fetchProducts();
+            fetchProducts(currentPage);
             fetchStats();
 
             setTimeout(() => setSuccess(''), 3000);
@@ -562,8 +551,6 @@ const Dashboard = () => {
 
     // Edit product - populate form
     const handleEditProduct = (product) => {
-        // console.log('Editing product:', product);
-
         setEditingProduct(product);
         setProductForm({
             name: product.name || '',
@@ -585,11 +572,19 @@ const Dashboard = () => {
 
     // Filter products based on search
     const filteredProducts = useMemo(() => {
+        if (!searchTerm.trim()) return products;
         return products.filter(p =>
             p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             (p.categoryId?.name && p.categoryId.name.toLowerCase().includes(searchTerm.toLowerCase()))
         );
     }, [products, searchTerm]);
+
+    // Handle page change
+    const handlePageChange = (page) => {
+        if (page >= 1 && page <= totalPages) {
+            fetchProducts(page);
+        }
+    };
 
     // Get status badge
     const getStatusBadge = (status) => {
@@ -631,7 +626,7 @@ const Dashboard = () => {
     // Initial fetch
     useEffect(() => {
         fetchStats();
-        fetchProducts();
+        fetchProducts(1);
         fetchCategories();
     }, []);
 
@@ -665,7 +660,7 @@ const Dashboard = () => {
                                 <h3 className="text-lg font-semibold mb-2">Server Connection Lost</h3>
                                 <p className="mb-4">{error}</p>
                                 <button
-                                    onClick={() => { fetchStats(); fetchProducts(); }}
+                                    onClick={() => { fetchStats(); fetchProducts(currentPage); }}
                                     className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors inline-flex items-center gap-2"
                                 >
                                     <RefreshCw className="w-4 h-4" />
@@ -703,6 +698,8 @@ const Dashboard = () => {
                                 <span>Pending Approval: {stats.pendingProducts}</span>
                                 <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
                                 <span>Low Stock: {stats.lowStock}</span>
+                                <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                                <span>Total: {totalProductsCount} products</span>
                             </div>
                         </div>
 
@@ -773,7 +770,6 @@ const Dashboard = () => {
                                                                                     className="w-full h-full object-cover"
                                                                                     loading="lazy"
                                                                                     onError={(e) => {
-                                                                                        console.log('Image failed to load:', primaryImage.url);
                                                                                         e.target.style.display = 'none';
                                                                                         e.target.parentElement.innerHTML = '<div class="w-full h-full bg-slate-300 flex items-center justify-center text-slate-500"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></div>';
                                                                                     }}
@@ -863,13 +859,64 @@ const Dashboard = () => {
                                         </tbody>
                                     </table>
                                 </div>
+
+                                {/* Pagination */}
+                                {totalPages > 1 && (
+                                    <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200">
+                                        <div className="text-sm text-slate-500">
+                                            Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, totalProductsCount)} of {totalProductsCount} products
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => handlePageChange(currentPage - 1)}
+                                                disabled={currentPage === 1}
+                                                className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                            >
+                                                <ChevronLeft className="w-4 h-4" />
+                                            </button>
+                                            <div className="flex items-center gap-1">
+                                                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                                    let pageNum;
+                                                    if (totalPages <= 5) {
+                                                        pageNum = i + 1;
+                                                    } else if (currentPage <= 3) {
+                                                        pageNum = i + 1;
+                                                    } else if (currentPage >= totalPages - 2) {
+                                                        pageNum = totalPages - 4 + i;
+                                                    } else {
+                                                        pageNum = currentPage - 2 + i;
+                                                    }
+                                                    return (
+                                                        <button
+                                                            key={pageNum}
+                                                            onClick={() => handlePageChange(pageNum)}
+                                                            className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${pageNum === currentPage
+                                                                    ? 'bg-[#0f2d5c] text-white'
+                                                                    : 'hover:bg-slate-100 text-slate-600'
+                                                                }`}
+                                                        >
+                                                            {pageNum}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                            <button
+                                                onClick={() => handlePageChange(currentPage + 1)}
+                                                disabled={currentPage === totalPages}
+                                                className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                            >
+                                                <ChevronRight className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </main>
                 </div>
             </div>
 
-            {/* ADD/EDIT PRODUCT MODAL */}
+            {/* ADD/EDIT PRODUCT MODAL - Same as before */}
             {showAddModal && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
@@ -890,7 +937,7 @@ const Dashboard = () => {
                         </div>
 
                         <form onSubmit={editingProduct ? handleUpdateProduct : handleCreateProduct} className="space-y-4">
-                            {/* Basic Info */}
+                            {/* Form fields - same as before */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-semibold text-gray-600 mb-1">Product Name *</label>
@@ -997,7 +1044,6 @@ const Dashboard = () => {
                             <div>
                                 <label className="block text-xs font-semibold text-gray-600 mb-2">Product Images</label>
 
-                                {/* Image URL Input */}
                                 <div className="flex gap-2 mb-3">
                                     <input
                                         type="text"
@@ -1016,7 +1062,6 @@ const Dashboard = () => {
                                     </button>
                                 </div>
 
-                                {/* Image Preview Grid */}
                                 {productForm.images.length > 0 && (
                                     <div className="grid grid-cols-4 gap-3 mt-2">
                                         {productForm.images.map((img, index) => (
@@ -1028,7 +1073,6 @@ const Dashboard = () => {
                                                             alt={img.alt || 'Product image'}
                                                             className="w-full h-full object-cover"
                                                             onError={(e) => {
-                                                                // console.log('Preview image failed to load:', img.url);
                                                                 e.target.onerror = null;
                                                                 e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="%23999" stroke-width="2"%3E%3Cpath d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/%3E%3C/svg%3E';
                                                             }}

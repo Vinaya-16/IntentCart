@@ -15,39 +15,15 @@ import {
     Tag,
     Copy,
     Check,
-    Zap
+    Zap,
+    ChevronUp,
+    Image as ImageIcon
 } from 'lucide-react';
-import axios from 'axios';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import eventTracker from '../utils/eventTracker';
 
 const API_URL = 'http://localhost:5000/api';
-
-// Fallback Deal Corner Data from your JSON
-const FALLBACK_DEALS = [
-    { _id: '1', brand: 'Allen Solly', offer: 'Buy 2 Get 40% Off', couponCode: 'ALLEN40' },
-    { _id: '2', brand: 'ELLE', offer: 'Flat 30% Off', couponCode: 'ELLE30' },
-    { _id: '3', brand: 'Elli', offer: 'Flat 30% Off', couponCode: 'ELLI30' },
-    { _id: '4', brand: 'Code', offer: 'Flat 30% Off', couponCode: 'CODE30' },
-    { _id: '5', brand: 'Ginger', offer: 'Flat 50% Off', couponCode: 'GINGER50' },
-    { _id: '6', brand: 'Fastrack', offer: 'Flat 50% Off', couponCode: 'FASTRACK50' },
-];
-
-// Fallback Sale Highlights
-const FALLBACK_HIGHLIGHTS = [
-    { _id: 'h1', title: 'US Polo ASSN.', subtitle: 'Since 1980', offer: 'Buy 2 Get 2', discount: 'Free', bg: 'bg-indigo-500', couponCode: 'USPOLOB2G2' },
-    { _id: 'h2', title: 'Levis', offer: 'Buy 2 Get', discount: '40% Off', bg: 'bg-indigo-400', couponCode: 'LEVIS40' },
-    { _id: 'h3', title: 'Fahrenheit', offer: 'min .', discount: '30% Off', bg: 'bg-indigo-900', couponCode: 'FAHREN30' },
-    { _id: 'h4', title: 'EOSS Promo', subtitle: 'End of Season Sale', offer: 'Up to 50% + Extra 10%', discount: '50% Off', bg: 'bg-indigo-500', couponCode: 'EOSS50' },
-];
-
-// Fallback Promo Banner
-const FALLBACK_PROMO = {
-    text: 'EOSS | Up to 50% + Extra 10% Off | Free Shipping on all orders',
-    couponCode: 'EOSS50',
-    extraDiscount: '10%'
-};
 
 export default function CategoryPage() {
     const { path } = useParams();
@@ -60,12 +36,13 @@ export default function CategoryPage() {
     const [breadcrumbs, setBreadcrumbs] = useState([]);
     const [totalProducts, setTotalProducts] = useState(0);
 
-    // Deal Corner State - Initialize with fallback data
-    const [dealCornerCampaigns, setDealCornerCampaigns] = useState(FALLBACK_DEALS);
-    const [saleHighlightCampaigns, setSaleHighlightCampaigns] = useState(FALLBACK_HIGHLIGHTS);
-    const [promoBannerCampaign, setPromoBannerCampaign] = useState(FALLBACK_PROMO);
+    // Deal Corner State
+    const [dealCornerCampaigns, setDealCornerCampaigns] = useState([]);
+    const [saleHighlightCampaigns, setSaleHighlightCampaigns] = useState([]);
+    const [promoBannerCampaign, setPromoBannerCampaign] = useState(null);
     const [copiedCode, setCopiedCode] = useState(null);
     const [campaignsLoaded, setCampaignsLoaded] = useState(false);
+    const [dealCornerExpanded, setDealCornerExpanded] = useState(true);
 
     // Active filters
     const [selectedPrice, setSelectedPrice] = useState(5000);
@@ -75,14 +52,19 @@ export default function CategoryPage() {
     const [showFilters, setShowFilters] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
-    // Track category view when component mounts
+    // Fetch campaigns when category data is loaded
+    useEffect(() => {
+        if (categoryData) {
+            fetchCampaigns();
+        }
+    }, [categoryData]);
+
     useEffect(() => {
         if (categoryData) {
             eventTracker.trackCategoryView(categoryData._id, categoryData.name);
         }
     }, [categoryData]);
 
-    // Track product views when products change
     useEffect(() => {
         if (products.length > 0 && categoryData) {
             const productsToTrack = products.slice(0, 10);
@@ -96,11 +78,6 @@ export default function CategoryPage() {
         }
     }, [products, categoryData]);
 
-    // Fetch campaigns for deal corner
-    useEffect(() => {
-        fetchCampaigns();
-    }, []);
-
     useEffect(() => {
         if (!path) return;
         const controller = new AbortController();
@@ -112,52 +89,63 @@ export default function CategoryPage() {
         try {
             const token = localStorage.getItem('token');
 
-            if (!token) {
-                // Use fallback data if no token
-                setDealCornerCampaigns(FALLBACK_DEALS);
-                setSaleHighlightCampaigns(FALLBACK_HIGHLIGHTS);
-                setPromoBannerCampaign(FALLBACK_PROMO);
-                setCampaignsLoaded(true);
-                return;
+            const response = await fetch(`${API_URL}/merchant/campaigns/public`, {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+                'Content-Type': 'application/json'
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            const response = await axios.get(
-                `${API_URL}/merchant/campaigns`,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
+            const data = await response.json();
 
-            if (response.data.success) {
-                const campaigns = response.data.campaigns || [];
+            if (data.success) {
+                const campaigns = data.campaigns || [];
                 const activeCampaigns = campaigns.filter(c => c.status === 'active');
 
-                // Get deal corner campaigns
-                const deals = activeCampaigns
-                    .filter(c => c.metadata?.section === 'deal_corner')
+                const currentCategoryId = categoryData?._id;
+
+                const relevantCampaigns = activeCampaigns.filter(campaign => {
+                    if (!campaign.categoryIds || campaign.categoryIds.length === 0) {
+                        return true;
+                    }
+                    return campaign.categoryIds.some(id =>
+                        id.toString() === currentCategoryId?.toString()
+                    );
+                });
+
+                // console.log(`Relevant campaigns for this category: ${relevantCampaigns.length}`);
+
+                // Get all deals with coupon or discount
+                const allDeals = relevantCampaigns
+                    .filter(c => {
+                        const hasCoupon = !!c.couponCode;
+                        const hasDiscount = c.discountValue > 0;
+                        const isFreeShipping = c.type === 'free_shipping';
+                        const isBogo = c.type === 'bogo';
+                        return hasCoupon || hasDiscount || isFreeShipping || isBogo;
+                    })
                     .map(c => ({
                         _id: c._id,
                         brand: c.metadata?.brand || c.name,
-                        offer: c.metadata?.offer || formatDiscount(c),
+                        offer: c.metadata?.offer || formatOffer(c),
+                        discount: formatDiscount(c),
                         couponCode: c.couponCode,
                         type: c.type,
                         discountValue: c.discountValue,
                         discountType: c.discountType,
                         description: c.description,
                         endDate: c.endDate,
-                        bg: getDealColor()
+                        bg: c.metadata?.bg || getDealColor(),
+                        imageUrl: c.imageUrl || c.image || null,
+                        metadata: c.metadata
                     }));
 
-                // If we have real deals, use them; otherwise keep fallback
-                if (deals.length > 0) {
-                    setDealCornerCampaigns(deals);
-                }
+                setDealCornerCampaigns(allDeals);
 
                 // Get sale highlights
-                const highlights = activeCampaigns
+                const highlights = relevantCampaigns
                     .filter(c => c.metadata?.section === 'sale_highlights')
                     .map(c => ({
                         _id: c._id,
@@ -167,26 +155,37 @@ export default function CategoryPage() {
                         discount: c.metadata?.discount || formatDiscount(c),
                         bg: c.metadata?.bg || getRandomColor(),
                         couponCode: c.couponCode,
-                        type: c.type
+                        type: c.type,
+                        imageUrl: c.imageUrl || c.image || null
                     }));
 
-                if (highlights.length > 0) {
-                    setSaleHighlightCampaigns(highlights);
-                }
+                setSaleHighlightCampaigns(highlights);
 
                 // Get promo banner
-                const promo = activeCampaigns.find(c => c.metadata?.section === 'promo_banner');
+                const promo = relevantCampaigns.find(c => c.metadata?.section === 'promo_banner');
                 if (promo) {
                     setPromoBannerCampaign({
                         text: promo.description || `${promo.name} | ${formatDiscount(promo)}`,
                         couponCode: promo.couponCode,
-                        extraDiscount: promo.metadata?.extraDiscount || ''
+                        extraDiscount: promo.metadata?.extraDiscount || '',
+                        imageUrl: promo.imageUrl || promo.image || null
                     });
+                } else if (relevantCampaigns.length > 0) {
+                    const firstWithCoupon = relevantCampaigns.find(c => c.couponCode);
+                    if (firstWithCoupon) {
+                        setPromoBannerCampaign({
+                            text: `${firstWithCoupon.name} | ${formatDiscount(firstWithCoupon)}`,
+                            couponCode: firstWithCoupon.couponCode,
+                            extraDiscount: '',
+                            imageUrl: firstWithCoupon.imageUrl || firstWithCoupon.image || null
+                        });
+                    }
                 }
+
+                setCampaignsLoaded(true);
             }
         } catch (error) {
-            console.error('Error fetching campaigns, using fallback:', error);
-            // Keep fallback data
+            console.error('Error fetching campaigns:', error);
         } finally {
             setCampaignsLoaded(true);
         }
@@ -291,7 +290,6 @@ export default function CategoryPage() {
         navigate(`/category/${slug}`);
     };
 
-    // Get unique brands from products
     const getUniqueBrands = () => {
         const brands = new Set();
         products.forEach(p => {
@@ -301,7 +299,6 @@ export default function CategoryPage() {
         return Array.from(brands);
     };
 
-    // Sort products
     const getSortedProducts = () => {
         const sorted = [...products];
         switch (sortBy) {
@@ -318,7 +315,6 @@ export default function CategoryPage() {
         }
     };
 
-    // Filter products
     const getFilteredProducts = () => {
         let filtered = getSortedProducts();
 
@@ -466,36 +462,38 @@ export default function CategoryPage() {
         <div className="w-full bg-white text-gray-800">
             <Header />
 
-            {/* Promo Banner with Campaign Data */}
-            <div className="bg-indigo-900 text-white text-center py-2 text-xs font-semibold tracking-wide flex items-center justify-center gap-3 flex-wrap">
-                <span>{promoBannerCampaign?.text || 'EOSS | Up to 50% + Extra 10% Off | Free Shipping on all orders'}</span>
-                {promoBannerCampaign?.couponCode && (
-                    <button
-                        onClick={() => handleCopyCoupon(promoBannerCampaign.couponCode)}
-                        className="bg-white/20 hover:bg-white/30 px-3 py-0.5 rounded-full text-[10px] font-mono flex items-center gap-1 transition-all"
-                    >
-                        {copiedCode === promoBannerCampaign.couponCode ? (
-                            <>
-                                <Check className="w-3 h-3" />
-                                Copied!
-                            </>
-                        ) : (
-                            <>
-                                <Copy className="w-3 h-3" />
-                                {promoBannerCampaign.couponCode}
-                            </>
-                        )}
-                    </button>
-                )}
-                {promoBannerCampaign?.extraDiscount && (
-                    <span className="bg-yellow-400 text-indigo-900 px-2 py-0.5 rounded-full font-bold text-[10px]">
-                        + {promoBannerCampaign.extraDiscount} Extra
+            {/* Promo Banner */}
+            {promoBannerCampaign && (
+                <div className="bg-indigo-900 text-white text-center py-2 text-xs font-semibold tracking-wide flex items-center justify-center gap-3 flex-wrap">
+                    <span>{promoBannerCampaign.text}</span>
+                    {promoBannerCampaign.couponCode && (
+                        <button
+                            onClick={() => handleCopyCoupon(promoBannerCampaign.couponCode)}
+                            className="bg-white/20 hover:bg-white/30 px-3 py-0.5 rounded-full text-[10px] font-mono flex items-center gap-1 transition-all"
+                        >
+                            {copiedCode === promoBannerCampaign.couponCode ? (
+                                <>
+                                    <Check className="w-3 h-3" />
+                                    Copied!
+                                </>
+                            ) : (
+                                <>
+                                    <Copy className="w-3 h-3" />
+                                    {promoBannerCampaign.couponCode}
+                                </>
+                            )}
+                        </button>
+                    )}
+                    {promoBannerCampaign.extraDiscount && (
+                        <span className="bg-yellow-400 text-indigo-900 px-2 py-0.5 rounded-full font-bold text-[10px]">
+                            + {promoBannerCampaign.extraDiscount} Extra
+                        </span>
+                    )}
+                    <span className="text-[10px] opacity-75">
+                        {dealCornerCampaigns.length} deals available
                     </span>
-                )}
-                <span className="text-[10px] opacity-75">
-                    {dealCornerCampaigns.length} deals available
-                </span>
-            </div>
+                </div>
+            )}
 
             <div className="max-w-7xl mx-auto px-4 py-4">
                 {/* Breadcrumb Navigation */}
@@ -745,68 +743,111 @@ export default function CategoryPage() {
                             </span>
                         </div>
 
-                        {/* Real Deal Corner Section - Always shows fallback data */}
-                        <section className="mt-8 mb-10">
-                            <div className="flex items-center gap-2 mb-4">
-                                <h2 className="text-lg font-bold text-gray-900 border-b-2 border-indigo-600 inline-block pb-1">
-                                    Deal Corner
-                                </h2>
-                                <Clock className="w-4 h-4 text-indigo-600" />
-                                {dealCornerCampaigns.length > 0 && (
-                                    <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">
-                                        {dealCornerCampaigns.length} Active
-                                    </span>
-                                )}
-                            </div>
-
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                                {dealCornerCampaigns.map((deal) => (
-                                    <div
-                                        key={deal._id}
-                                        className={`relative rounded-xl h-44 flex flex-col justify-center items-center text-center p-3 shadow-sm overflow-hidden group cursor-pointer hover:shadow-md transition-all ${deal.bg || 'bg-amber-100/70 border-amber-200/50 border'}`}
-                                    >
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                            <Tag className="w-10 h-10 text-amber-800/20" />
-                                        </div>
-
-                                        <div className="relative z-10 bg-white/40 backdrop-blur-[2px] p-2 rounded-lg w-full">
-                                            <p className="font-bold text-sm text-indigo-950 truncate">
-                                                {deal.brand}
-                                            </p>
-                                            <p className="text-xs font-extrabold text-indigo-900 mt-0.5">
-                                                {deal.offer}
-                                            </p>
-                                            {deal.couponCode && (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleCopyCoupon(deal.couponCode);
-                                                    }}
-                                                    className="mt-1.5 text-[10px] bg-indigo-600/80 text-white px-2 py-0.5 rounded-full hover:bg-indigo-700 transition-all flex items-center gap-1 mx-auto"
-                                                >
-                                                    {copiedCode === deal.couponCode ? (
-                                                        <>
-                                                            <Check className="w-2.5 h-2.5" />
-                                                            Copied
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <Copy className="w-2.5 h-2.5" />
-                                                            {deal.couponCode}
-                                                        </>
-                                                    )}
-                                                </button>
-                                            )}
-                                            {deal.endDate && (
-                                                <p className="text-[8px] text-gray-400 mt-0.5">
-                                                    Ends {new Date(deal.endDate).toLocaleDateString()}
-                                                </p>
-                                            )}
-                                        </div>
+                        {/* Deal Corner Section - Collapsible with images */}
+                        {dealCornerCampaigns.length > 0 && (
+                            <section className="mt-8 mb-10">
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="text-lg font-bold text-gray-900 border-b-2 border-indigo-600 inline-block pb-1">
+                                            🔥 Deal Corner
+                                        </h2>
+                                        <Clock className="w-4 h-4 text-indigo-600" />
+                                        <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">
+                                            {dealCornerCampaigns.length} Active
+                                        </span>
                                     </div>
-                                ))}
-                            </div>
-                        </section>
+                                    <button
+                                        onClick={() => setDealCornerExpanded(!dealCornerExpanded)}
+                                        className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                                    >
+                                        {dealCornerExpanded ? (
+                                            <>
+                                                <ChevronUp className="w-4 h-4" />
+                                                <span>Hide</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <ChevronDown className="w-4 h-4" />
+                                                <span>Show {dealCornerCampaigns.length} deals</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+
+                                {dealCornerExpanded && (
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                                        {dealCornerCampaigns.map((deal) => (
+                                            <div
+                                                key={deal._id}
+                                                className={`relative rounded-xl h-44 flex flex-col justify-center items-center text-center p-3 shadow-sm overflow-hidden group cursor-pointer hover:shadow-md transition-all ${deal.bg || 'bg-amber-100/70 border-amber-200/50 border'}`}
+                                            >
+                                                {/* Deal Image with shaded overlay */}
+                                                {deal.imageUrl ? (
+                                                    <>
+                                                        <img
+                                                            src={deal.imageUrl}
+                                                            alt={deal.brand}
+                                                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                            onError={(e) => {
+                                                                e.target.style.display = 'none';
+                                                            }}
+                                                        />
+                                                        <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors"></div>
+                                                    </>
+                                                ) : (
+                                                    <div className="absolute inset-0 flex items-center justify-center opacity-20">
+                                                        <ImageIcon className="w-10 h-10" />
+                                                    </div>
+                                                )}
+
+                                                <div className={`relative z-10 p-2 rounded-lg w-full ${deal.imageUrl ? 'bg-black/30 backdrop-blur-sm' : 'bg-white/40 backdrop-blur-[2px]'}`}>
+                                                    <p className={`font-bold text-sm truncate ${deal.imageUrl ? 'text-white' : 'text-indigo-950'}`}>
+                                                        {deal.brand}
+                                                    </p>
+                                                    <p className={`text-xs font-extrabold mt-0.5 ${deal.imageUrl ? 'text-yellow-300' : 'text-indigo-900'}`}>
+                                                        {deal.offer}
+                                                    </p>
+                                                    {deal.discount && (
+                                                        <p className={`text-[10px] font-bold mt-0.5 ${deal.imageUrl ? 'text-white/90' : 'text-indigo-700'}`}>
+                                                            {deal.discount}
+                                                        </p>
+                                                    )}
+                                                    {deal.couponCode && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleCopyCoupon(deal.couponCode);
+                                                            }}
+                                                            className={`mt-1.5 text-[10px] px-2 py-0.5 rounded-full transition-all flex items-center gap-1 mx-auto ${deal.imageUrl
+                                                                    ? 'bg-white/20 text-white hover:bg-white/30'
+                                                                    : 'bg-indigo-600/80 text-white hover:bg-indigo-700'
+                                                                }`}
+                                                        >
+                                                            {copiedCode === deal.couponCode ? (
+                                                                <>
+                                                                    <Check className="w-2.5 h-2.5" />
+                                                                    Copied
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Copy className="w-2.5 h-2.5" />
+                                                                    {deal.couponCode}
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                    )}
+                                                    {deal.endDate && (
+                                                        <p className={`text-[8px] mt-0.5 ${deal.imageUrl ? 'text-white/60' : 'text-gray-400'}`}>
+                                                            Ends {new Date(deal.endDate).toLocaleDateString()}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </section>
+                        )}
 
                         {/* Product Section */}
                         <section>

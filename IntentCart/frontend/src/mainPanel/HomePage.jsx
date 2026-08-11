@@ -130,7 +130,6 @@ export default function HomePage() {
       setLoading(true);
       setError(null);
 
-      // Use the public endpoint - no authentication needed
       const response = await fetch(`${API_BASE_URL}/merchant/campaigns/public`);
 
       if (!response.ok) {
@@ -142,18 +141,14 @@ export default function HomePage() {
       if (data.success) {
         const campaigns = data.campaigns || [];
 
-        // If no campaigns, use fallback data
         if (campaigns.length === 0) {
           useFallbackData();
           setLoading(false);
           return;
         }
 
-        // Count active campaigns
         const active = campaigns.filter(c => c.status === 'active');
         setActiveCampaignsCount(active.length);
-
-        // Process campaigns
         processCampaigns(campaigns);
       } else {
         useFallbackData();
@@ -174,7 +169,6 @@ export default function HomePage() {
     }
   };
 
-  // Use fallback data
   const useFallbackData = () => {
     setSaleHighlights(fallbackData.saleHighlights);
     setDealCorner(fallbackData.dealCorner);
@@ -183,9 +177,7 @@ export default function HomePage() {
     setActiveCampaignsCount(9);
   };
 
-  // Process campaigns and organize by section
   const processCampaigns = (campaigns) => {
-    // Filter only active campaigns
     const activeCampaigns = campaigns.filter(c => c.status === 'active');
 
     if (activeCampaigns.length === 0) {
@@ -208,7 +200,6 @@ export default function HomePage() {
         imageUrl: c.imageUrl || c.image || null
       }));
 
-    // If no sale highlights, create from other campaigns
     if (highlights.length === 0) {
       const fallbackHighlights = activeCampaigns
         .filter(c => c.type === 'discount' || c.type === 'bogo' || c.type === 'flash_sale')
@@ -233,36 +224,28 @@ export default function HomePage() {
     }
     setSaleHighlights(highlights);
 
-    // 2. Deal Corner 
+    // 2. Deal Corner - ALL campaigns with coupons or discounts
     let deals = activeCampaigns
-      .filter(c => c.metadata?.section === 'deal_corner')
+      .filter(c => {
+        const hasCoupon = !!c.couponCode;
+        const hasDiscount = c.discountValue > 0;
+        const isFreeShipping = c.type === 'free_shipping';
+        const isBogo = c.type === 'bogo';
+        return hasCoupon || hasDiscount || isFreeShipping || isBogo;
+      })
+      .slice(0, 6)
       .map(c => ({
         _id: c._id,
         brand: c.metadata?.brand || c.name,
         offer: c.metadata?.offer || formatDiscount(c),
         couponCode: c.couponCode,
         type: c.type,
-        imageUrl: c.imageUrl || c.image || null
+        imageUrl: c.imageUrl || c.image || null,
+        discount: formatDiscount(c)
       }));
 
     if (deals.length === 0) {
-      const fallbackDeals = activeCampaigns
-        .filter(c => c.type === 'discount' && c.discountValue)
-        .slice(0, 6)
-        .map(c => ({
-          _id: c._id,
-          brand: c.name,
-          offer: formatDiscount(c),
-          couponCode: c.couponCode,
-          type: c.type,
-          imageUrl: c.imageUrl || c.image || null
-        }));
-
-      if (fallbackDeals.length > 0) {
-        deals = fallbackDeals;
-      } else {
-        deals = fallbackData.dealCorner;
-      }
+      deals = fallbackData.dealCorner;
     }
     setDealCorner(deals);
 
@@ -310,7 +293,6 @@ export default function HomePage() {
     setBannerCampaigns(banners);
   };
 
-  // Helper: Format discount
   const formatDiscount = (campaign) => {
     if (!campaign) return 'Special Offer';
     if (campaign.discountType === 'percentage') {
@@ -323,7 +305,6 @@ export default function HomePage() {
     return 'Special Offer';
   };
 
-  // Helper: Format offer
   const formatOffer = (campaign) => {
     if (!campaign) return 'Special Offer';
     if (campaign.type === 'bogo') return 'Buy 1 Get 1';
@@ -332,7 +313,6 @@ export default function HomePage() {
     return campaign.name || 'Special Offer';
   };
 
-  // Helper: Get random color
   const getRandomColor = () => {
     const colors = [
       'bg-indigo-500', 'bg-indigo-400', 'bg-indigo-900',
@@ -342,7 +322,6 @@ export default function HomePage() {
     return colors[Math.floor(Math.random() * colors.length)];
   };
 
-  // Helper: Get gradient color
   const getGradientColor = (type) => {
     const gradients = {
       discount: 'from-blue-600 to-indigo-600',
@@ -355,7 +334,6 @@ export default function HomePage() {
     return gradients[type] || 'from-purple-600 to-indigo-600';
   };
 
-  // Handle coupon copy
   const handleCopyCoupon = (couponCode) => {
     if (couponCode) {
       navigator.clipboard.writeText(couponCode);
@@ -365,7 +343,6 @@ export default function HomePage() {
     }
   };
 
-  // Banner navigation
   const prevBanner = () => {
     setCurrentBannerIndex((prev) => (prev - 1 + bannerCampaigns.length) % bannerCampaigns.length);
   };
@@ -392,7 +369,6 @@ export default function HomePage() {
     },
   ];
 
-  // If loading, show skeleton
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100 font-sans text-gray-800">
@@ -419,11 +395,9 @@ export default function HomePage() {
     <div className="min-h-screen bg-gray-100 font-sans text-gray-800">
       <Toaster position="top-right" />
 
-      {/* Top Navigation Wrapper */}
       <header className="sticky top-0 z-50 shadow-sm">
         <Header />
         <Categories />
-        {/* Promo Banner Strip */}
         <div className="bg-indigo-700 text-white text-center py-2 text-xs font-semibold tracking-wide flex items-center justify-center gap-3 flex-wrap">
           <span>{promoBanner?.text || 'EOSS | Up to 50% + Extra 10% Off | Free Shipping on all orders'}</span>
           {promoBanner?.couponCode && (
@@ -457,23 +431,25 @@ export default function HomePage() {
 
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-10">
 
-        {/* Hero Slider Section WITH IMAGES */}
+        {/* Hero Slider Section */}
         <section className="relative bg-slate-200 rounded-xl overflow-hidden h-[380px] flex items-center justify-center group">
           {bannerCampaigns.length > 0 && (
             <div className="absolute inset-0 transition-all duration-700">
               <div className={`w-full h-full bg-gradient-to-r ${bannerCampaigns[currentBannerIndex]?.bg || 'from-purple-600 to-indigo-600'} flex items-center justify-center relative`}>
-                {/* Banner Image */}
                 {bannerCampaigns[currentBannerIndex]?.imageUrl ? (
-                  <img
-                    src={bannerCampaigns[currentBannerIndex].imageUrl}
-                    alt={bannerCampaigns[currentBannerIndex].name}
-                    className="absolute inset-0 w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                    }}
-                  />
+                  <>
+                    <img
+                      src={bannerCampaigns[currentBannerIndex].imageUrl}
+                      alt={bannerCampaigns[currentBannerIndex].name}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-black/40"></div>
+                  </>
                 ) : null}
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center p-8">
+                <div className="absolute inset-0 bg-black/30 flex items-center justify-center p-8">
                   <div className="text-center text-white max-w-2xl relative z-10">
                     <h2 className="text-4xl md:text-5xl font-bold mb-3">
                       {bannerCampaigns[currentBannerIndex]?.name}
@@ -537,7 +513,7 @@ export default function HomePage() {
           )}
         </section>
 
-        {/* Sale Highlight Section WITH IMAGES */}
+        {/* Sale Highlight Section */}
         <section>
           <div className="mb-4 flex items-center justify-between">
             <div>
@@ -553,25 +529,24 @@ export default function HomePage() {
             {saleHighlights.map((item) => (
               <div
                 key={item._id}
-                className={`relative rounded-2xl h-80 overflow-hidden shadow-sm flex flex-col justify-end p-6 text-white text-center group cursor-pointer transition-transform hover:scale-[1.02] ${item.bg}`}
+                className="relative rounded-2xl h-80 overflow-hidden shadow-sm flex flex-col justify-end p-6 text-white text-center group cursor-pointer transition-transform hover:scale-[1.02]"
               >
-                {/* Sale Highlight Image */}
                 {item.imageUrl ? (
-                  <img
-                    src={item.imageUrl}
-                    alt={item.title}
-                    className="absolute inset-0 w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                    }}
-                  />
+                  <>
+                    <img
+                      src={item.imageUrl}
+                      alt={item.title}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
+                  </>
                 ) : (
-                  <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                    <ImageIcon className="w-12 h-12 text-white/30" />
-                  </div>
+                  <div className={`absolute inset-0 ${item.bg || 'bg-indigo-500'}`}></div>
                 )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-
+                
                 <div className="relative z-10 space-y-1">
                   <p className="text-xs font-semibold tracking-wider uppercase opacity-90">{item.title}</p>
                   {item.subtitle && <p className="text-[10px] opacity-75">{item.subtitle}</p>}
@@ -604,7 +579,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Deal Corner Section WITH IMAGES */}
+        {/* Deal Corner Section */}
         <section>
           <div className="mb-4 flex items-center justify-between">
             <div>
@@ -620,25 +595,25 @@ export default function HomePage() {
             {dealCorner.map((item) => (
               <div
                 key={item._id}
-                className="relative bg-amber-100/70 border border-amber-200/50 rounded-xl h-44 flex flex-col justify-center items-center text-center p-3 shadow-sm overflow-hidden group cursor-pointer hover:shadow-md transition-all"
+                className="relative rounded-xl h-44 flex flex-col justify-center items-center text-center p-3 shadow-sm overflow-hidden group cursor-pointer hover:shadow-md transition-all"
               >
-                {/* Deal Image */}
                 {item.imageUrl ? (
-                  <img
-                    src={item.imageUrl}
-                    alt={item.brand}
-                    className="absolute inset-0 w-full h-full object-cover opacity-30 group-hover:opacity-40 transition-opacity"
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                    }}
-                  />
+                  <>
+                    <img
+                      src={item.imageUrl}
+                      alt={item.brand}
+                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors"></div>
+                  </>
                 ) : (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <ImageIcon className="w-10 h-10 text-amber-800/20" />
-                  </div>
+                  <div className="absolute inset-0 bg-amber-100/70 border border-amber-200/50"></div>
                 )}
 
-                <div className={`relative z-10 p-2 rounded-lg w-full ${item.imageUrl ? 'bg-black/20 backdrop-blur-sm' : 'bg-white/40 backdrop-blur-[2px]'}`}>
+                <div className={`relative z-10 p-2 rounded-lg w-full ${item.imageUrl ? 'bg-black/30 backdrop-blur-sm' : 'bg-white/40 backdrop-blur-[2px]'}`}>
                   <p className={`font-bold text-sm truncate ${item.imageUrl ? 'text-white' : 'text-indigo-950'}`}>
                     {item.brand}
                   </p>
@@ -651,10 +626,11 @@ export default function HomePage() {
                         e.stopPropagation();
                         handleCopyCoupon(item.couponCode);
                       }}
-                      className={`mt-1.5 text-[10px] px-2 py-0.5 rounded-full transition-all flex items-center gap-1 mx-auto ${item.imageUrl
-                          ? 'bg-white/20 text-white hover:bg-white/30'
+                      className={`mt-1.5 text-[10px] px-2 py-0.5 rounded-full transition-all flex items-center gap-1 mx-auto ${
+                        item.imageUrl 
+                          ? 'bg-white/20 text-white hover:bg-white/30' 
                           : 'bg-indigo-600/80 text-white hover:bg-indigo-700'
-                        }`}
+                      }`}
                     >
                       {copiedCode === item.couponCode ? (
                         <>
@@ -702,7 +678,6 @@ export default function HomePage() {
 
       </main>
 
-      {/* Footer */}
       <Footer />
     </div>
   );
