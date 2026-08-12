@@ -22,6 +22,7 @@ import MerchantManagement from "./adminPanel/merchantM.jsx";
 import ProductM from "./adminPanel/productM.jsx";
 import Profile from "./adminPanel/profile.jsx";
 import Notifications from "./adminPanel/notifications.jsx";
+import MerchantRiskList from './adminPanel/MerchantRiskList.jsx';
 
 
 // Merchant Panel 
@@ -54,6 +55,9 @@ function App() {
             <Route path="/admin-productM" element={<ProductM />} />
             <Route path="/admin-profile" element={<Profile />} />
             <Route path="/admin-notifications" element={<Notifications />} />
+
+            {/* Risk Management Routes */}
+            <Route path="/risk" element={<MerchantRiskList />} />
 
             {/* Merchant Panel  */}
             <Route path="/merchant-dashboard" element={<MerchantDashboard />} />

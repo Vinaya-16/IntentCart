@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutGrid,
   Box,
@@ -9,6 +9,7 @@ import {
   LogOut,
   Menu,
   X,
+  Shield,
 } from 'lucide-react';
 
 const Sidebar = ({
@@ -18,24 +19,51 @@ const Sidebar = ({
   setIsOpen: externalSetIsOpen,
 }) => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Internal state fallback if isOpen props aren't provided by parent
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const isOpen = externalIsOpen !== undefined ? externalIsOpen : internalIsOpen;
   const setIsOpen = externalSetIsOpen || setInternalIsOpen;
 
-  // Navigation Items
+  // Navigation Items - Simplified
   const navItems = [
-    { name: 'Dashboard', icon: LayoutGrid },
-    { name: 'User Management', icon: Box },
-    { name: 'Merchant Verification', icon: FileCheck },
-    { name: 'Product Moderation', icon: Users },
-    { name: 'Profile', icon: UserCheck },
+    { name: 'Dashboard', icon: LayoutGrid, path: '/admin-dashboard' },
+    { name: 'User Management', icon: Box, path: '/admin-userM' },
+    { name: 'Merchant Verification', icon: FileCheck, path: '/admin-merchantV' },
+    { name: 'Product Moderation', icon: Users, path: '/admin-productM' },
+    { name: 'Risk Management', icon: Shield, path: '/risk' },
+    { name: 'Profile', icon: UserCheck, path: '/admin-profile' },
   ];
+
+  const handleNavigation = (item) => {
+    // Close mobile menu
+    setIsOpen(false);
+    
+    // Navigate to the path
+    if (item.path) {
+      navigate(item.path);
+    }
+    
+    // Update active tab if setActiveTab is provided
+    if (setActiveTab) {
+      setActiveTab(item.name);
+    }
+  };
+
+  const handleLogout = () => {
+    setIsOpen(false);
+    localStorage.removeItem('token');
+    navigate('/intentcart-auth');
+  };
+
+  const isActive = (path) => {
+    return location.pathname === path || location.pathname.startsWith(path + '/');
+  };
 
   return (
     <>
-      {/* Mobile Floating Hamburger Button (Shows when Sidebar is Closed on Mobile) */}
+      {/* Mobile Floating Hamburger Button */}
       <button
         type="button"
         onClick={() => setIsOpen(true)}
@@ -84,33 +112,15 @@ const Sidebar = ({
           <nav className="space-y-2">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = activeTab === item.name;
+              const isActiveTab = activeTab === item.name || isActive(item.path);
+              
               return (
                 <button
                   key={item.name}
                   type="button"
-                  onClick={() => {
-                    // Always update active state first if set
-                    if (setActiveTab) setActiveTab(item.name);
-
-                    // Close mobile menu on click
-                    setIsOpen(false);
-
-                    // Handle routes based on item selected
-                    if (item.name === 'User Management') {
-                      navigate('/admin-userM');
-                    } else if (item.name === 'Profile') {
-                      navigate('/admin-profile');
-                    } else if (item.name === 'Merchant Verification') {
-                      navigate('/admin-merchantV');
-                    } else if (item.name === 'Product Moderation') {
-                      navigate('/admin-productM');
-                    } else {
-                      navigate(`/admin-dashboard`);
-                    }
-                  }}
+                  onClick={() => handleNavigation(item)}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all cursor-pointer ${
-                    isActive
+                    isActiveTab
                       ? 'bg-[#2952a2] text-white shadow-md'
                       : 'text-gray-300 hover:bg-[#252c6a] hover:text-white'
                   }`}
@@ -127,10 +137,7 @@ const Sidebar = ({
         <div className="px-3 pt-4 border-t border-slate-700/50">
           <button
             type="button"
-            onClick={() => {
-              setIsOpen(false);
-              navigate('/intentcart-auth');
-            }}
+            onClick={handleLogout}
             className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-gray-300 hover:text-white hover:bg-[#252c6a] rounded-lg transition-colors cursor-pointer"
           >
             <span>Logout</span>

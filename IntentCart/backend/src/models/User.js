@@ -130,6 +130,38 @@ const userSchema = new mongoose.Schema({
     trim: true
   },
 
+  // Merchant Risk Score Fields
+  riskScore: {
+    type: String,
+    enum: ['low', 'medium', 'high'],
+    default: 'low'
+  },
+  riskPercentage: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 100
+  },
+  riskFactors: {
+    type: Object,
+    default: {}
+  },
+  riskAssessedAt: {
+    type: Date,
+    default: null
+  },
+  riskAssessedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  riskAssessmentHistory: [{
+    score: String,
+    percentage: Number,
+    factors: Object,
+    assessedAt: Date,
+    assessedBy: mongoose.Schema.Types.ObjectId
+  }],
+
   // ==================== CUSTOMER SPECIFIC ====================
   tier: {
     type: String,
