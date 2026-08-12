@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Search,
   Shield,
-  Eye,
   RefreshCw,
   AlertTriangle,
   CheckCircle,
@@ -475,12 +474,13 @@ const MerchantRiskList = () => {
                               >
                                 <RefreshCw className="w-4 h-4" />
                               </button>
-                              <button
+                              Refresh
+                              {/* <button
                                 className="p-1.5 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded transition-colors"
                                 title="View Details"
                               >
                                 <Eye className="w-4 h-4" />
-                              </button>
+                              </button> */}
                             </div>
                           </td>
                         </tr>

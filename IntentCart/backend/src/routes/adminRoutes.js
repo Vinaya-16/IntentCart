@@ -43,8 +43,6 @@ import {
   getRiskStats,
   recalculateMerchantRisk,
   updateMerchantStatus,
-  bulkRecalculateRisk,
-  getMerchantRiskDetails,
 
 
 } from '../controllers/adminController.js';
@@ -123,16 +121,10 @@ router.get('/risk/stats', getRiskStats);
 // Get all merchants with risk scores
 router.get('/risk/merchants', getRiskMerchants);
 
-// Get single merchant risk details
-router.get('/risk/merchant/:id', getMerchantRiskDetails);
-
 // Update merchant status
 router.put('/risk/merchant/:id/status', updateMerchantStatus);
 
 // Recalculate merchant risk
 router.post('/risk/merchant/:id/recalculate', recalculateMerchantRisk);
-
-// Bulk recalculate risk scores
-router.post('/risk/bulk-recalculate', bulkRecalculateRisk);
 
 export default router;
