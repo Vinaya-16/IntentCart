@@ -74,6 +74,9 @@ import {
     triggerRecovery,
 } from '../controllers/recoveryController.js';
 
+import { predictSales } from '../controllers/orderController.js';
+
+
 const router = express.Router();
 
 
@@ -121,6 +124,7 @@ router.get('/orders', getMerchantOrders);
 router.get('/orders/stats', getOrderStats);
 router.get('/orders/:id', getMerchantOrderById);
 router.put('/orders/:id/status', updateOrderStatus);
+router.post('/predict/sales', predictSales);
 
 // ==================== CUSTOMER ANALYSIS ====================
 router.get('/customers', getCustomers);

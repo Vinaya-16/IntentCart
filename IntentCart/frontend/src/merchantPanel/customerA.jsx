@@ -541,7 +541,7 @@ const CustomerAnalysis = () => {
                                             <th className="py-3.5 px-4 text-center">Lifetime Value</th>
                                             <th className="py-3.5 px-4 text-center">Last Purchase</th>
                                             <th className="py-3.5 px-4 text-center">Segment</th>
-                                            <th className="py-3.5 px-4 text-center">Action</th>
+                                            <th className="py-3.5 px-4 text-center">Activity</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-200 text-sm">

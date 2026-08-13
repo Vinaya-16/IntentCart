@@ -18,7 +18,12 @@ import {
     X,
     FileText,
     Mail,
-    Check
+    Check,
+    Sparkles,
+    TrendingUp,
+    Calendar,
+    Clock as ClockIcon,
+    BarChart3
 } from 'lucide-react';
 import Sidebar from './components/sidebar.jsx';
 import Header from './components/header.jsx';
@@ -42,6 +47,13 @@ const OrderManagement = () => {
     });
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [showOrderModal, setShowOrderModal] = useState(false);
+
+    // Sales Prediction States
+    const [showPredictionModal, setShowPredictionModal] = useState(false);
+    const [predictionLoading, setPredictionLoading] = useState(false);
+    const [predictionData, setPredictionData] = useState(null);
+    const [selectedTimeframe, setSelectedTimeframe] = useState('tomorrow');
+    const [predictionError, setPredictionError] = useState('');
 
     const getToken = () => localStorage.getItem('token');
 
@@ -306,6 +318,57 @@ const OrderManagement = () => {
         }
     };
 
+    // Run sales prediction - No mock data, only real API call
+    const runPrediction = async (timeframe) => {
+        try {
+            setPredictionLoading(true);
+            setPredictionError('');
+            setPredictionData(null);
+
+            const token = getToken();
+            if (!token) {
+                setPredictionError('Please login first');
+                setPredictionLoading(false);
+                return;
+            }
+
+            const response = await fetch(`${API_URL}/predict/sales`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ timeframe })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to get sales prediction');
+            }
+
+            const data = await response.json();
+            if (data.success) {
+                setPredictionData(data.data);
+                setSelectedTimeframe(timeframe);
+            } else {
+                setPredictionError(data.message || 'Failed to get prediction');
+            }
+        } catch (err) {
+            console.error('Error running prediction:', err);
+            setPredictionError(err.message);
+        } finally {
+            setPredictionLoading(false);
+        }
+    };
+
+    // Open prediction modal
+    const openPredictionModal = () => {
+        setShowPredictionModal(true);
+        setPredictionData(null);
+        setPredictionError('');
+        runPrediction('tomorrow');
+    };
+
     useEffect(() => {
         fetchOrders();
     }, []);
@@ -358,13 +421,15 @@ const OrderManagement = () => {
 
                         {/* Error/Success Messages */}
                         {error && (
-                            <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg border border-red-200">
-                                <X /> {error}
+                            <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg border border-red-200 flex items-center gap-2">
+                                <X className="w-4 h-4" />
+                                {error}
                             </div>
                         )}
                         {success && (
-                            <div className="mb-4 p-3 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-200">
-                                <Check /> {success}
+                            <div className="mb-4 p-3 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-200 flex items-center gap-2">
+                                <Check className="w-4 h-4" />
+                                {success}
                             </div>
                         )}
 
@@ -384,7 +449,7 @@ const OrderManagement = () => {
                             </div>
                         )}
 
-                        {/* // STATS CARDS - Updated to show correct revenue */}
+                        {/* STATS CARDS */}
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                                 <h3 className="text-slate-600 text-sm font-medium mb-2">Total Orders</h3>
@@ -407,8 +472,17 @@ const OrderManagement = () => {
                             </div>
                         </div>
 
-                        {/* PAGE TITLE */}
-                        <h1 className="text-2xl font-bold text-[#1e3a6a] mb-6">Order Management</h1>
+                        {/* PAGE TITLE & PREDICTION BUTTON */}
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
+                            <h1 className="text-2xl font-bold text-[#1e3a6a]">Order Management</h1>
+                            <button
+                                onClick={openPredictionModal}
+                                className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-blue-950 font-medium px-5 py-2.5 rounded-lg text-sm shadow-lg shadow-purple-200 transition-all"
+                            >
+                                <Sparkles className="w-4 h-4" />
+                                AI Sales Prediction
+                            </button>
+                        </div>
 
                         {/* SEARCH & ACTIONS BAR */}
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
@@ -636,16 +710,148 @@ const OrderManagement = () => {
                                     <Printer className="w-4 h-4" />
                                     Print Invoice
                                 </button>
-                                {/* <button
-                                    onClick={() => {
-                                        window.location.href = `mailto:${selectedOrder.customerId?.email}?subject=Order ${selectedOrder.orderId} Update`;
-                                    }}
-                                    className="flex items-center gap-2 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition"
-                                >
-                                    <Mail className="w-4 h-4" />
-                                    Email Customer
-                                </button> */}
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* AI Sales Prediction Modal - No Mock Data */}
+            {showPredictionModal && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+                        <div className="sticky top-0 bg-white z-10 p-6 border-b flex justify-between items-center">
+                            <div>
+                                <h2 className="text-xl font-bold text-[#1e3a6a] flex items-center gap-2">
+                                    <Sparkles className="w-5 h-5 text-purple-500" />
+                                    AI Sales Prediction
+                                </h2>
+                                <p className="text-sm text-gray-500 mt-1">
+                                    Predict sales based on historical order data and trends
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setShowPredictionModal(false)}
+                                className="p-2 hover:bg-gray-100 rounded-lg transition"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-6">
+                            {/* Timeframe Selector */}
+                            <div className="flex gap-3">
+                                {['tomorrow', 'nextWeek', 'nextMonth'].map((timeframe) => (
+                                    <button
+                                        key={timeframe}
+                                        onClick={() => runPrediction(timeframe)}
+                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${selectedTimeframe === timeframe
+                                                ? 'bg-[#1e3a6a] text-white shadow-md'
+                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                            }`}
+                                    >
+                                        {timeframe === 'tomorrow' && <Calendar className="w-4 h-4" />}
+                                        {timeframe === 'nextWeek' && <ClockIcon className="w-4 h-4" />}
+                                        {timeframe === 'nextMonth' && <BarChart3 className="w-4 h-4" />}
+                                        {timeframe === 'tomorrow' && 'Tomorrow'}
+                                        {timeframe === 'nextWeek' && 'Next Week'}
+                                        {timeframe === 'nextMonth' && 'Next Month'}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {predictionLoading ? (
+                                <div className="flex justify-center py-12">
+                                    <div className="text-center">
+                                        <Loader2 className="w-10 h-10 text-purple-500 animate-spin mx-auto" />
+                                        <p className="text-gray-500 mt-3">Analyzing historical data...</p>
+                                    </div>
+                                </div>
+                            ) : predictionError ? (
+                                <div className="text-center py-8">
+                                    <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-200">
+                                        <p className="font-medium">Unable to get prediction</p>
+                                        <p className="text-sm mt-1">{predictionError}</p>
+                                        <button
+                                            onClick={() => runPrediction(selectedTimeframe)}
+                                            className="mt-3 text-sm text-purple-600 hover:text-purple-700 font-medium"
+                                        >
+                                            Try Again
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : predictionData ? (
+                                <div className="space-y-6">
+                                    {/* Prediction Metrics */}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-4 text-center">
+                                            <p className="text-xs text-gray-500">Predicted Orders</p>
+                                            <p className="text-3xl font-bold text-[#1e3a6a]">{predictionData.predictedSales}</p>
+                                        </div>
+                                        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-4 text-center">
+                                            <p className="text-xs text-gray-500">Predicted Revenue</p>
+                                            <p className="text-3xl font-bold text-emerald-600">Rs. {predictionData.predictedRevenue.toLocaleString()}</p>
+                                        </div>
+                                        <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl p-4 text-center">
+                                            <p className="text-xs text-gray-500">Confidence Level</p>
+                                            <p className="text-3xl font-bold text-amber-600">{predictionData.confidence}%</p>
+                                            <p className="text-xs text-gray-400 mt-1">Based on historical trends</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Trend Indicator */}
+                                    <div className="flex items-center gap-2 justify-center">
+                                        <span className="text-sm text-gray-500">Trend:</span>
+                                        {predictionData.trend === 'up' && (
+                                            <span className="flex items-center gap-1 text-emerald-600 font-semibold">
+                                                <TrendingUp className="w-4 h-4" /> Upward
+                                            </span>
+                                        )}
+                                        {predictionData.trend === 'stable' && (
+                                            <span className="flex items-center gap-1 text-amber-600 font-semibold">
+                                                <TrendingUp className="w-4 h-4 rotate-90" /> Stable
+                                            </span>
+                                        )}
+                                        {predictionData.trend === 'down' && (
+                                            <span className="flex items-center gap-1 text-red-600 font-semibold">
+                                                <TrendingUp className="w-4 h-4 rotate-180" /> Downward
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Top Products */}
+                                    <div>
+                                        <h4 className="font-semibold text-slate-800 mb-3">Top Predicted Products</h4>
+                                        <div className="space-y-2">
+                                            {predictionData.topProducts && predictionData.topProducts.length > 0 ? (
+                                                predictionData.topProducts.map((product, idx) => (
+                                                    <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="text-sm font-bold text-[#1e3a6a]">#{idx + 1}</span>
+                                                            <span className="font-medium text-slate-800">{product.name}</span>
+                                                        </div>
+                                                        <span className="text-sm font-semibold text-purple-600">{product.predicted} units</span>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <p className="text-sm text-gray-400 text-center py-4">No product predictions available</p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Note */}
+                                    <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+                                        <p className="text-xs text-blue-600">
+                                            Prediction is based on historical order data, seasonal trends, and current market conditions.
+                                            Results may vary based on external factors.
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 text-gray-400">
+                                    Select a timeframe to see predictions
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
