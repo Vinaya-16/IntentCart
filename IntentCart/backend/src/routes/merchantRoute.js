@@ -76,6 +76,9 @@ import {
 
 import { predictSales } from '../controllers/orderController.js';
 
+import { 
+    predictProductPerformance 
+} from '../controllers/productController.js';
 
 const router = express.Router();
 
@@ -104,6 +107,7 @@ router.post('/products', createProduct);
 router.put('/products/:id', updateProduct);
 router.delete('/products/:id', deleteProduct);
 router.put('/products/:id/stock', updateProductStock);
+router.post('/products/predict-performance', predictProductPerformance);
 
 // ==================== MERCHANT NOTIFICATIONS ====================
 router.get('/notifications', getMerchantNotifications);

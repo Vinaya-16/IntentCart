@@ -25,7 +25,15 @@ import {
     Link2,
     Cross,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    Sparkles,
+    TrendingUp,
+    TrendingDown,
+    AlertTriangle,
+    Crown,
+    Star,
+    Zap,
+    BarChart3
 } from 'lucide-react';
 import Header from './components/header.jsx';
 import Sidebar from './components/sidebar.jsx';
@@ -58,6 +66,13 @@ const Dashboard = () => {
     const [totalPages, setTotalPages] = useState(1);
     const [totalProductsCount, setTotalProductsCount] = useState(0);
     const itemsPerPage = 10;
+
+    // Product Performance Prediction States
+    const [showPredictionModal, setShowPredictionModal] = useState(false);
+    const [predictionLoading, setPredictionLoading] = useState(false);
+    const [predictionData, setPredictionData] = useState(null);
+    const [predictionError, setPredictionError] = useState('');
+    const [selectedPredictionType, setSelectedPredictionType] = useState('bestSeller');
 
     // New Product Form State
     const [productForm, setProductForm] = useState({
@@ -208,7 +223,57 @@ const Dashboard = () => {
         }
     };
 
-    // Helper: Get flat categories for dropdowns
+    const runPrediction = async (type) => {
+        try {
+            setPredictionLoading(true);
+            setPredictionError('');
+            setPredictionData(null);
+
+            const token = getToken();
+            if (!token) {
+                setPredictionError('Please login first');
+                setPredictionLoading(false);
+                return;
+            }
+
+            const response = await fetch(`${API_URL}/products/predict-performance`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ predictionType: type })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to get product prediction');
+            }
+
+            const data = await response.json();
+            if (data.success) {
+                setPredictionData(data.data);
+                setSelectedPredictionType(type);
+            } else {
+                setPredictionError(data.message || 'Failed to get prediction');
+            }
+        } catch (err) {
+            console.error('Error running prediction:', err);
+            setPredictionError(err.message);
+        } finally {
+            setPredictionLoading(false);
+        }
+    };
+
+    // Open prediction modal
+    const openPredictionModal = () => {
+        setShowPredictionModal(true);
+        setPredictionData(null);
+        setPredictionError('');
+        runPrediction('bestSeller');
+    };
+
+    // Get flat categories for dropdowns
     const getFlatCategories = (categories, level = 0, prefix = '') => {
         let result = [];
         const sorted = [...categories].sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -691,15 +756,24 @@ const Dashboard = () => {
                             </div>
                         </div>
 
-                        {/* PAGE HEADING */}
+                        {/* PAGE HEADING & PREDICTION BUTTON */}
                         <div className="flex justify-between items-center mb-6">
                             <h1 className="text-2xl font-bold text-[#1e427b]">Product Management</h1>
-                            <div className="flex items-center gap-2 text-sm text-gray-500">
-                                <span>Pending Approval: {stats.pendingProducts}</span>
-                                <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-                                <span>Low Stock: {stats.lowStock}</span>
-                                <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-                                <span>Total: {totalProductsCount} products</span>
+                            <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2 text-sm text-gray-500">
+                                    <span>Pending Approval: {stats.pendingProducts}</span>
+                                    <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                                    <span>Low Stock: {stats.lowStock}</span>
+                                    <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                                    <span>Total: {totalProductsCount} products</span>
+                                </div>
+                                <button
+                                    onClick={openPredictionModal}
+                                    className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-medium px-5 py-2.5 rounded-lg text-sm shadow-lg shadow-purple-200 transition-all"
+                                >
+                                    <Sparkles className="w-4 h-4" />
+                                    Product Performance Prediction
+                                </button>
                             </div>
                         </div>
 
@@ -891,8 +965,8 @@ const Dashboard = () => {
                                                             key={pageNum}
                                                             onClick={() => handlePageChange(pageNum)}
                                                             className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${pageNum === currentPage
-                                                                    ? 'bg-[#0f2d5c] text-white'
-                                                                    : 'hover:bg-slate-100 text-slate-600'
+                                                                ? 'bg-[#0f2d5c] text-white'
+                                                                : 'hover:bg-slate-100 text-slate-600'
                                                                 }`}
                                                         >
                                                             {pageNum}
@@ -916,7 +990,155 @@ const Dashboard = () => {
                 </div>
             </div>
 
-            {/* ADD/EDIT PRODUCT MODAL - Same as before */}
+            {/* Product Performance Prediction Modal */}
+            {showPredictionModal && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+                        <div className="sticky top-0 bg-white z-10 p-6 border-b flex justify-between items-center">
+                            <div>
+                                <h2 className="text-xl font-bold text-[#1e427b] flex items-center gap-2">
+                                    <Sparkles className="w-5 h-5 text-purple-500" />
+                                    Product Performance Prediction
+                                </h2>
+                                <p className="text-sm text-gray-500 mt-1">
+                                    Predict product performance based on sales data, trends, and customer behavior
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setShowPredictionModal(false)}
+                                className="p-2 hover:bg-gray-100 rounded-lg transition"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-6">
+                            {/* Prediction Type Selector */}
+                            <div className="flex gap-3">
+                                {[
+                                    { id: 'bestSeller', label: 'Best Sellers', icon: Crown, color: 'text-yellow-500' },
+                                    { id: 'poorSeller', label: 'Poor Sellers', icon: TrendingDown, color: 'text-red-500' },
+                                    { id: 'highReturnRisk', label: 'High Return Risk', icon: AlertTriangle, color: 'text-orange-500' }
+                                ].map((type) => {
+                                    const Icon = type.icon;
+                                    return (
+                                        <button
+                                            key={type.id}
+                                            onClick={() => runPrediction(type.id)}
+                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${selectedPredictionType === type.id
+                                                ? 'bg-[#1e427b] text-white shadow-md'
+                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                                }`}
+                                        >
+                                            <Icon className={`w-4 h-4 ${selectedPredictionType === type.id ? 'text-white' : type.color}`} />
+                                            {type.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {predictionLoading ? (
+                                <div className="flex justify-center py-12">
+                                    <div className="text-center">
+                                        <Loader2 className="w-10 h-10 text-purple-500 animate-spin mx-auto" />
+                                        <p className="text-gray-500 mt-3">Analyzing product data...</p>
+                                    </div>
+                                </div>
+                            ) : predictionError ? (
+                                <div className="text-center py-8">
+                                    <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-200">
+                                        <p className="font-medium">Unable to get prediction</p>
+                                        <p className="text-sm mt-1">{predictionError}</p>
+                                        <button
+                                            onClick={() => runPrediction(selectedPredictionType)}
+                                            className="mt-3 text-sm text-purple-600 hover:text-purple-700 font-medium"
+                                        >
+                                            Try Again
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : predictionData ? (
+                                <div className="space-y-6">
+                                    {/* Summary Stats */}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-4 text-center">
+                                            <p className="text-xs text-gray-500">Total Products Analyzed</p>
+                                            <p className="text-2xl font-bold text-[#1e427b]">{predictionData.totalProducts}</p>
+                                        </div>
+                                        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-4 text-center">
+                                            <p className="text-xs text-gray-500">Predicted {predictionData.predictionType === 'bestSeller' ? 'Best Sellers' : predictionData.predictionType === 'poorSeller' ? 'Poor Sellers' : 'High Return Risk'}</p>
+                                            <p className="text-2xl font-bold text-emerald-600">{predictionData.predictedCount}</p>
+                                        </div>
+                                        <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl p-4 text-center">
+                                            <p className="text-xs text-gray-500">Confidence Level</p>
+                                            <p className="text-2xl font-bold text-amber-600">{predictionData.confidence}%</p>
+                                            <p className="text-xs text-gray-400 mt-1">Based on historical data</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Top Products List */}
+                                    <div>
+                                        <h4 className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                                            {predictionData.predictionType === 'bestSeller' && <Crown className="w-4 h-4 text-yellow-500" />}
+                                            {predictionData.predictionType === 'poorSeller' && <TrendingDown className="w-4 h-4 text-red-500" />}
+                                            {predictionData.predictionType === 'highReturnRisk' && <AlertTriangle className="w-4 h-4 text-orange-500" />}
+                                            {predictionData.predictionType === 'bestSeller' && 'Top Predicted Best Sellers'}
+                                            {predictionData.predictionType === 'poorSeller' && 'Top Predicted Poor Sellers'}
+                                            {predictionData.predictionType === 'highReturnRisk' && 'Top Predicted High Return Risk Products'}
+                                        </h4>
+                                        <div className="space-y-2">
+                                            {predictionData.topProducts && predictionData.topProducts.length > 0 ? (
+                                                predictionData.topProducts.map((product, idx) => (
+                                                    <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition">
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="text-sm font-bold text-[#1e427b]">#{idx + 1}</span>
+                                                            <div>
+                                                                <span className="font-medium text-slate-800">{product.name}</span>
+                                                                <p className="text-xs text-gray-400">{product.category}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <span className="text-sm font-semibold text-purple-600">
+                                                                {predictionData.predictionType === 'bestSeller' && `Score: ${product.score}%`}
+                                                                {predictionData.predictionType === 'poorSeller' && `Score: ${product.score}%`}
+                                                                {predictionData.predictionType === 'highReturnRisk' && `Risk: ${product.score}%`}
+                                                            </span>
+                                                            <p className="text-xs text-gray-400">{product.sales} sales</p>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <p className="text-sm text-gray-400 text-center py-4">No products in this category</p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Recommendations */}
+                                    <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                                        <h4 className="font-semibold text-blue-800 text-sm flex items-center gap-2">
+                                            <Sparkles className="w-4 h-4" />
+                                            Recommendations
+                                        </h4>
+                                        <p className="text-sm text-blue-700 mt-1">
+                                            {predictionData.predictionType === 'bestSeller' &&
+                                                'Consider increasing stock for these products. Run targeted marketing campaigns to boost sales further.'}
+                                            {predictionData.predictionType === 'poorSeller' &&
+                                                'Review pricing, update product images/descriptions, or consider running promotional offers to improve sales.'}
+                                            {predictionData.predictionType === 'highReturnRisk' &&
+                                                'Review product quality, update descriptions to set correct expectations, and consider quality control improvements.'}
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 text-gray-400">
+                                    Select a prediction type to see results
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {showAddModal && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
