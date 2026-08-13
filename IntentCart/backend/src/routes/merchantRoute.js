@@ -46,7 +46,8 @@ import {
 import {
     getCustomers,
     getCustomerDetails,
-    getCustomerStats
+    getCustomerStats,
+    segmentCustomers
 } from '../controllers/customerAnalysisController.js';
 
 import {
@@ -125,6 +126,8 @@ router.put('/orders/:id/status', updateOrderStatus);
 router.get('/customers', getCustomers);
 router.get('/customers/stats', getCustomerStats);
 router.get('/customers/:id', getCustomerDetails);
+router.post('/customers/segment', segmentCustomers);
+
 
 // ==================== CAMPAIGN MANAGEMENT ====================
 router.post('/campaigns', createCampaign);
