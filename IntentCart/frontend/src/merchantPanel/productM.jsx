@@ -769,7 +769,7 @@ const Dashboard = () => {
                                 </div>
                                 <button
                                     onClick={openPredictionModal}
-                                    className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-medium px-5 py-2.5 rounded-lg text-sm shadow-lg shadow-purple-200 transition-all"
+                                    className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-blue-900 font-medium px-5 py-2.5 rounded-lg text-sm shadow-lg shadow-purple-200 transition-all"
                                 >
                                     <Sparkles className="w-4 h-4" />
                                     Product Performance Prediction

@@ -37,6 +37,13 @@ import MerchantProfile from "./merchantPanel/profile.jsx";
 
 import TrackingProvider from './components/TrackingProvider';
 
+// Shipping Panel
+import ShippingDashboard from "./shippingPanel/dashboard.jsx";
+import ShippingOrderDetails from "./shippingPanel/OrderDetails.jsx";
+import ShippingTracking from "./shippingPanel/Tracking.jsx";
+import ShippingReturns from './shippingPanel/Returns.jsx';
+import ShippingDrivers from "./shippingPanel/drivers.jsx";
+
 function App() {
 
   return (
@@ -80,6 +87,13 @@ function App() {
             <Route path="/order-success/:orderId" element={<OrderSuccess />} />
             <Route path="/orders" element={<OrdersPage />} />
             <Route path="/order/:id" element={<OrderDetailPage />} />
+
+            {/* Shipping Panel Paths  */}
+            <Route path="/shipping-shippingM" element={<ShippingDashboard />} />
+            <Route path="/shipping-OrderM" element={<ShippingOrderDetails />}/>
+            <Route path="/shipping-tracking" element={<ShippingTracking />}/>
+            <Route path="/shipping-returns" element={<ShippingReturns />}/>
+            <Route path="/shipping-drivers" element={<ShippingDrivers />}/>
 
           </Routes>
         </BrowserRouter>
