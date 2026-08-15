@@ -41,7 +41,9 @@ import {
     Info,
     History,
     Edit,
-    Trash2
+    Trash2,
+    Database,
+    Layers
 } from 'lucide-react';
 import {
     ResponsiveContainer,
@@ -84,13 +86,19 @@ const RecoveryDashboard = () => {
         intentDistribution: [],
         recommendations: [],
         recentRecoveries: [],
-        activeAbandonments: []
+        activeAbandonments: [],
+        pureAbandonedCarts: {
+            count: 0,
+            totalRevenue: 0,
+            carts: []
+        }
     });
     const [selectedTimeRange, setSelectedTimeRange] = useState('week');
     const [showRecommendations, setShowRecommendations] = useState(true);
     const [expandedRecommendation, setExpandedRecommendation] = useState(null);
     const [triggeringRecovery, setTriggeringRecovery] = useState(null);
     const [expandedAbandonment, setExpandedAbandonment] = useState(null);
+    const [showPureAbandonedDetails, setShowPureAbandonedDetails] = useState(false);
 
     const getToken = () => localStorage.getItem('token');
 
@@ -141,7 +149,12 @@ const RecoveryDashboard = () => {
                     intentDistribution: data.stats.intentDistribution || [],
                     recommendations: data.stats.recommendations || [],
                     recentRecoveries: data.stats.recentRecoveries || [],
-                    activeAbandonments: data.stats.activeAbandonments || []
+                    activeAbandonments: data.stats.activeAbandonments || [],
+                    pureAbandonedCarts: data.stats.pureAbandonedCarts || {
+                        count: 0,
+                        totalRevenue: 0,
+                        carts: []
+                    }
                 });
             } else {
                 setError(data.message || 'Failed to load recovery data');
@@ -160,7 +173,7 @@ const RecoveryDashboard = () => {
     };
 
     // Trigger recovery for an abandonment
-    const handleTriggerRecovery = async (abandonmentId) => {
+    const handleTriggerRecovery = async (abandonmentId, source = 'cart') => {
         try {
             setTriggeringRecovery(abandonmentId);
             const token = getToken();
@@ -175,7 +188,10 @@ const RecoveryDashboard = () => {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ abandonmentId })
+                body: JSON.stringify({
+                    abandonmentId,
+                    source: source // 'cart' or 'abandonedCart'
+                })
             });
 
             if (!response.ok) {
@@ -328,8 +344,8 @@ const RecoveryDashboard = () => {
                             </div>
                         </div>
 
-                        {/* Stats Cards */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        {/* Stats Cards - Extended with Pure Abandoned Carts */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
                             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                                 <div className="flex items-center justify-between">
                                     <div>
@@ -386,7 +402,162 @@ const RecoveryDashboard = () => {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* New Card for Pure Abandoned Carts */}
+                            <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 rounded-2xl border border-indigo-200 shadow-sm">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-slate-600 text-sm font-medium flex items-center gap-1">
+                                            <Database className="w-3 h-3" />
+                                            Pure Abandoned
+                                        </p>
+                                        <p className="text-2xl font-extrabold text-indigo-700 mt-1">
+                                            {stats.pureAbandonedCarts?.count || 0}
+                                        </p>
+                                        <p className="text-xs text-slate-500">
+                                            {formatCurrency(stats.pureAbandonedCarts?.totalRevenue || 0)} value
+                                        </p>
+                                    </div>
+                                    <div className="w-10 h-10 bg-indigo-200 rounded-xl flex items-center justify-center">
+                                        <Layers className="w-5 h-5 text-indigo-700" />
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+
+                        {/* Pure Abandoned Carts Section */}
+                        {stats.pureAbandonedCarts?.carts?.length > 0 && (
+                            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl border border-indigo-200 shadow-sm overflow-hidden mb-8">
+                                <div
+                                    className="p-4 border-b border-indigo-200 flex items-center justify-between cursor-pointer hover:bg-indigo-100/30 transition"
+                                    onClick={() => setShowPureAbandonedDetails(!showPureAbandonedDetails)}
+                                >
+                                    <h3 className="text-sm font-bold text-indigo-800 flex items-center gap-2">
+                                        <Database className="w-4 h-4" />
+                                        Pure Abandoned Carts
+                                        <span className="text-xs bg-indigo-200 text-indigo-800 px-2 py-0.5 rounded-full">
+                                            {stats.pureAbandonedCarts?.count || 0} carts
+                                        </span>
+                                        <span className="text-xs bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full">
+                                            {formatCurrency(stats.pureAbandonedCarts?.totalRevenue || 0)}
+                                        </span>
+                                    </h3>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-indigo-600">
+                                            {showPureAbandonedDetails ? 'Hide details' : 'Show details'}
+                                        </span>
+                                        {showPureAbandonedDetails ? (
+                                            <ChevronLeft className="w-4 h-4 text-indigo-600" />
+                                        ) : (
+                                            <ChevronRight className="w-4 h-4 text-indigo-600" />
+                                        )}
+                                    </div>
+                                </div>
+
+                                {showPureAbandonedDetails && (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead className="bg-indigo-100/50">
+                                                <tr>
+                                                    <th className="text-left text-xs font-semibold text-indigo-700 px-4 py-3">Customer</th>
+                                                    <th className="text-left text-xs font-semibold text-indigo-700 px-4 py-3">Contact</th>
+                                                    <th className="text-left text-xs font-semibold text-indigo-700 px-4 py-3 text-center">Items</th>
+                                                    <th className="text-left text-xs font-semibold text-indigo-700 px-4 py-3 text-center">Amount</th>
+                                                    <th className="text-left text-xs font-semibold text-indigo-700 px-4 py-3 text-center">Status</th>
+                                                    <th className="text-left text-xs font-semibold text-indigo-700 px-4 py-3 text-center">Attempts</th>
+                                                    <th className="text-left text-xs font-semibold text-indigo-700 px-4 py-3 text-center">Removal Type</th>
+                                                    <th className="text-left text-xs font-semibold text-indigo-700 px-4 py-3 text-center">Abandoned</th>
+                                                    <th className="text-left text-xs font-semibold text-indigo-700 px-4 py-3 text-center">Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-indigo-100">
+                                                {stats.pureAbandonedCarts.carts.map((cart, idx) => {
+                                                    const statusInfo = getStatusInfo(cart.status);
+                                                    return (
+                                                        <tr key={idx} className="hover:bg-indigo-50/50 transition">
+                                                            <td className="px-4 py-3">
+                                                                <div>
+                                                                    <p className="text-sm font-medium text-slate-800">{cart.customer}</p>
+                                                                    <p className="text-xs text-slate-400">ID: {cart._id?.substring(0, 8)}</p>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                <div>
+                                                                    <p className="text-sm text-slate-600">{cart.email}</p>
+                                                                    {cart.phone && cart.phone !== 'No phone' && (
+                                                                        <p className="text-xs text-slate-400">{cart.phone}</p>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-center">
+                                                                <span className="text-sm font-semibold text-slate-800">
+                                                                    {cart.itemsCount || 0}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-center">
+                                                                <span className="text-sm font-semibold text-indigo-700">
+                                                                    {formatCurrency(cart.amount)}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-center">
+                                                                <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full ${statusInfo.color}`}>
+                                                                    {statusInfo.icon}
+                                                                    {statusInfo.label}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-center">
+                                                                <span className="text-sm font-medium text-slate-700">
+                                                                    {cart.recoveryAttempts || 0}
+                                                                </span>
+                                                                {cart.lastRecoveryAttempt && (
+                                                                    <p className="text-xs text-slate-400">
+                                                                        {new Date(cart.lastRecoveryAttempt).toLocaleDateString()}
+                                                                    </p>
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-center">
+                                                                <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
+                                                                    {cart.removalType || 'N/A'}
+                                                                </span>
+                                                                {cart.removedItemsCount > 0 && (
+                                                                    <p className="text-xs text-slate-400">
+                                                                        {cart.removedItemsCount} items removed
+                                                                    </p>
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-center">
+                                                                <span className="text-xs text-slate-400">
+                                                                    {cart.abandonedAt ? new Date(cart.abandonedAt).toLocaleDateString() : 'N/A'}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-center">
+                                                                {cart.status !== 'recovered' && (
+                                                                    <button
+                                                                        onClick={() => handleTriggerRecovery(cart._id, 'abandonedCart')}
+                                                                        disabled={triggeringRecovery === cart._id}
+                                                                        className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition flex items-center gap-1 mx-auto disabled:opacity-50"
+                                                                    >
+                                                                        {triggeringRecovery === cart._id ? (
+                                                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                                                        ) : (
+                                                                            <Zap className="w-3 h-3" />
+                                                                        )}
+                                                                        {triggeringRecovery === cart._id ? 'Sending...' : 'Recover'}
+                                                                    </button>
+                                                                )}
+                                                                {cart.status === 'recovered' && (
+                                                                    <span className="text-xs text-emerald-600">✓ Recovered</span>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Charts */}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -583,7 +754,7 @@ const RecoveryDashboard = () => {
                             </div>
                         </div>
 
-                        {/* Active Abandonments - Customers who abandoned */}
+                        {/* Active Abandonments */}
                         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-8">
                             <div className="p-6 border-b border-slate-200 flex items-center justify-between">
                                 <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
@@ -604,58 +775,76 @@ const RecoveryDashboard = () => {
                                                 <th className="text-left text-xs font-semibold text-slate-600 px-4 py-3">Contact</th>
                                                 <th className="text-left text-xs font-semibold text-slate-600 px-4 py-3 text-center">Items</th>
                                                 <th className="text-left text-xs font-semibold text-slate-600 px-4 py-3 text-center">Amount</th>
+                                                <th className="text-left text-xs font-semibold text-slate-600 px-4 py-3 text-center">Status</th>
                                                 <th className="text-left text-xs font-semibold text-slate-600 px-4 py-3 text-center">Abandoned</th>
                                                 <th className="text-left text-xs font-semibold text-slate-600 px-4 py-3 text-center">Action</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
-                                            {stats.activeAbandonments.map((abandonment, idx) => (
-                                                <tr key={idx} className="hover:bg-slate-50 transition">
-                                                    <td className="px-4 py-3">
-                                                        <div>
-                                                            <p className="text-sm font-medium text-slate-800">{abandonment.customer}</p>
-                                                            <p className="text-xs text-slate-400">ID: {abandonment._id?.substring(0, 8)}</p>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <div>
-                                                            <p className="text-sm text-slate-600">{abandonment.email}</p>
-                                                            {abandonment.phone && abandonment.phone !== 'No phone' && (
-                                                                <p className="text-xs text-slate-400">{abandonment.phone}</p>
+                                            {stats.activeAbandonments.map((abandonment, idx) => {
+                                                const statusInfo = getStatusInfo(abandonment.status);
+                                                return (
+                                                    <tr key={idx} className="hover:bg-slate-50 transition">
+                                                        <td className="px-4 py-3">
+                                                            <div>
+                                                                <p className="text-sm font-medium text-slate-800">{abandonment.customer}</p>
+                                                                <p className="text-xs text-slate-400">ID: {abandonment._id?.substring(0, 8)}</p>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <div>
+                                                                <p className="text-sm text-slate-600">{abandonment.email}</p>
+                                                                {abandonment.phone && abandonment.phone !== 'No phone' && (
+                                                                    <p className="text-xs text-slate-400">{abandonment.phone}</p>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-center">
+                                                            <span className="text-sm font-semibold text-slate-800">
+                                                                {abandonment.itemsCount || 0}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-center">
+                                                            <span className={`text-sm font-semibold ${abandonment.amount > 5000 ? 'text-red-600' : 'text-[#1e3a6a]'}`}>
+                                                                {formatCurrency(abandonment.amount)}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-center">
+                                                            <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full ${statusInfo.color}`}>
+                                                                {statusInfo.icon}
+                                                                {statusInfo.label}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-center">
+                                                            <span className="text-xs text-slate-400">
+                                                                {abandonment.abandonedAt ? new Date(abandonment.abandonedAt).toLocaleDateString() : 'N/A'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-center">
+                                                            {abandonment.status !== 'empty' && abandonment.status !== 'items_removed' && (
+                                                                <button
+                                                                    onClick={() => handleTriggerRecovery(abandonment._id, 'cart')}
+                                                                    disabled={triggeringRecovery === abandonment._id}
+                                                                    className="text-xs bg-[#1e3a6a] text-white px-3 py-1.5 rounded-lg hover:bg-blue-800 transition flex items-center gap-1 mx-auto disabled:opacity-50"
+                                                                >
+                                                                    {triggeringRecovery === abandonment._id ? (
+                                                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                                                    ) : (
+                                                                        <Zap className="w-3 h-3" />
+                                                                    )}
+                                                                    {triggeringRecovery === abandonment._id ? 'Sending...' : 'Recover'}
+                                                                </button>
                                                             )}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-3 text-center">
-                                                        <span className="text-sm font-semibold text-slate-800">
-                                                            {abandonment.itemsCount || 0}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-4 py-3 text-center">
-                                                        <span className="text-sm font-semibold text-[#1e3a6a]">
-                                                            {formatCurrency(abandonment.amount)}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-4 py-3 text-center">
-                                                        <span className="text-xs text-slate-400">
-                                                            {abandonment.abandonedAt ? new Date(abandonment.abandonedAt).toLocaleDateString() : 'N/A'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-4 py-3 text-center">
-                                                        <button
-                                                            onClick={() => handleTriggerRecovery(abandonment._id)}
-                                                            disabled={triggeringRecovery === abandonment._id}
-                                                            className="text-xs bg-[#1e3a6a] text-white px-3 py-1.5 rounded-lg hover:bg-blue-800 transition flex items-center gap-1 mx-auto disabled:opacity-50"
-                                                        >
-                                                            {triggeringRecovery === abandonment._id ? (
-                                                                <Loader2 className="w-3 h-3 animate-spin" />
-                                                            ) : (
-                                                                <Zap className="w-3 h-3" />
+                                                            {abandonment.status === 'empty' && (
+                                                                <span className="text-xs text-gray-400">Empty Cart</span>
                                                             )}
-                                                            {triggeringRecovery === abandonment._id ? 'Sending...' : 'Recover'}
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                                            {abandonment.status === 'items_removed' && (
+                                                                <span className="text-xs text-gray-400">Items Removed</span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>

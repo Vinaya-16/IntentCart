@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import Product from '../models/Product.js';
 import Event from '../models/Event.js';
 import Notification from '../models/Notifications.js';
+import AbandonedCart from '../models/AbandonedCart.js';
 
 // ==================== RECOVERY DASHBOARD ====================
 
@@ -25,6 +26,18 @@ export const getRecoveryDashboard = async (req, res) => {
         const allOrders = await Order.find({ merchantId: merchantId })
             .select('customerId createdAt')
             .lean();
+
+        // ============ GET PURE ABANDONED CARTS ============
+        // Get abandoned carts from the AbandonedCart model
+        const pureAbandonedCarts = await AbandonedCart.find({
+            merchantId: merchantId,
+            status: { $in: ['abandoned', 'recovery_attempted'] }
+        })
+            .populate('customerId', 'name email phone mobile')
+            .populate('items.productId', 'name price images')
+            .sort({ createdAt: -1 });
+
+        // console.log(`Found ${pureAbandonedCarts.length} pure abandoned carts`);
 
         // Create a set of customer IDs who have placed orders
         const customersWithOrders = new Set();
@@ -58,7 +71,9 @@ export const getRecoveryDashboard = async (req, res) => {
 
         // ============ CALCULATE STATS ============
         const totalAbandonments = abandonedCarts.length;
+        const pureTotalAbandonments = pureAbandonedCarts.length; // Add pure abandoned count
         const recoverableRevenue = abandonedCarts.reduce((sum, cart) => sum + (cart.total || 0), 0);
+        const pureRecoverableRevenue = pureAbandonedCarts.reduce((sum, cart) => sum + (cart.total || 0), 0);
         const recoveredRevenue = recoveredCarts.reduce((sum, cart) => sum + (cart.total || 0), 0);
         const recoveryRate = totalAbandonments > 0 ? Math.round((recoveredCarts.length / totalAbandonments) * 100) : 0;
 
@@ -217,6 +232,26 @@ export const getRecoveryDashboard = async (req, res) => {
                 recoveryAttempts: Math.round(recoveredCarts.length * 0.7),
                 totalAbandonments,
                 recoveredRevenue,
+                // Add pure abandoned carts data
+                pureAbandonedCarts: {
+                    count: pureTotalAbandonments,
+                    totalRevenue: pureRecoverableRevenue,
+                    carts: pureAbandonedCarts.map(cart => ({
+                        _id: cart._id,
+                        customer: cart.customerId?.name || 'Unknown',
+                        email: cart.customerId?.email || 'No email',
+                        phone: cart.customerId?.phone || cart.customerId?.mobile || 'No phone',
+                        amount: cart.total || 0,
+                        items: cart.items || [],
+                        itemsCount: cart.items?.length || 0,
+                        status: cart.status,
+                        recoveryAttempts: cart.recoveryAttempts || 0,
+                        lastRecoveryAttempt: cart.lastRecoveryAttempt || null,
+                        abandonedAt: cart.createdAt,
+                        removalType: cart.removalType,
+                        removedItemsCount: cart.removedItemsCount || 0
+                    }))
+                },
                 abandonmentReasons: reasons,
                 recoveryTrend,
                 intentDistribution,
@@ -244,45 +279,95 @@ export const getRecoveryDashboard = async (req, res) => {
 export const triggerRecovery = async (req, res) => {
     try {
         const merchantId = req.user._id;
-        const { abandonmentId } = req.body;
+        const { abandonmentId, source } = req.body; 
 
-        // Find the abandoned cart with customer details
-        const cart = await Cart.findById(abandonmentId)
-            .populate('customerId', 'email name phone mobile _id')
-            .populate('items.productId', 'name price images');
+        let cart;
+        let customer;
+        let cartData;
 
-        if (!cart) {
-            return res.status(404).json({
-                success: false,
-                message: 'Abandoned cart not found'
-            });
-        }
+        // ============ FETCH FROM APPROPRIATE SOURCE ============
+        if (source === 'abandonedCart') {
+            // Fetch from AbandonedCart model
+            const abandonedCart = await AbandonedCart.findById(abandonmentId)
+                .populate('customerId', 'email name phone mobile _id')
+                .populate('items.productId', 'name price images');
 
-        const customer = cart.customerId;
-        if (!customer) {
-            return res.status(404).json({
-                success: false,
-                message: 'Customer not found'
-            });
+            if (!abandonedCart) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Abandoned cart not found'
+                });
+            }
+
+            customer = abandonedCart.customerId;
+            if (!customer) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Customer not found'
+                });
+            }
+
+            // Update abandoned cart status
+            abandonedCart.status = 'recovery_attempted';
+            abandonedCart.recoveryAttempts = (abandonedCart.recoveryAttempts || 0) + 1;
+            abandonedCart.lastRecoveryAttempt = new Date();
+            await abandonedCart.save();
+
+            cartData = {
+                _id: abandonedCart._id,
+                total: abandonedCart.total || 0,
+                items: abandonedCart.items || [],
+                source: 'abandoned_cart'
+            };
+
+            // console.log(`Recovery triggered for pure abandoned cart ${abandonedCart._id}`);
+        } else {
+            // Fetch from Cart model (default)
+            cart = await Cart.findById(abandonmentId)
+                .populate('customerId', 'email name phone mobile _id')
+                .populate('items.productId', 'name price images');
+
+            if (!cart) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Abandoned cart not found'
+                });
+            }
+
+            customer = cart.customerId;
+            if (!customer) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Customer not found'
+                });
+            }
+
+            cartData = {
+                _id: cart._id,
+                total: cart.total || 0,
+                items: cart.items || [],
+                source: 'cart'
+            };
         }
 
         // ============ CREATE NOTIFICATION FOR CUSTOMER ============
         await Notification.create({
             title: 'You left something behind!',
-            message: `Your cart with ${cart.items.length} item(s) worth Rs.${cart.total} is waiting for you! Complete your purchase now.`,
+            message: `Your cart with ${cartData.items.length} item(s) worth Rs.${cartData.total} is waiting for you! Complete your purchase now.`,
             type: 'info',
             category: 'Orders',
             panel: 'customer',
             customerId: customer._id,
             merchantId: merchantId,
             isGlobal: false,
-            actionLink: `/checkout?recovery=${cart._id}`,
+            actionLink: `/checkout?recovery=${cartData._id}&source=${cartData.source}`,
             actionLabel: 'Complete Purchase',
             metadata: {
-                cartId: cart._id,
-                cartTotal: cart.total,
-                itemsCount: cart.items.length,
-                items: cart.items.map(item => ({
+                cartId: cartData._id,
+                cartTotal: cartData.total,
+                itemsCount: cartData.items.length,
+                source: cartData.source,
+                items: cartData.items.map(item => ({
                     name: item.productId?.name,
                     quantity: item.quantity,
                     price: item.price
@@ -290,12 +375,12 @@ export const triggerRecovery = async (req, res) => {
             }
         });
 
-        // console.log(`Recovery notification sent to ${customer.email} for cart ${cart._id}`);
+        // console.log(`Recovery notification sent to ${customer.email} for cart ${cartData._id}`);
 
         // ============ CREATE NOTIFICATION FOR MERCHANT ============
         await Notification.create({
             title: 'Recovery Email Sent',
-            message: `Recovery email sent to ${customer.name} (${customer.email}) for cart worth Rs.${cart.total}`,
+            message: `Recovery email sent to ${customer.name} (${customer.email}) for cart worth Rs.${cartData.total}`,
             type: 'success',
             category: 'Orders',
             panel: 'merchant',
@@ -304,10 +389,11 @@ export const triggerRecovery = async (req, res) => {
             actionLink: `/recovery-dashboard`,
             actionLabel: 'View Dashboard',
             metadata: {
-                cartId: cart._id,
+                cartId: cartData._id,
                 customerId: customer._id,
                 customerEmail: customer.email,
-                cartTotal: cart.total
+                cartTotal: cartData.total,
+                source: cartData.source
             }
         });
 
@@ -317,13 +403,14 @@ export const triggerRecovery = async (req, res) => {
                 customerId: customer._id,
                 merchantId: merchantId,
                 eventType: 'recovery_attempted',
-                sessionId: `recovery_${cart._id}`,
+                sessionId: `recovery_${cartData._id}`,
                 metadata: {
-                    cartId: cart._id,
-                    cartTotal: cart.total,
-                    itemsCount: cart.items.length,
+                    cartId: cartData._id,
+                    cartTotal: cartData.total,
+                    itemsCount: cartData.items.length,
                     recoveryMethod: 'Manual',
-                    notificationSent: true
+                    notificationSent: true,
+                    source: cartData.source
                 }
             });
         } catch (eventError) {
@@ -334,12 +421,13 @@ export const triggerRecovery = async (req, res) => {
             success: true,
             message: 'Recovery email sent successfully!',
             data: {
-                cartId: cart._id,
+                cartId: cartData._id,
                 customerEmail: customer.email,
                 customerName: customer.name,
-                cartTotal: cart.total,
-                itemsCount: cart.items.length,
-                recoveryLink: `${'http://localhost:5173'}/checkout?recovery=${cart._id}`
+                cartTotal: cartData.total,
+                itemsCount: cartData.items.length,
+                source: cartData.source,
+                recoveryLink: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/checkout?recovery=${cartData._id}&source=${cartData.source}`
             }
         });
 
@@ -360,6 +448,7 @@ export const getAbandonments = async (req, res) => {
     try {
         const merchantId = req.user._id;
 
+        // ============ GET REGULAR ABANDONED CARTS ============
         // Get all carts without orders
         const allCarts = await Cart.find({})
             .populate('customerId', 'name email phone mobile')
@@ -393,13 +482,64 @@ export const getAbandonments = async (req, res) => {
             items: cart.items || [],
             itemsCount: cart.items?.length || 0,
             abandonedAt: cart.createdAt,
-            status: 'abandoned'
+            status: 'abandoned',
+            source: 'cart' // Add source identifier
         }));
+
+        // ============ GET PURE ABANDONED CARTS ============
+        // Get abandoned carts from AbandonedCart model
+        const pureAbandonedCarts = await AbandonedCart.find({
+            merchantId: merchantId,
+            status: { $in: ['abandoned', 'recovery_attempted'] }
+        })
+            .populate('customerId', 'name email phone mobile')
+            .populate('items.productId', 'name price images')
+            .sort({ createdAt: -1 });
+
+        const formattedPureAbandonments = pureAbandonedCarts.map(cart => ({
+            _id: cart._id,
+            customer: cart.customerId?.name || 'Unknown',
+            email: cart.customerId?.email || 'No email',
+            phone: cart.customerId?.phone || cart.customerId?.mobile || 'No phone',
+            amount: cart.total || 0,
+            items: cart.items || [],
+            itemsCount: cart.items?.length || 0,
+            abandonedAt: cart.createdAt,
+            status: cart.status, // 'abandoned' or 'recovery_attempted'
+            source: 'abandoned_cart', // Add source identifier
+            recoveryAttempts: cart.recoveryAttempts || 0,
+            lastRecoveryAttempt: cart.lastRecoveryAttempt || null,
+            removalType: cart.removalType,
+            removedItemsCount: cart.removedItemsCount || 0
+        }));
+
+        // ============ COMBINE BOTH TYPES ============
+        const allAbandonments = [...formattedAbandonments, ...formattedPureAbandonments];
+
+        // Sort by abandonedAt date (newest first)
+        allAbandonments.sort((a, b) => new Date(b.abandonedAt) - new Date(a.abandonedAt));
+
+        // ============ CALCULATE STATISTICS ============
+        const stats = {
+            total: allAbandonments.length,
+            fromCart: formattedAbandonments.length,
+            fromAbandonedCart: formattedPureAbandonments.length,
+            totalRevenue: allAbandonments.reduce((sum, item) => sum + (item.amount || 0), 0),
+            averageCartValue: allAbandonments.length > 0
+                ? Math.round(allAbandonments.reduce((sum, item) => sum + (item.amount || 0), 0) / allAbandonments.length)
+                : 0,
+            recoveryAttempted: allAbandonments.filter(item => item.status === 'recovery_attempted').length,
+            statusDistribution: {
+                abandoned: allAbandonments.filter(item => item.status === 'abandoned').length,
+                recovery_attempted: allAbandonments.filter(item => item.status === 'recovery_attempted').length
+            }
+        };
 
         res.status(200).json({
             success: true,
-            count: formattedAbandonments.length,
-            abandonments: formattedAbandonments
+            stats: stats,
+            count: allAbandonments.length,
+            abandonments: allAbandonments
         });
 
     } catch (error) {

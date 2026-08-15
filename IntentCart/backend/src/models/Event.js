@@ -22,21 +22,38 @@ const eventSchema = new mongoose.Schema({
     eventType: {
         type: String,
         enum: [
-            'product_viewed',
+            // Page events
+            'page_view',
+            'home_visit',
+            'product_list_view',
+            'product_detail_view',
+
+            // Cart events
             'add_to_cart',
-            'cart_viewed',
-            'checkout_started',
-            'wishlist_viewed',
-            'payment_failed',
-
-            'purchase_completed',
-            'cart_restored',
-
+            'remove_from_cart',
+            'update_cart',
+            'cart_view',
             'cart_abandoned',
-            'checkout_abandoned',
-            'product_abandoned',
-            'wishlist_abandoned',
-            'recovery_email_sent'
+
+            // Checkout events
+            'checkout_start',
+            'checkout_step',
+            'checkout_complete',
+
+            // Order events
+            'order_placed',
+            'order_cancelled',
+            'order_returned',
+
+            // Recovery events
+            'recovery_attempted',
+            'recovery_successful',
+            'recovery_clicked',
+
+            // User events
+            'user_login',
+            'user_signup',
+            'user_logout'
         ],
         required: true,
         index: true

@@ -1,6 +1,8 @@
+// controllers/cartController.js
 import Cart from '../models/Cart.js';
 import Product from '../models/Product.js';
 import User from '../models/User.js';
+import AbandonedCart from '../models/AbandonedCart.js';
 import { triggerPriceDropNotification } from './customerNotificationController.js';
 
 // ==================== CART MANAGEMENT ====================
@@ -181,7 +183,9 @@ export const removeFromCart = async (req, res) => {
     const customerId = req.user._id;
     const { itemId } = req.params;
 
-    const cart = await Cart.findOne({ customerId });
+    const cart = await Cart.findOne({ customerId })
+      .populate('items.productId', 'name price images stock merchantId');
+
     if (!cart) {
       return res.status(404).json({
         success: false,
@@ -189,6 +193,35 @@ export const removeFromCart = async (req, res) => {
       });
     }
 
+    // Find the item being removed
+    const removedItem = cart.items.find(item => item._id.toString() === itemId);
+
+    if (!removedItem) {
+      return res.status(404).json({
+        success: false,
+        message: 'Item not found in cart'
+      });
+    }
+
+    // Get merchant ID from the product
+    const product = await Product.findById(removedItem.productId);
+    const merchantId = product ? product.merchantId : null;
+
+    // Save cart state before removal for abandoned cart tracking
+    const cartSnapshot = {
+      items: cart.items.map(item => ({
+        productId: item.productId._id || item.productId,
+        quantity: item.quantity,
+        price: item.price,
+        total: item.total
+      })),
+      subtotal: cart.subtotal,
+      total: cart.total,
+      discount: cart.discount,
+      couponCode: cart.couponCode
+    };
+
+    // Remove the item from cart
     cart.items = cart.items.filter(item => item._id.toString() !== itemId);
 
     // Recalculate totals
@@ -196,6 +229,35 @@ export const removeFromCart = async (req, res) => {
     cart.total = cart.subtotal - cart.discount;
 
     await cart.save();
+
+    // Create abandoned cart record for the removed item
+    if (merchantId) {
+      try {
+        const abandonedCart = new AbandonedCart({
+          customerId: customerId,
+          merchantId: merchantId,
+          items: [{
+            productId: removedItem.productId._id || removedItem.productId,
+            quantity: removedItem.quantity,
+            price: removedItem.price,
+            total: removedItem.total
+          }],
+          subtotal: removedItem.total,
+          total: removedItem.total,
+          discount: 0,
+          couponCode: null,
+          removalType: 'single_item',
+          removedItemsCount: 1,
+          status: 'abandoned'
+        });
+
+        await abandonedCart.save();
+        // console.log(`Abandoned cart tracked for product ${removedItem.productId}`);
+      } catch (trackError) {
+        console.error('Error tracking abandoned item:', trackError);
+        // Don't fail the main operation if tracking fails
+      }
+    }
 
     const updatedCart = await Cart.findById(cart._id)
       .populate('items.productId', 'name price images stock');
@@ -222,15 +284,78 @@ export const clearCart = async (req, res) => {
   try {
     const customerId = req.user._id;
 
-    const cart = await Cart.findOne({ customerId });
-    if (cart) {
-      cart.items = [];
-      cart.subtotal = 0;
-      cart.total = 0;
-      cart.discount = 0;
-      cart.couponCode = null;
-      await cart.save();
+    const cart = await Cart.findOne({ customerId })
+      .populate('items.productId', 'name price images stock merchantId');
+
+    if (!cart) {
+      return res.status(404).json({
+        success: false,
+        message: 'Cart not found'
+      });
     }
+
+    // If cart has items, track them as abandoned
+    if (cart.items.length > 0) {
+      // Group items by merchant
+      const itemsByMerchant = {};
+
+      for (const item of cart.items) {
+        const product = await Product.findById(item.productId);
+        const merchantId = product ? product.merchantId : null;
+
+        if (merchantId) {
+          if (!itemsByMerchant[merchantId]) {
+            itemsByMerchant[merchantId] = {
+              merchantId: merchantId,
+              items: [],
+              subtotal: 0
+            };
+          }
+
+          itemsByMerchant[merchantId].items.push({
+            productId: item.productId._id || item.productId,
+            quantity: item.quantity,
+            price: item.price,
+            total: item.total
+          });
+          itemsByMerchant[merchantId].subtotal += item.total;
+        }
+      }
+
+      // Create abandoned cart records for each merchant
+      for (const merchantId in itemsByMerchant) {
+        try {
+          const merchantData = itemsByMerchant[merchantId];
+
+          const abandonedCart = new AbandonedCart({
+            customerId: customerId,
+            merchantId: merchantId,
+            items: merchantData.items,
+            subtotal: merchantData.subtotal,
+            total: merchantData.subtotal,
+            discount: 0,
+            couponCode: null,
+            removalType: 'clear_all',
+            removedItemsCount: merchantData.items.length,
+            status: 'abandoned'
+          });
+
+          await abandonedCart.save();
+          // console.log(`Abandoned carts tracked for merchant ${merchantId}: ${merchantData.items.length} items`);
+        } catch (trackError) {
+          console.error('Error tracking abandoned items on clear:', trackError);
+          // Don't fail the main operation if tracking fails
+        }
+      }
+    }
+
+    // Clear the cart
+    cart.items = [];
+    cart.subtotal = 0;
+    cart.total = 0;
+    cart.discount = 0;
+    cart.couponCode = null;
+    await cart.save();
 
     res.status(200).json({
       success: true,
