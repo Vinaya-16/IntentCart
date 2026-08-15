@@ -339,7 +339,7 @@ export const triggerRecovery = async (req, res) => {
                 customerName: customer.name,
                 cartTotal: cart.total,
                 itemsCount: cart.items.length,
-                recoveryLink: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/checkout?recovery=${cart._id}`
+                recoveryLink: `${'http://localhost:5173'}/checkout?recovery=${cart._id}`
             }
         });
 

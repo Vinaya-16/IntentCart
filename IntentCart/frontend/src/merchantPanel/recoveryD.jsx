@@ -328,7 +328,7 @@ const RecoveryDashboard = () => {
                             </div>
                         </div>
 
-                        {/* Stats Cards - Fixed: Only 4 cards, no duplicates */}
+                        {/* Stats Cards */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                                 <div className="flex items-center justify-between">
@@ -583,7 +583,7 @@ const RecoveryDashboard = () => {
                             </div>
                         </div>
 
-                        {/* Active Abandonments - REMOVED Modified Column */}
+                        {/* Active Abandonments - Customers who abandoned */}
                         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-8">
                             <div className="p-6 border-b border-slate-200 flex items-center justify-between">
                                 <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
@@ -604,86 +604,58 @@ const RecoveryDashboard = () => {
                                                 <th className="text-left text-xs font-semibold text-slate-600 px-4 py-3">Contact</th>
                                                 <th className="text-left text-xs font-semibold text-slate-600 px-4 py-3 text-center">Items</th>
                                                 <th className="text-left text-xs font-semibold text-slate-600 px-4 py-3 text-center">Amount</th>
-                                                <th className="text-left text-xs font-semibold text-slate-600 px-4 py-3 text-center">Status</th>
                                                 <th className="text-left text-xs font-semibold text-slate-600 px-4 py-3 text-center">Abandoned</th>
                                                 <th className="text-left text-xs font-semibold text-slate-600 px-4 py-3 text-center">Action</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
-                                            {stats.activeAbandonments.map((abandonment, idx) => {
-                                                // Get status info
-                                                const statusInfo = getStatusInfo(abandonment.status);
-                                                const isExpanded = expandedAbandonment === idx;
-
-                                                return (
-                                                    <React.Fragment key={idx}>
-                                                        <tr className="hover:bg-slate-50 transition">
-                                                            <td className="px-4 py-3">
-                                                                <div>
-                                                                    <p className="text-sm font-medium text-slate-800">{abandonment.customer}</p>
-                                                                    <p className="text-xs text-slate-400">ID: {abandonment._id?.substring(0, 8)}</p>
-                                                                </div>
-                                                            </td>
-                                                            <td className="px-4 py-3">
-                                                                <div>
-                                                                    <p className="text-sm text-slate-600">{abandonment.email}</p>
-                                                                    {abandonment.phone && abandonment.phone !== 'No phone' && (
-                                                                        <p className="text-xs text-slate-400">{abandonment.phone}</p>
-                                                                    )}
-                                                                </div>
-                                                            </td>
-                                                            <td className="px-4 py-3 text-center">
-                                                                <div>
-                                                                    <span className="text-sm font-semibold text-slate-800">
-                                                                        {abandonment.itemsCount || 0}
-                                                                    </span>
-                                                                </div>
-                                                            </td>
-                                                            <td className="px-4 py-3 text-center">
-                                                                <div>
-                                                                    <span className={`text-sm font-semibold ${abandonment.amount > 5000 ? 'text-red-600' : 'text-[#1e3a6a]'
-                                                                        }`}>
-                                                                        {formatCurrency(abandonment.amount)}
-                                                                    </span>
-                                                                </div>
-                                                            </td>
-                                                            <td className="px-4 py-3 text-center">
-                                                                <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full ${statusInfo.color}`}>
-                                                                    {statusInfo.icon}
-                                                                    {statusInfo.label}
-                                                                </span>
-                                                            </td>
-                                                            <td className="px-4 py-3 text-center">
-                                                                <span className="text-xs text-slate-400">
-                                                                    {abandonment.abandonedAt ? new Date(abandonment.abandonedAt).toLocaleDateString() : 'N/A'}
-                                                                </span>
-                                                            </td>
-                                                            <td className="px-4 py-3 text-center">
-                                                                {abandonment.status !== 'empty' && abandonment.status !== 'items_removed' && (
-                                                                    <button
-                                                                        onClick={() => handleTriggerRecovery(abandonment._id)}
-                                                                        disabled={triggeringRecovery === abandonment._id}
-                                                                        className="text-xs bg-[#1e3a6a] text-white px-3 py-1.5 rounded-lg hover:bg-blue-800 transition flex items-center gap-1 mx-auto disabled:opacity-50"
-                                                                    >
-                                                                        {triggeringRecovery === abandonment._id ? (
-                                                                            <Loader2 className="w-3 h-3 animate-spin" />
-                                                                        ) : (
-                                                                            <Zap className="w-3 h-3" />
-                                                                        )}
-                                                                        {triggeringRecovery === abandonment._id ? 'Sending...' : 'Recover'}
-                                                                    </button>
-                                                                )}
-                                                                {abandonment.status === 'empty' && (
-                                                                    <span className="text-xs text-gray-400">Empty Cart</span>
-                                                                )}
-                                                                {abandonment.status === 'items_removed' && (
-                                                                    <span className="text-xs text-gray-400">Items Removed</span>
-                                                                )}
-                                                            </td>
-                                                        </tr>
-                                                    </React.Fragment>
-                                                );
-                                            })}
+                                            {stats.activeAbandonments.map((abandonment, idx) => (
+                                                <tr key={idx} className="hover:bg-slate-50 transition">
+                                                    <td className="px-4 py-3">
+                                                        <div>
+                                                            <p className="text-sm font-medium text-slate-800">{abandonment.customer}</p>
+                                                            <p className="text-xs text-slate-400">ID: {abandonment._id?.substring(0, 8)}</p>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <div>
+                                                            <p className="text-sm text-slate-600">{abandonment.email}</p>
+                                                            {abandonment.phone && abandonment.phone !== 'No phone' && (
+                                                                <p className="text-xs text-slate-400">{abandonment.phone}</p>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-center">
+                                                        <span className="text-sm font-semibold text-slate-800">
+                                                            {abandonment.itemsCount || 0}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-center">
+                                                        <span className="text-sm font-semibold text-[#1e3a6a]">
+                                                            {formatCurrency(abandonment.amount)}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-center">
+                                                        <span className="text-xs text-slate-400">
+                                                            {abandonment.abandonedAt ? new Date(abandonment.abandonedAt).toLocaleDateString() : 'N/A'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-center">
+                                                        <button
+                                                            onClick={() => handleTriggerRecovery(abandonment._id)}
+                                                            disabled={triggeringRecovery === abandonment._id}
+                                                            className="text-xs bg-[#1e3a6a] text-white px-3 py-1.5 rounded-lg hover:bg-blue-800 transition flex items-center gap-1 mx-auto disabled:opacity-50"
+                                                        >
+                                                            {triggeringRecovery === abandonment._id ? (
+                                                                <Loader2 className="w-3 h-3 animate-spin" />
+                                                            ) : (
+                                                                <Zap className="w-3 h-3" />
+                                                            )}
+                                                            {triggeringRecovery === abandonment._id ? 'Sending...' : 'Recover'}
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
                                         </tbody>
                                     </table>
                                 </div>
@@ -694,7 +666,7 @@ const RecoveryDashboard = () => {
                             )}
                         </div>
 
-                        {/* Recent Recoveries  */}
+                        {/* Recent Recoveries */}
                         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                             <div className="p-6 border-b border-slate-200 flex items-center justify-between">
                                 <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
