@@ -1644,65 +1644,252 @@ export const updateMerchantStatus = async (req, res) => {
   }
 };
 
-// Recalculate merchant risk score
+//  * @route PUT /api/admin/merchants/:id/recalculate-risk
+//  * @access Private/Admin
 export const recalculateMerchantRisk = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // 1. Get merchant data
-    const merchant = await User.findById(id);
+    // 1. Validate admin authentication
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized: Admin authentication required'
+      });
+    }
 
-    // 2. Get order statistics
+    const adminId = req.user._id;
+
+    // 2. Validate merchant exists
+    const merchant = await User.findById(id);
+    if (!merchant) {
+      return res.status(404).json({
+        success: false,
+        message: 'Merchant not found'
+      });
+    }
+
+    // Verify the user is actually a merchant
+    if (merchant.role !== 'merchant') {
+      return res.status(400).json({
+        success: false,
+        message: 'User is not a merchant'
+      });
+    }
+
+    // 3. Get order statistics
     const orderCount = await Order.countDocuments({ merchantId: merchant._id });
+
+    // Only calculate risk if merchant has orders
+    if (orderCount === 0) {
+      // Merchant has no orders - set to low risk
+      await User.findByIdAndUpdate(id, {
+        riskScore: 'low',
+        riskPercentage: 0,
+        riskFactors: {
+          order_volume: { points: 0, level: 'low', value: 0 },
+          disputes: { points: 0, level: 'low', value: 0 },
+          account_age: { points: 0, level: 'low', value: 0 }
+        },
+        riskAssessedAt: new Date(),
+        riskAssessedBy: adminId
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Merchant has no orders. Risk set to low.',
+        merchant: {
+          id: merchant._id,
+          businessName: merchant.businessName || merchant.username,
+          riskScore: 'low',
+          riskPercentage: 0,
+          orderCount: 0
+        }
+      });
+    }
+
+    // Get dispute/refund orders
     const disputes = await Order.countDocuments({
       merchantId: merchant._id,
       status: { $in: ['cancelled', 'refunded', 'disputed'] }
     });
 
-    // 3. Calculate factors
+    // Get completed/delivered orders for revenue
+    const revenueAgg = await Order.aggregate([
+      {
+        $match: {
+          merchantId: merchant._id,
+          status: { $in: ['completed', 'delivered'] }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: '$total' },
+          orderCount: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const totalRevenue = revenueAgg[0]?.totalRevenue || 0;
+    const completedOrders = revenueAgg[0]?.orderCount || 0;
+
+    // 4. Calculate risk factors
     const disputeRate = orderCount > 0 ? (disputes / orderCount) * 100 : 0;
     const ageInDays = Math.floor((new Date() - merchant.createdAt) / (1000 * 60 * 60 * 24));
 
-    // 4. Score each factor
+    // Average order value
+    const avgOrderValue = completedOrders > 0 ? totalRevenue / completedOrders : 0;
+
+    // 5. Define helper function for risk levels
+    const getLevel = (points) => {
+      if (points > 20) return 'high';
+      if (points > 10) return 'medium';
+      return 'low';
+    };
+
+    // 6. Score each factor
+    // a) Order Volume Score (max 25 points)
     let volumePoints = 0;
     if (orderCount > 100) volumePoints = 25;
     else if (orderCount > 50) volumePoints = 15;
     else if (orderCount > 20) volumePoints = 8;
+    else if (orderCount > 10) volumePoints = 4;
+    else volumePoints = 2;
 
+    // b) Dispute Rate Score (max 30 points - most important)
     let disputePoints = 0;
-    if (disputeRate > 20) disputePoints = 25;
+    if (disputeRate > 30) disputePoints = 30;
+    else if (disputeRate > 20) disputePoints = 25;
     else if (disputeRate > 10) disputePoints = 18;
     else if (disputeRate > 5) disputePoints = 10;
+    else if (disputeRate > 2) disputePoints = 5;
+    else disputePoints = 0;
 
+    // c) Account Age Score (max 15 points)
     let agePoints = 0;
     if (ageInDays < 30) agePoints = 15;
+    else if (ageInDays < 60) agePoints = 12;
     else if (ageInDays < 90) agePoints = 10;
     else if (ageInDays < 180) agePoints = 5;
+    else agePoints = 0;
 
-    // 5. Calculate final score
-    const totalPoints = volumePoints + disputePoints + agePoints;
-    const maxPoints = 65;
-    riskPercentage = Math.round((totalPoints / maxPoints) * 100);
+    // d) Revenue/Order Value Score (max 10 points)
+    let revenuePoints = 0;
+    if (avgOrderValue > 10000) revenuePoints = 10; // High value orders = more risk
+    else if (avgOrderValue > 5000) revenuePoints = 7;
+    else if (avgOrderValue > 1000) revenuePoints = 4;
+    else revenuePoints = 0;
 
-    // 6. Determine risk level
-    if (riskPercentage < 30) riskScore = 'low';
-    else if (riskPercentage < 60) riskScore = 'medium';
+    // 7. Calculate final score
+    const totalPoints = volumePoints + disputePoints + agePoints + revenuePoints;
+    const maxPoints = 80; // 25 + 30 + 15 + 10
+    const riskPercentage = Math.min(Math.round((totalPoints / maxPoints) * 100), 100);
+
+    // 8. Determine risk level 
+    let riskScore;
+    if (riskPercentage < 25) riskScore = 'low';
+    else if (riskPercentage < 50) riskScore = 'medium';
     else riskScore = 'high';
 
-    // 7. Save to database
-    await User.findByIdAndUpdate(id, {
-      riskScore: riskScore,
-      riskPercentage: riskPercentage,
-      riskFactors: {
-        order_volume: { points: volumePoints, level: getLevel(volumePoints), value: orderCount },
-        disputes: { points: disputePoints, level: getLevel(disputePoints), value: Math.round(disputeRate) },
-        account_age: { points: agePoints, level: getLevel(agePoints), value: ageInDays }
+    // 9. Add risk assessment notes
+    const riskNotes = [];
+    if (disputeRate > 20) riskNotes.push('High dispute rate (>20%)');
+    if (orderCount < 10 && ageInDays < 30) riskNotes.push('New merchant with low order volume');
+    if (avgOrderValue > 10000) riskNotes.push('High average order value');
+    if (disputeRate > 10) riskNotes.push('Moderate dispute rate');
+
+    // 10. Save updated risk assessment
+    const updatedMerchant = await User.findByIdAndUpdate(
+      id,
+      {
+        riskScore: riskScore,
+        riskPercentage: riskPercentage,
+        riskFactors: {
+          order_volume: {
+            points: volumePoints,
+            level: getLevel(volumePoints),
+            value: orderCount,
+            completed_orders: completedOrders,
+            total_revenue: totalRevenue
+          },
+          disputes: {
+            points: disputePoints,
+            level: getLevel(disputePoints),
+            value: Math.round(disputeRate * 100) / 100,
+            dispute_count: disputes
+          },
+          account_age: {
+            points: agePoints,
+            level: getLevel(agePoints),
+            value: ageInDays,
+            created_at: merchant.createdAt
+          },
+          revenue_metrics: {
+            points: revenuePoints,
+            level: getLevel(revenuePoints),
+            avg_order_value: Math.round(avgOrderValue * 100) / 100,
+            total_revenue: totalRevenue
+          }
+        },
+        riskNotes: riskNotes,
+        riskAssessedAt: new Date(),
+        riskAssessedBy: adminId
       },
-      riskAssessedAt: new Date(),
-      riskAssessedBy: adminId
+      { new: true }
+    ).select('-password');
+
+    // 11. Create admin notification
+    await createAdminNotification(
+      `Risk Recalculated: ${updatedMerchant.businessName || updatedMerchant.username}`,
+      `Risk score for ${updatedMerchant.businessName || updatedMerchant.username} recalculated. ` +
+      `New risk level: ${riskScore.toUpperCase()} (${riskPercentage}%). ` +
+      `Dispute rate: ${Math.round(disputeRate * 100) / 100}%. Orders: ${orderCount}.`,
+      riskScore === 'high' ? 'alert' : 'info',
+      'Risk Management',
+      {
+        merchantId: merchant._id,
+        email: merchant.email,
+        businessName: merchant.businessName,
+        riskScore,
+        riskPercentage,
+        disputeRate: Math.round(disputeRate * 100) / 100,
+        orderCount,
+        totalRevenue
+      }
+    );
+
+    // 12. Send success response
+    res.status(200).json({
+      success: true,
+      message: 'Risk score recalculated successfully',
+      riskAssessment: {
+        merchantId: updatedMerchant._id,
+        businessName: updatedMerchant.businessName || updatedMerchant.username,
+        riskScore: riskScore,
+        riskPercentage: riskPercentage,
+        riskFactors: updatedMerchant.riskFactors,
+        riskNotes: riskNotes,
+        assessedAt: new Date(),
+        assessedBy: adminId,
+        summary: {
+          totalOrders: orderCount,
+          completedOrders: completedOrders,
+          disputes: disputes,
+          disputeRate: Math.round(disputeRate * 100) / 100,
+          accountAge: ageInDays,
+          avgOrderValue: Math.round(avgOrderValue * 100) / 100,
+          totalRevenue: totalRevenue
+        }
+      }
     });
 
   } catch (error) {
-    console.error('Error recalculating risk:', error);
+    console.error('Error recalculating merchant risk:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while recalculating risk',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };

@@ -20,7 +20,7 @@ const notificationSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['Under Review', 'Alerts', 'Updates', 'System', 'General', 'Orders', 'Products', 'Payments', 'Security', 'Carts'],
+    enum: ['Under Review', 'Alerts', 'Updates', 'System', 'General', 'Orders', 'Products', 'Payments', 'Recovery', 'Cart Recovery'],
     default: 'General'
   },
   panel: {

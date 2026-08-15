@@ -26,7 +26,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['admin', 'merchant', 'customer'],
+    enum: ['admin', 'merchant', 'customer', 'shipper'],
     default: 'customer',
     required: [true, 'Role is required']
   },
@@ -97,7 +97,7 @@ const userSchema = new mongoose.Schema({
   },
   isApproved: {
     type: Boolean,
-    default: true
+    default: false
   },
   isEmailVerified: {
     type: Boolean,
@@ -111,7 +111,7 @@ const userSchema = new mongoose.Schema({
   merchantStatus: {
     type: String,
     enum: ['pending', 'approved', 'rejected'],
-    default: 'approved'
+    default: 'pending'
   },
   businessName: {
     type: String,
@@ -161,12 +161,16 @@ const userSchema = new mongoose.Schema({
     assessedAt: Date,
     assessedBy: mongoose.Schema.Types.ObjectId
   }],
+  riskNotes: {
+    type: [String],
+    default: []
+  },
 
   // ==================== CUSTOMER SPECIFIC ====================
   tier: {
     type: String,
     enum: ['Silver Member', 'Gold Member', 'Platinum Member'],
-    default: 'Silver Member'
+    default: 'Paltinum Member'
   },
   rewardPoints: {
     type: Number,

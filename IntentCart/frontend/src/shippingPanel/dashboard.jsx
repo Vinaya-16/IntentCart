@@ -239,7 +239,7 @@ const ShippingDashboard = () => {
                                                     </td>
                                                     <td className="py-3.5 px-4 text-slate-600">{order.product}</td>
                                                     <td className="py-3.5 px-4 text-center text-slate-600">{order.qty}</td>
-                                                    <td className="py-3.5 px-4 font-semibold text-slate-800">₹{order.total.toLocaleString()}</td>
+                                                    <td className="py-3.5 px-4 font-semibold text-slate-800">Rs.{order.total.toLocaleString()}</td>
                                                     <td className="py-3.5 px-4">
                                                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${STATUS_COLORS[order.status]?.bg || 'bg-slate-100'} ${STATUS_COLORS[order.status]?.text || 'text-slate-700'} ${STATUS_COLORS[order.status]?.border || 'border-slate-200'}`}>
                                                             {order.status}

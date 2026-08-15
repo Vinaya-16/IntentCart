@@ -68,16 +68,14 @@ import {
 } from '../controllers/campaignController.js';
 
 import {
-    getRecoveryStats,
-    getAllRecoveryEvents,
-    detectAbandonments,
-    triggerRecovery,
+    getRecoveryDashboard,
+    triggerRecovery
 } from '../controllers/recoveryController.js';
 
 import { predictSales } from '../controllers/orderController.js';
 
-import { 
-    predictProductPerformance 
+import {
+    predictProductPerformance
 } from '../controllers/productController.js';
 
 const router = express.Router();
@@ -154,9 +152,7 @@ router.post('/campaigns/validate', validateCampaignForCustomer);
 router.post('/campaigns/calculate-discount', calculateDiscount);
 
 // ==================== RECOVERY DASHBOARD ====================
-router.get('/recovery/stats', getRecoveryStats);
-router.get('/recovery/events', getAllRecoveryEvents);
-router.post('/recovery/detect-abandonments', detectAbandonments);
+router.get('/recovery/dashboard', getRecoveryDashboard);
 router.post('/recovery/trigger', triggerRecovery);
 
 export default router;
