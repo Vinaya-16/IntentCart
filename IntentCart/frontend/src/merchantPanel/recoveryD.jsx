@@ -615,7 +615,7 @@ const RecoveryDashboard = () => {
                                                     outerRadius={70}
                                                     paddingAngle={2}
                                                     dataKey="value"
-                                                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                                    // label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                                                     labelLine={false}
                                                 >
                                                     {stats.intentDistribution.map((entry, index) => (

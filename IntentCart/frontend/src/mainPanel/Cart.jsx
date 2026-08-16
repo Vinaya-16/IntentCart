@@ -439,13 +439,41 @@ export default function CartPage() {
     await validateCoupon(code);
   };
 
+  const getCouponDataForCheckout = () => {
+    if (discountApplied && appliedCoupon) {
+      const discountAmount = getDiscountAmount();
+      return {
+        couponCode: appliedCoupon.code,
+        discountAmount: discountAmount,
+        discountType: appliedCoupon.discountType,
+        discountValue: appliedCoupon.discountValue,
+        maxDiscountAmount: appliedCoupon.maxDiscountAmount,
+        name: appliedCoupon.name,
+        description: appliedCoupon.description,
+        minOrderAmount: appliedCoupon.minOrderAmount
+      };
+    }
+    return null;
+  };
+
   // Handle checkout
   const handleCheckout = () => {
     if (cartItems.length === 0) {
       setError('Your cart is empty');
       return;
     }
-    navigate('/checkout');
+
+    // Get coupon data
+    const couponData = getCouponDataForCheckout();
+    // console.log('Sending coupon data to checkout:', couponData);
+
+    // Pass coupon data via state
+    navigate('/checkout', {
+      state: {
+        couponData: couponData,
+        cartItems: cartItems
+      }
+    });
   };
 
   // Handle continue shopping

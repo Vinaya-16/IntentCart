@@ -123,11 +123,36 @@ const orderSchema = new mongoose.Schema({
   cancellationReason: {
     type: String,
     trim: true
-  }
+  },
+  couponCode: {
+    type: String,
+    trim: true,
+    index: true
+  },
+  campaignId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Campaign',
+    index: true
+  },
+  discountAmount: {
+    type: Number,
+    default: 0
+  },
+  discountType: {
+    type: String,
+    enum: ['percentage', 'fixed', 'free_shipping'],
+    default: 'percentage'
+  },
+  originalTotal: {
+    type: Number,
+    default: 0
+  },
 }, {
   timestamps: true
 });
 
+orderSchema.index({ couponCode: 1, createdAt: -1 });
+orderSchema.index({ campaignId: 1, status: 1 });
 
 orderSchema.pre('save', function (next) {
   if (!this.orderId) {

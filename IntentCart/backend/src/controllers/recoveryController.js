@@ -352,7 +352,7 @@ export const triggerRecovery = async (req, res) => {
 
         // ============ CREATE NOTIFICATION FOR CUSTOMER ============
         await Notification.create({
-            title: 'You left something behind!',
+            title: 'Cart Recovery Alert!!',
             message: `Your cart with ${cartData.items.length} item(s) worth Rs.${cartData.total} is waiting for you! Complete your purchase now.`,
             type: 'info',
             category: 'Orders',
@@ -506,7 +506,7 @@ export const getAbandonments = async (req, res) => {
             itemsCount: cart.items?.length || 0,
             abandonedAt: cart.createdAt,
             status: cart.status, // 'abandoned' or 'recovery_attempted'
-            source: 'abandoned_cart', // Add source identifier
+            source: 'abandoned_cart', 
             recoveryAttempts: cart.recoveryAttempts || 0,
             lastRecoveryAttempt: cart.lastRecoveryAttempt || null,
             removalType: cart.removalType,

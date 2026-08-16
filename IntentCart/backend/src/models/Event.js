@@ -24,6 +24,7 @@ const eventSchema = new mongoose.Schema({
         enum: [
             // Page events
             'page_view',
+            'product_viewed',
             'home_visit',
             'product_list_view',
             'product_detail_view',
@@ -44,6 +45,12 @@ const eventSchema = new mongoose.Schema({
             'order_placed',
             'order_cancelled',
             'order_returned',
+
+            'purchase_completed',
+            'order_placed',
+            'order_cancelled',
+            'coupon_applied',
+            'coupon_converted',
 
             // Recovery events
             'recovery_attempted',

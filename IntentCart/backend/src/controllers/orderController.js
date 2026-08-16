@@ -4,6 +4,9 @@ import Cart from '../models/Cart.js';
 import Product from '../models/Product.js';
 import User from '../models/User.js';
 import Event from '../models/Event.js';
+import Campaign from '../models/Campaign.js';
+import CampaignLog from '../models/CampaignLog.js';
+import Notification from '../models/Notifications.js';
 import {
     triggerOrderPlacedNotification
 } from '../utils/notificationTriggers.js';
@@ -16,7 +19,15 @@ import { notifyMerchantNewOrder } from '../utils/notificationTriggers.js';
 export const createOrder = async (req, res) => {
     try {
         const customerId = req.user._id;
-        const { shippingAddress, paymentMethod, sessionId: reqSessionId } = req.body;
+        const {
+            shippingAddress,
+            paymentMethod,
+            couponCode,
+            discountAmount: frontendDiscount,
+            discountType: frontendDiscountType,
+            originalTotal: frontendOriginalTotal,
+            finalTotal: frontendFinalTotal
+        } = req.body;
 
         // Get cart
         const cart = await Cart.findOne({ customerId })
@@ -69,10 +80,127 @@ export const createOrder = async (req, res) => {
             subtotal += item.quantity * item.price;
         }
 
-        // Calculate totals
+        // Calculate base totals
         const shippingCost = subtotal > 1000 ? 0 : 50;
         const tax = Math.round(subtotal * 0.05);
-        const total = subtotal + shippingCost + tax;
+        const originalTotal = subtotal + shippingCost + tax;
+
+        // Validate coupon and calculate discount from DB
+        let discount = 0;
+        let campaignId = null;
+        let couponCodeUsed = null;
+        let discountType = 'percentage';
+        let discountValue = 0;
+        let maxDiscountAmount = 0;
+
+        if (couponCode) {
+            try {
+                // console.log('Validating coupon from DB:', couponCode);
+
+                const campaign = await Campaign.findOne({
+                    couponCode: couponCode.toUpperCase(),
+                    status: 'active',
+                    startDate: { $lte: new Date() },
+                    endDate: { $gte: new Date() }
+                });
+
+                if (campaign) {
+                    // Check if campaign has remaining uses
+                    if (campaign.maxUses === 0 || campaign.totalUses < campaign.maxUses) {
+                        // Calculate discount from DB values
+                        if (campaign.discountType === 'percentage') {
+                            discount = originalTotal * (campaign.discountValue / 100);
+                            if (campaign.maxDiscountAmount > 0 && discount > campaign.maxDiscountAmount) {
+                                discount = campaign.maxDiscountAmount;
+                            }
+                        } else if (campaign.discountType === 'fixed') {
+                            discount = Math.min(campaign.discountValue, originalTotal);
+                        } else {
+                            discount = 0;
+                        }
+
+                        discount = Math.round(discount);
+                        campaignId = campaign._id;
+                        couponCodeUsed = campaign.couponCode;
+                        discountType = campaign.discountType || 'percentage';
+                        discountValue = campaign.discountValue;
+                        maxDiscountAmount = campaign.maxDiscountAmount || 0;
+
+                        // console.log('Discount calculated from DB:', {
+                        //     discount,
+                        //     couponCode: couponCodeUsed,
+                        //     discountType,
+                        //     discountValue,
+                        //     maxDiscountAmount
+                        // });
+
+                        // Update campaign stats
+                        campaign.totalUses = (campaign.totalUses || 0) + 1;
+                        campaign.totalRevenue = (campaign.totalRevenue || 0) + (originalTotal - discount);
+                        campaign.totalConversions = (campaign.totalConversions || 0) + 1;
+                        await campaign.save();
+
+                        // Create campaign log
+                        await CampaignLog.create({
+                            campaignId: campaign._id,
+                            merchantId: campaign.merchantId,
+                            eventType: 'converted',
+                            customerId: customerId,
+                            couponCode: campaign.couponCode,
+                            discountAmount: discount,
+                            orderAmount: originalTotal - discount,
+                            metadata: {
+                                orderSubtotal: subtotal,
+                                shippingCost: shippingCost,
+                                tax: tax,
+                                appliedDiscount: discount,
+                                originalTotal: originalTotal,
+                                finalTotal: originalTotal - discount
+                            }
+                        });
+
+                        // Create notification for merchant - NOW Notification is defined
+                        await Notification.create({
+                            title: 'Coupon Used!',
+                            message: `Coupon "${campaign.couponCode}" was used on an order worth Rs.${(originalTotal - discount).toLocaleString()}`,
+                            type: 'success',
+                            category: 'Orders',
+                            panel: 'merchant',
+                            merchantId: campaign.merchantId,
+                            isGlobal: false,
+                            metadata: {
+                                campaignId: campaign._id,
+                                couponCode: campaign.couponCode,
+                                discountAmount: discount,
+                                orderAmount: originalTotal - discount
+                            }
+                        });
+
+                        // console.log('Coupon applied successfully from DB');
+                    } else {
+                        // console.log('Coupon has reached max uses');
+                    }
+                } else {
+                    // console.log('Invalid or expired coupon:', couponCode);
+                    discount = 0;
+                }
+            } catch (error) {
+                console.error('Error validating coupon from DB:', error);
+                discount = 0;
+            }
+        }
+
+        const finalTotal = Math.max(0, originalTotal - discount);
+
+        // console.log('Order calculation from DB:', {
+        //     subtotal,
+        //     shippingCost,
+        //     tax,
+        //     originalTotal,
+        //     discount,
+        //     finalTotal,
+        //     couponCodeUsed
+        // });
 
         // Create order
         const order = new Order({
@@ -82,7 +210,13 @@ export const createOrder = async (req, res) => {
             subtotal,
             shippingCost,
             tax,
-            total,
+            discount: discount,
+            total: finalTotal,
+            originalTotal: originalTotal,
+            couponCode: couponCodeUsed,
+            campaignId: campaignId,
+            discountAmount: discount,
+            discountType: discountType,
             shippingAddress,
             paymentMethod,
             status: 'pending',
@@ -92,12 +226,10 @@ export const createOrder = async (req, res) => {
         await order.save();
 
         // DYNAMIC RECOVERY LINKING
-
         try {
-            const dashboardMerchantId = req.user._id; 
-            let sessionId = reqSessionId;
+            const dashboardMerchantId = req.user._id;
+            let sessionId = req.body.sessionId;
 
-            // DYNAMIC FALLBACK: If frontend didn't send sessionId, find the most recent abandonment
             if (!sessionId) {
                 const lastAbandoned = await Event.findOne({
                     customerId: customerId,
@@ -110,9 +242,7 @@ export const createOrder = async (req, res) => {
                 }
             }
 
-            // If we successfully found a sessionId to link to, mark it as converted
             if (sessionId && dashboardMerchantId) {
-                // 1. Mark the old abandoned cart as Converted
                 await Event.findOneAndUpdate(
                     {
                         sessionId: sessionId,
@@ -123,12 +253,11 @@ export const createOrder = async (req, res) => {
                         $set: {
                             recoveryStatus: 'converted',
                             recoveredAt: new Date(),
-                            cartTotal: total
+                            cartTotal: finalTotal
                         }
                     }
                 );
 
-                // 2. Attach 'converted' to the purchase_completed event itself
                 await Event.findOneAndUpdate(
                     {
                         sessionId: sessionId,
@@ -138,7 +267,7 @@ export const createOrder = async (req, res) => {
                     {
                         $set: {
                             recoveryStatus: 'converted',
-                            cartTotal: total
+                            cartTotal: finalTotal
                         }
                     },
                     { upsert: true }
@@ -158,7 +287,7 @@ export const createOrder = async (req, res) => {
         await User.findByIdAndUpdate(customerId, { $inc: { totalOrders: 1 } });
 
         // Trigger Notifications
-        await triggerOrderPlacedNotification(customerId, order.orderId, total);
+        await triggerOrderPlacedNotification(customerId, order.orderId, finalTotal);
 
         if (productMerchantId) {
             const customer = await User.findById(customerId);
@@ -172,12 +301,17 @@ export const createOrder = async (req, res) => {
         const populatedOrder = await Order.findById(order._id)
             .populate('customerId', 'username email')
             .populate('merchantId', 'businessName username')
-            .populate('items.productId', 'name price');
+            .populate('items.productId', 'name price')
+            .populate('campaignId', 'name couponCode');
 
         res.status(201).json({
             success: true,
             message: 'Order placed successfully',
-            order: populatedOrder
+            order: populatedOrder,
+            appliedDiscount: discount,
+            couponUsed: couponCodeUsed,
+            originalTotal: originalTotal,
+            finalTotal: finalTotal
         });
     } catch (error) {
         console.error('Error creating order:', error);
@@ -317,13 +451,13 @@ export const cancelOrder = async (req, res) => {
 
         // USE req.user._id for Cancellation as well
         try {
-            const dashboardMerchantId = req.user._id; 
+            const dashboardMerchantId = req.user._id;
 
             if (sessionId && dashboardMerchantId) {
                 await Event.findOneAndUpdate(
                     {
                         sessionId: sessionId,
-                        merchantId: dashboardMerchantId, 
+                        merchantId: dashboardMerchantId,
                         eventType: { $in: ['cart_abandoned', 'checkout_abandoned', 'product_abandoned', 'wishlist_abandoned'] }
                     },
                     {
@@ -339,7 +473,7 @@ export const cancelOrder = async (req, res) => {
                 await Event.findOneAndUpdate(
                     {
                         sessionId: sessionId,
-                        merchantId: dashboardMerchantId, 
+                        merchantId: dashboardMerchantId,
                         eventType: 'purchase_completed'
                     },
                     {
@@ -418,10 +552,10 @@ export const updatePaymentStatus = async (req, res) => {
 export const predictSales = async (req, res) => {
     try {
         const merchantId = req.user._id;
-        const { timeframe } = req.body; 
+        const { timeframe } = req.body;
 
         // Get historical orders for this merchant
-        const orders = await Order.find({ 
+        const orders = await Order.find({
             merchantId,
             status: { $in: ['delivered', 'completed'] }
         }).sort({ createdAt: -1 });
@@ -440,7 +574,7 @@ export const predictSales = async (req, res) => {
         let predictedSales, predictedRevenue, confidence;
         const volatility = 0.1 + Math.random() * 0.15;
 
-        switch(timeframe) {
+        switch (timeframe) {
             case 'tomorrow':
                 predictedSales = Math.round(dailyAvgOrders * (1 + (Math.random() - 0.5) * 0.2));
                 predictedRevenue = Math.round(dailyAvgRevenue * (1 + (Math.random() - 0.5) * 0.2));
@@ -484,7 +618,7 @@ export const predictSales = async (req, res) => {
         const olderOrders = orders.slice(Math.min(10, orders.length), Math.min(20, orders.length));
         const recentAvg = recentOrders.length > 0 ? recentOrders.reduce((s, o) => s + (o.total || 0), 0) / recentOrders.length : 0;
         const olderAvg = olderOrders.length > 0 ? olderOrders.reduce((s, o) => s + (o.total || 0), 0) / olderOrders.length : 0;
-        
+
         let trend = 'stable';
         if (recentAvg > olderAvg * 1.1) trend = 'up';
         else if (recentAvg < olderAvg * 0.9) trend = 'down';

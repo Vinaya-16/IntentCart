@@ -30,7 +30,6 @@ import Header from './components/header.jsx';
 import Modal from './components/Modal';
 import CampaignForm from './components/CampaignForm';
 
-// API Configuration
 const API_BASE_URL = 'http://localhost:5000/api';
 
 // Color palette for charts
@@ -299,9 +298,14 @@ const CampaignManagement = () => {
         }).format(amount);
     };
 
-    // Get image URL with fallback
     const getImageUrl = (campaign) => {
-        return campaign?.imageUrl || null;
+        if (!campaign) return null;
+        return campaign.imageUrl ||
+            campaign.image ||
+            campaign.bannerImageUrl ||
+            campaign.thumbnailImageUrl ||
+            campaign.mobileImageUrl ||
+            null;
     };
 
     // Prepare chart data from backend stats only
@@ -332,9 +336,36 @@ const CampaignManagement = () => {
         if (logs && logs.length > 0) {
             return logs.slice(0, 4).map(log => ({
                 event: `${log.eventType} - ${log.couponCode || 'N/A'}`,
-                time: new Date(log.createdAt).toLocaleString()
+                time: new Date(log.createdAt).toLocaleString(),
+                discount: log.discountAmount,
+                orderAmount: log.orderAmount
             }));
         }
+
+        if (campaigns && campaigns.length > 0) {
+            const recentActivity = [];
+
+            // Sort campaigns by updatedAt (most recent first)
+            const sortedCampaigns = [...campaigns].sort((a, b) =>
+                new Date(b.updatedAt) - new Date(a.updatedAt)
+            );
+
+            // Find campaigns with recent usage
+            sortedCampaigns.forEach(c => {
+                if (c.totalUses > 0) {
+                    recentActivity.push({
+                        event: `Coupon Used - ${c.couponCode || c.name}`,
+                        time: new Date(c.updatedAt).toLocaleString(),
+                        uses: c.totalUses,
+                        revenue: c.totalRevenue
+                    });
+                }
+            });
+
+            // Return top 4 recent activities
+            return recentActivity.slice(0, 4);
+        }
+
         return [];
     };
 
@@ -471,11 +502,30 @@ const CampaignManagement = () => {
                                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                                         </div>
                                     ) : getRecentLogs().length === 0 ? (
-                                        <div className="text-center text-slate-400 py-4 text-sm">No recent activity</div>
+                                        <div className="text-center text-slate-400 py-4 text-sm">
+                                            No recent activity
+                                        </div>
                                     ) : (
                                         getRecentLogs().map((log, idx) => (
                                             <div key={idx} className="flex items-center justify-between text-xs py-1.5 border-b border-slate-100 last:border-0">
-                                                <span className="font-semibold text-slate-800">{log.event}</span>
+                                                <div>
+                                                    <span className="font-semibold text-slate-800 block">{log.event}</span>
+                                                    {log.discount && (
+                                                        <span className="text-green-600 text-[10px]">
+                                                            Discount: Rs.{log.discount}
+                                                        </span>
+                                                    )}
+                                                    {log.orderAmount && (
+                                                        <span className="text-blue-600 text-[10px] ml-2">
+                                                            Order: Rs.{log.orderAmount}
+                                                        </span>
+                                                    )}
+                                                    {log.uses && (
+                                                        <span className="text-purple-600 text-[10px] ml-2">
+                                                            Uses: {log.uses}
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <span className="text-slate-400 font-medium text-[11px]">{log.time}</span>
                                             </div>
                                         ))
@@ -622,8 +672,12 @@ const CampaignManagement = () => {
                                                                     alt={campaign.name}
                                                                     className="w-12 h-12 rounded-lg object-cover border border-slate-200"
                                                                     onError={(e) => {
+                                                                        e.target.onerror = null;
                                                                         e.target.style.display = 'none';
-                                                                        e.target.parentElement.innerHTML = '<div class="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center"><ImageIcon className="w-6 h-6 text-slate-400" /></div>';
+                                                                        const parent = e.target.parentElement;
+                                                                        if (parent) {
+                                                                            parent.innerHTML = `<div class="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center"><svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></div>`;
+                                                                        }
                                                                     }}
                                                                 />
                                                             ) : (
@@ -796,6 +850,7 @@ const CampaignManagement = () => {
                                     alt={selectedCampaign.name}
                                     className="max-h-64 rounded-lg border border-slate-200 object-cover"
                                     onError={(e) => {
+                                        e.target.onerror = null;
                                         e.target.style.display = 'none';
                                     }}
                                 />
@@ -926,7 +981,7 @@ const CampaignManagement = () => {
                                                 </div>
                                                 {log.customerId && (
                                                     <div className="text-xs text-slate-500">
-                                                        Customer: {log.customerId.name || log.customerId.email}
+                                                        Customer: {log.customerId.name || log.customerId.email || log.customerId.username}
                                                     </div>
                                                 )}
                                                 {log.discountAmount > 0 && (

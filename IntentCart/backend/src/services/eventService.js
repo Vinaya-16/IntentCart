@@ -12,7 +12,7 @@ class EventService {
                 'checkout_abandoned', 'product_abandoned', 'wishlist_abandoned',
                 'recovery_email_sent',
                 'recovery_email_opened', 'recovery_email_clicked',
-                'recovery_converted'
+                'recovery_converted', 'order_placed', 'order_cancelled', 'coupon_applied', 'coupon_converted'
             ];
 
             // If the event type is NOT in the allowed list, ignore it silently.

@@ -1,36 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeft,
   CreditCard,
   Truck,
   MapPin,
-  Phone,
-  Mail,
-  User,
   Lock,
   ShieldCheck,
   CheckCircle2,
   Loader2,
   WifiOff,
   RefreshCw,
-  ChevronDown,
-  ChevronUp,
   Building,
   Home,
   Briefcase,
   Check,
   ShoppingBag,
-  X
+  X,
+  Tag
 } from 'lucide-react';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import eventTracker from '../utils/eventTracker';
+import { toast, Toaster } from 'react-hot-toast';
 
 const API_URL = 'http://localhost:5000/api/customer';
+const MERCHANT_API_URL = 'http://localhost:5000/api/merchant';
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -39,9 +38,12 @@ export default function CheckoutPage() {
   const [cartItems, setCartItems] = useState([]);
   const [profile, setProfile] = useState(null);
   const [addresses, setAddresses] = useState([]);
-  const [payments, setPayments] = useState([]);
 
-  // Use ref to track if checkout view has been tracked
+  // Coupon state - Initialize with values from location
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [couponCode, setCouponCode] = useState('');
+
   const checkoutTrackedRef = useRef(false);
 
   // Form state
@@ -60,10 +62,41 @@ export default function CheckoutPage() {
   });
 
   const [selectedAddress, setSelectedAddress] = useState(null);
-  const [selectedPayment, setSelectedPayment] = useState(null);
   const [showNewAddressForm, setShowNewAddressForm] = useState(false);
 
   const getToken = () => localStorage.getItem('token');
+
+  // Get coupon data from navigation state on mount
+  useEffect(() => {
+    // console.log('Checkout mounted, checking location.state:', location.state);
+
+    if (location.state?.couponData) {
+      const { couponData } = location.state;
+      // console.log('Coupon data received in checkout:', couponData);
+
+      // Set coupon states with the received data
+      setAppliedCoupon({
+        code: couponData.couponCode,
+        discountType: couponData.discountType,
+        discountValue: couponData.discountValue,
+        maxDiscountAmount: couponData.maxDiscountAmount,
+        name: couponData.name,
+        description: couponData.description,
+        minOrderAmount: couponData.minOrderAmount
+      });
+
+      // Set the discount amount - THIS IS THE CRITICAL PART
+      setCouponDiscount(couponData.discountAmount || 0);
+      setCouponCode(couponData.couponCode || '');
+
+      // console.log('Coupon discount set to:', couponData.discountAmount);
+    } else {
+      // console.log('No coupon data in location.state');
+      setAppliedCoupon(null);
+      setCouponDiscount(0);
+      setCouponCode('');
+    }
+  }, [location.state]);
 
   // Fetch checkout data
   const fetchCheckoutData = async () => {
@@ -71,7 +104,6 @@ export default function CheckoutPage() {
       setLoading(true);
       setError('');
       setIsServerDown(false);
-      // Reset tracking flag when fetching new data
       checkoutTrackedRef.current = false;
 
       const token = getToken();
@@ -81,7 +113,6 @@ export default function CheckoutPage() {
         return;
       }
 
-      // Fetch cart
       const cartRes = await fetch(`${API_URL}/cart`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -97,7 +128,6 @@ export default function CheckoutPage() {
 
       const cartData = await cartRes.json();
 
-      // Fetch profile
       const profileRes = await fetch(`${API_URL}/profile`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -125,9 +155,7 @@ export default function CheckoutPage() {
       if (profileData.success) {
         setProfile(profileData.profile);
         setAddresses(profileData.profile.addresses || []);
-        setPayments(profileData.profile.payments || []);
 
-        // Set default address
         const defaultAddr = profileData.profile.addresses?.find(a => a.isDefault);
         if (defaultAddr) {
           setSelectedAddress(defaultAddr);
@@ -157,7 +185,7 @@ export default function CheckoutPage() {
     }
   };
 
-  // Track checkout view - only once per checkout load
+  // Track checkout view
   useEffect(() => {
     if (cartItems.length > 0 && !checkoutTrackedRef.current) {
       const total = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -166,7 +194,7 @@ export default function CheckoutPage() {
     }
   }, [cartItems]);
 
-  // Handle place order function
+  // Handle place order
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
 
@@ -192,6 +220,23 @@ export default function CheckoutPage() {
         return;
       }
 
+      const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const deliveryFee = subtotal >= 5000 ? 0 : 99;
+      const tax = Math.round(subtotal * 0.05);
+
+      // Use couponDiscount from state
+      const discount = couponDiscount || 0;
+      const finalTotal = Math.max(0, subtotal + deliveryFee + tax - discount);
+
+      // console.log('Order calculation:', {
+      //   subtotal,
+      //   deliveryFee,
+      //   tax,
+      //   discount,
+      //   finalTotal,
+      //   couponCode: appliedCoupon?.code
+      // });
+
       const orderData = {
         shippingAddress: {
           street: formData.shippingAddress.street || '',
@@ -201,7 +246,12 @@ export default function CheckoutPage() {
           country: formData.shippingAddress.country || 'India',
           phone: formData.shippingAddress.phone || profile?.phone || '0000000000'
         },
-        paymentMethod: formData.paymentMethod
+        paymentMethod: 'cod',
+        couponCode: appliedCoupon?.code || null,
+        discountAmount: discount,
+        discountType: appliedCoupon?.discountType || 'percentage',
+        originalTotal: subtotal + deliveryFee + tax,
+        finalTotal: finalTotal
       };
 
       const response = await fetch(`${API_URL}/orders`, {
@@ -220,12 +270,12 @@ export default function CheckoutPage() {
       }
 
       if (data.success) {
-        // Track payment success and purchase completed
         const total = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
         await eventTracker.trackPaymentSuccess(data.order?.orderId, cartItems, total);
         await eventTracker.trackPurchaseCompleted(data.order?.orderId, cartItems, total);
 
         setSuccess('Order placed successfully!');
+        toast.success('Order placed successfully!');
         setTimeout(() => {
           navigate(`/order-success/${data.order?.orderId}`);
         }, 1500);
@@ -233,8 +283,8 @@ export default function CheckoutPage() {
     } catch (err) {
       console.error('Error placing order:', err);
       setError(err.message);
+      toast.error(err.message);
 
-      // Track payment failure
       const total = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       await eventTracker.trackPaymentFailed(err, cartItems, total);
     } finally {
@@ -242,20 +292,42 @@ export default function CheckoutPage() {
     }
   };
 
+  // Remove coupon
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponDiscount(0);
+    setCouponCode('');
+    toast.success('Coupon removed');
+  };
+
   useEffect(() => {
     fetchCheckoutData();
   }, []);
 
-  // Calculations
+  // Calculate totals with coupon - USE couponDiscount STATE
   const subtotal = cartItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-  const totalSavings = 0; // Will be calculated with discounts
   const deliveryFee = subtotal >= 5000 ? 0 : 99;
-  const total = subtotal - totalSavings + deliveryFee;
+  const tax = Math.round(subtotal * 0.05);
+
+  // IMPORTANT: Use couponDiscount from state
+  const discount = couponDiscount || 0;
+  const total = Math.max(0, subtotal + deliveryFee + tax - discount);
+
+  // console.log('Checkout calculations:', {
+  //   subtotal,
+  //   deliveryFee,
+  //   tax,
+  //   discount,
+  //   total,
+  //   couponDiscountState: couponDiscount,
+  //   appliedCoupon: appliedCoupon?.code
+  // });
 
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50/60">
         <Header />
+        <Toaster position="top-right" />
         <div className="flex items-center justify-center h-64">
           <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
         </div>
@@ -268,6 +340,7 @@ export default function CheckoutPage() {
     return (
       <div className="min-h-screen bg-slate-50/60">
         <Header />
+        <Toaster position="top-right" />
         <div className="max-w-7xl mx-auto px-4 py-12 text-center">
           <div className="bg-white rounded-3xl p-12 max-w-md mx-auto">
             <ShoppingBag className="w-16 h-16 text-slate-300 mx-auto mb-4" />
@@ -286,6 +359,7 @@ export default function CheckoutPage() {
   return (
     <div className="min-h-screen bg-slate-50/60 font-sans text-slate-800">
       <Header />
+      <Toaster position="top-right" />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         {/* Header */}
@@ -477,46 +551,71 @@ export default function CheckoutPage() {
               )}
             </div>
 
-            {/* Payment Method */}
+            {/* Payment Method - Only COD */}
             <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs">
               <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
                 <CreditCard className="w-5 h-5 text-indigo-600" />
                 Payment Method
               </h2>
 
-              <div className="space-y-3">
-                <label className="flex items-center gap-3 p-4 border border-slate-200 rounded-xl hover:border-indigo-300 transition cursor-pointer">
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    value="cod"
-                    checked={formData.paymentMethod === 'cod'}
-                    onChange={(e) => setFormData(prev => ({ ...prev, paymentMethod: e.target.value }))}
-                    className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <div className="flex-1">
-                    <span className="font-semibold text-slate-900">Cash on Delivery</span>
-                    <p className="text-xs text-slate-500">Pay when you receive the order</p>
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm">
+                    <Truck className="w-5 h-5 text-emerald-600" />
                   </div>
-                </label>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-slate-900">Cash on Delivery</span>
+                      <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+                        Available
+                      </span>
+                    </div>
+                    <p className="text-sm text-slate-600">Pay when you receive your order</p>
+                  </div>
+                  <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+                </div>
+              </div>
 
-                <label className="flex items-center gap-3 p-4 border border-slate-200 rounded-xl hover:border-indigo-300 transition cursor-pointer opacity-50">
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    value="card"
-                    disabled
-                    checked={formData.paymentMethod === 'card'}
-                    onChange={(e) => setFormData(prev => ({ ...prev, paymentMethod: e.target.value }))}
-                    className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <div className="flex-1">
-                    <span className="font-semibold text-slate-900">Credit/Debit Card</span>
-                    <p className="text-xs text-slate-500">Coming soon</p>
-                  </div>
-                </label>
+              <div className="mt-3 p-3 bg-slate-50 rounded-lg text-xs text-slate-500 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                No payment required now. Pay at your doorstep.
               </div>
             </div>
+
+            {/* ✅ Coupon Display - Shows only if discount > 0 */}
+            {appliedCoupon && couponDiscount > 0 && (
+              <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-emerald-50 rounded-xl">
+                      <Tag className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-indigo-600">
+                          {appliedCoupon.code}
+                        </span>
+                        <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+                          {appliedCoupon.discountType === 'percentage'
+                            ? `${appliedCoupon.discountValue}% Off`
+                            : `Rs.${appliedCoupon.discountValue} Off`}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500">{appliedCoupon.name}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleRemoveCoupon}
+                    className="text-slate-400 hover:text-rose-600 transition p-1"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="mt-2 text-xs text-emerald-600 font-medium">
+                  ✅ Discount applied: -Rs.{couponDiscount.toLocaleString()}
+                </div>
+              </div>
+            )}
 
             {/* Order Summary (Mobile) */}
             <div className="lg:hidden">
@@ -524,6 +623,9 @@ export default function CheckoutPage() {
                 items={cartItems}
                 subtotal={subtotal}
                 deliveryFee={deliveryFee}
+                tax={tax}
+                couponDiscount={couponDiscount}
+                couponCode={appliedCoupon?.code}
                 total={total}
               />
             </div>
@@ -572,6 +674,9 @@ export default function CheckoutPage() {
                 items={cartItems}
                 subtotal={subtotal}
                 deliveryFee={deliveryFee}
+                tax={tax}
+                couponDiscount={couponDiscount}
+                couponCode={appliedCoupon?.code}
                 total={total}
               />
             </div>
@@ -585,8 +690,9 @@ export default function CheckoutPage() {
 }
 
 // Order Summary Component
-function OrderSummary({ items, subtotal, deliveryFee, total }) {
+function OrderSummary({ items, subtotal, deliveryFee, tax, couponDiscount, couponCode, total }) {
   const [expanded, setExpanded] = useState(false);
+  const originalTotal = subtotal + deliveryFee + tax;
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs">
@@ -634,13 +740,42 @@ function OrderSummary({ items, subtotal, deliveryFee, total }) {
         </div>
         <div className="flex justify-between text-slate-600">
           <span>Tax (5%)</span>
-          <span>Rs.{Math.round(subtotal * 0.05).toLocaleString()}</span>
+          <span>Rs.{tax.toLocaleString()}</span>
         </div>
+
+        {/* ✅ Show coupon discount */}
+        {couponDiscount > 0 && (
+          <div className="flex justify-between text-emerald-600 font-medium">
+            <span>Coupon Discount ({couponCode || 'Applied'})</span>
+            <span>-Rs.{couponDiscount.toLocaleString()}</span>
+          </div>
+        )}
       </div>
 
-      <div className="border-t border-slate-200 mt-4 pt-4 flex justify-between items-baseline">
-        <span className="font-bold text-slate-900">Total</span>
-        <span className="font-extrabold text-2xl text-indigo-600">Rs.{total.toLocaleString()}</span>
+      <div className="border-t border-slate-200 mt-4 pt-4">
+        {/* ✅ Show original price with strikethrough */}
+        {couponDiscount > 0 && (
+          <div className="flex justify-between text-sm text-slate-400 mb-1">
+            <span>Original Total</span>
+            <span className="line-through">Rs.{originalTotal.toLocaleString()}</span>
+          </div>
+        )}
+
+        <div className="flex justify-between items-baseline">
+          <span className="font-bold text-slate-900">Total</span>
+          <span className="font-extrabold text-2xl text-indigo-600">
+            Rs.{Math.max(0, total).toLocaleString()}
+          </span>
+        </div>
+
+        {/* ✅ Show savings */}
+        {couponDiscount > 0 && (
+          <div className="mt-1 text-right">
+            <span className="text-xs font-semibold text-emerald-600">
+              You saved Rs.{couponDiscount.toLocaleString()}!
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="mt-4 p-3 bg-slate-50 rounded-xl text-xs text-slate-500 flex items-center gap-2">

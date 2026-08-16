@@ -6,7 +6,6 @@ import Order from '../models/Order.js';
 import Notification from '../models/Notifications.js';
 import Product from '../models/Product.js';
 
-
 // Helper: Convert string array to ObjectId array
 const convertToObjectIdArray = (ids) => {
     if (!ids || !Array.isArray(ids)) return [];
@@ -18,24 +17,42 @@ const convertToObjectIdArray = (ids) => {
 // Helper: Clean array - remove invalid entries and convert to ObjectId
 const cleanIdArray = (ids) => {
     if (!ids || !Array.isArray(ids)) return [];
-    // If it's already ObjectIds, return as is
     if (ids.length > 0 && ids[0] instanceof mongoose.Types.ObjectId) {
         return ids;
     }
-    // If it's strings, convert to ObjectId
     return convertToObjectIdArray(ids);
+};
+
+// Helper: Properly get image URL from campaign
+const getCampaignImage = (campaign) => {
+    if (!campaign) return null;
+    // Return the first available image URL
+    return campaign.imageUrl ||
+        campaign.bannerImageUrl ||
+        campaign.thumbnailImageUrl ||
+        campaign.mobileImageUrl ||
+        null;
+};
+
+// Helper: Get all image URLs from campaign
+const getCampaignImages = (campaign) => {
+    if (!campaign) return {};
+    return {
+        imageUrl: campaign.imageUrl || null,
+        bannerImageUrl: campaign.bannerImageUrl || null,
+        thumbnailImageUrl: campaign.thumbnailImageUrl || null,
+        mobileImageUrl: campaign.mobileImageUrl || null
+    };
 };
 
 // Auto-generate metadata based on campaign data
 const generateMetadata = (campaignData) => {
     const metadata = campaignData.metadata || {};
 
-    // If metadata already has a section, keep it (user manually set it)
     if (metadata.section) {
         return metadata;
     }
 
-    // Auto-assign section based on campaign type and name
     const name = campaignData.name?.toLowerCase() || '';
     const type = campaignData.type;
 
@@ -91,7 +108,6 @@ const generateMetadata = (campaignData) => {
         };
     }
 
-    // Default: general section
     return {
         ...metadata,
         section: 'general'
@@ -167,17 +183,11 @@ const generateCouponCode = () => {
 // Helper function to get product categories
 const getProductCategories = async (productId) => {
     try {
-        const product = await Product.findById(productId).select('categories');
-        return product?.categories || [];
+        const product = await Product.findById(productId).select('categoryId');
+        return product?.categoryId ? [product.categoryId] : [];
     } catch (error) {
         return [];
     }
-};
-
-// Helper: Get image URL from campaign
-const getCampaignImage = (campaign) => {
-    if (!campaign) return null;
-    return campaign.imageUrl || null;
 };
 
 // ==================== CAMPAIGN MANAGEMENT ====================
@@ -197,6 +207,20 @@ export const createCampaign = async (req, res) => {
         // Generate unique coupon code if type is coupon
         if (campaignData.type === 'coupon' && !campaignData.couponCode) {
             campaignData.couponCode = generateCouponCode();
+        }
+
+        // Ensure image URLs are properly set
+        if (campaignData.imageUrl) {
+            campaignData.imageUrl = campaignData.imageUrl.trim();
+        }
+        if (campaignData.bannerImageUrl) {
+            campaignData.bannerImageUrl = campaignData.bannerImageUrl.trim();
+        }
+        if (campaignData.thumbnailImageUrl) {
+            campaignData.thumbnailImageUrl = campaignData.thumbnailImageUrl.trim();
+        }
+        if (campaignData.mobileImageUrl) {
+            campaignData.mobileImageUrl = campaignData.mobileImageUrl.trim();
         }
 
         // Auto-generate metadata if not provided or if section is missing
@@ -258,10 +282,11 @@ export const getCampaigns = async (req, res) => {
 
         const total = await Campaign.countDocuments(query);
 
-        // Add image URL to response
+        // Add all image URLs to response
         const campaignsWithImages = campaigns.map(c => ({
             ...c.toObject(),
-            image: getCampaignImage(c)
+            image: getCampaignImage(c),
+            images: getCampaignImages(c)
         }));
 
         res.status(200).json({
@@ -299,21 +324,22 @@ export const getCampaignById = async (req, res) => {
             });
         }
 
-        // Get campaign logs
+        // Fix population - use correct field names
         const logs = await CampaignLog.find({ campaignId: id })
             .sort({ createdAt: -1 })
             .limit(50)
-            .populate('customerId', 'name email');
+            .populate('customerId', 'name email username');
 
-        // Add image URL
-        const campaignWithImage = {
+        // Add all image URLs
+        const campaignWithImages = {
             ...campaign.toObject(),
-            image: getCampaignImage(campaign)
+            image: getCampaignImage(campaign),
+            images: getCampaignImages(campaign)
         };
 
         res.status(200).json({
             success: true,
-            campaign: campaignWithImage,
+            campaign: campaignWithImages,
             logs
         });
     } catch (error) {
@@ -335,7 +361,6 @@ export const updateCampaign = async (req, res) => {
         const { id } = req.params;
         const updates = req.body;
 
-        // Validate ID format
         if (!id || typeof id !== 'string' || !id.match(/^[0-9a-fA-F]{24}$/)) {
             return res.status(400).json({
                 success: false,
@@ -440,7 +465,6 @@ export const updateCampaignStatus = async (req, res) => {
         campaign.status = status;
         await campaign.save();
 
-        // Map status changes to appropriate event types
         let eventType = 'updated';
         if (status === 'active' && oldStatus !== 'active') {
             eventType = 'activated';
@@ -456,7 +480,6 @@ export const updateCampaignStatus = async (req, res) => {
             eventType = 'resumed';
         }
 
-        // Create log
         await CampaignLog.create({
             campaignId: campaign._id,
             merchantId,
@@ -599,7 +622,8 @@ export const validateCoupon = async (req, res) => {
                 minOrderAmount: campaign.minOrderAmount,
                 description: campaign.description,
                 name: campaign.name,
-                image: getCampaignImage(campaign)
+                image: getCampaignImage(campaign),
+                images: getCampaignImages(campaign)
             }
         });
     } catch (error) {
@@ -633,10 +657,10 @@ export const applyCoupon = async (req, res) => {
             });
         }
 
-        // Update campaign stats
-        campaign.totalUses += 1;
-        campaign.totalRevenue += orderAmount || 0;
-        campaign.totalConversions += 1;
+        // Update campaign stats properly
+        campaign.totalUses = (campaign.totalUses || 0) + 1;
+        campaign.totalRevenue = (campaign.totalRevenue || 0) + (orderAmount || 0);
+        campaign.totalConversions = (campaign.totalConversions || 0) + 1;
         await campaign.save();
 
         // Create log
@@ -674,7 +698,8 @@ export const applyCoupon = async (req, res) => {
             campaign: {
                 id: campaign._id,
                 name: campaign.name,
-                image: getCampaignImage(campaign)
+                image: getCampaignImage(campaign),
+                images: getCampaignImages(campaign)
             }
         });
     } catch (error) {
@@ -715,7 +740,7 @@ export const getCampaignStats = async (req, res) => {
             { $group: { _id: '$type', count: { $sum: 1 } } }
         ]);
 
-        // Get channel performance
+        // Get channel performance from logs
         const channelPerformance = await CampaignLog.aggregate([
             { $match: { merchantId } },
             { $group: { _id: '$eventType', count: { $sum: 1 } } }
@@ -741,6 +766,7 @@ export const getCampaignStats = async (req, res) => {
     }
 };
 
+// ==================== CUSTOMER CAMPAIGN FUNCTIONS ====================
 
 // @desc    Check if product is eligible for campaign
 // @access  Private
@@ -1062,6 +1088,8 @@ export const calculateDiscount = async (req, res) => {
         });
     }
 };
+
+// ==================== PUBLIC CAMPAIGN FUNCTIONS ====================
 
 // @desc    Get all active campaigns for public display
 // @route   GET /api/campaigns/public
