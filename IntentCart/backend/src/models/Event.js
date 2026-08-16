@@ -28,6 +28,7 @@ const eventSchema = new mongoose.Schema({
             'home_visit',
             'product_list_view',
             'product_detail_view',
+            'wishlist_viewed',
 
             // Cart events
             'add_to_cart',

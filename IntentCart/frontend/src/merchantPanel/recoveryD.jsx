@@ -43,7 +43,9 @@ import {
     Edit,
     Trash2,
     Database,
-    Layers
+    Layers,
+    Brain,
+    Gauge
 } from 'lucide-react';
 import {
     ResponsiveContainer,
@@ -70,6 +72,7 @@ import Header from './components/header.jsx';
 const API_URL = 'http://localhost:5000/api/merchant';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
+const INTENT_COLORS = ['#22c55e', '#f59e0b', '#ef4444'];
 
 const RecoveryDashboard = () => {
     const [loading, setLoading] = useState(true);
@@ -91,6 +94,14 @@ const RecoveryDashboard = () => {
             count: 0,
             totalRevenue: 0,
             carts: []
+        },
+        intentStats: {
+            average: 0,
+            high: 0,
+            medium: 0,
+            low: 0,
+            distribution: [],
+            totalCartsAnalyzed: 0
         }
     });
     const [selectedTimeRange, setSelectedTimeRange] = useState('week');
@@ -99,6 +110,7 @@ const RecoveryDashboard = () => {
     const [triggeringRecovery, setTriggeringRecovery] = useState(null);
     const [expandedAbandonment, setExpandedAbandonment] = useState(null);
     const [showPureAbandonedDetails, setShowPureAbandonedDetails] = useState(false);
+    const [showIntentDetails, setShowIntentDetails] = useState(false);
 
     const getToken = () => localStorage.getItem('token');
 
@@ -135,7 +147,7 @@ const RecoveryDashboard = () => {
             }
 
             const data = await response.json();
-            // console.log('Recovery Dashboard Data from Backend:', data);
+            console.log('Recovery Dashboard Data from Backend:', data);
 
             if (data.success) {
                 setStats({
@@ -154,6 +166,15 @@ const RecoveryDashboard = () => {
                         count: 0,
                         totalRevenue: 0,
                         carts: []
+                    },
+                    // ✅ Add intent stats from backend
+                    intentStats: data.stats.intentStats || {
+                        average: 0,
+                        high: 0,
+                        medium: 0,
+                        low: 0,
+                        distribution: [],
+                        totalCartsAnalyzed: 0
                     }
                 });
             } else {
@@ -344,7 +365,7 @@ const RecoveryDashboard = () => {
                             </div>
                         </div>
 
-                        {/* Stats Cards - Extended with Pure Abandoned Carts */}
+                        {/* Stats Cards */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
                             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                                 <div className="flex items-center justify-between">
@@ -403,7 +424,6 @@ const RecoveryDashboard = () => {
                                 </div>
                             </div>
 
-                            {/* New Card for Pure Abandoned Carts */}
                             <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 rounded-2xl border border-indigo-200 shadow-sm">
                                 <div className="flex items-center justify-between">
                                     <div>
@@ -420,6 +440,85 @@ const RecoveryDashboard = () => {
                                     </div>
                                     <div className="w-10 h-10 bg-indigo-200 rounded-xl flex items-center justify-center">
                                         <Layers className="w-5 h-5 text-indigo-700" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Intent Score Stats Section */}
+                        <div className="mb-8">
+                            <div className="flex items-center justify-between mb-4">
+                                <h2 className="text-lg font-bold text-[#1e3a6a] flex items-center gap-2">
+                                    <Brain className="w-5 h-5 text-purple-500" />
+                                    Purchase Intent Prediction
+                                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">AI Score</span>
+                                </h2>
+                            </div>
+
+                            {/* Intent Score Summary Cards */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                                <div className="bg-gradient-to-br from-purple-50 to-indigo-50 p-5 rounded-2xl border border-purple-200 shadow-sm">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-slate-500 text-xs font-medium">Average Intent Score</p>
+                                            <p className="text-3xl font-extrabold text-purple-700 mt-1">
+                                                {stats.intentStats?.average || 0}%
+                                            </p>
+                                        </div>
+                                        <div className="w-12 h-12 bg-purple-200 rounded-xl flex items-center justify-center">
+                                            <Gauge className="w-6 h-6 text-purple-700" />
+                                        </div>
+                                    </div>
+                                    <div className="mt-2 w-full bg-purple-200 rounded-full h-1.5">
+                                        <div
+                                            className="h-1.5 rounded-full bg-purple-600 transition-all duration-500"
+                                            style={{ width: `${Math.min(stats.intentStats?.average || 0, 100)}%` }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-5 rounded-2xl border border-green-200 shadow-sm">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-slate-500 text-xs font-medium">High Intent</p>
+                                            <p className="text-3xl font-extrabold text-green-700 mt-1">
+                                                {stats.intentStats?.high || 0}
+                                            </p>
+                                            <p className="text-xs text-slate-400">71-100% Score</p>
+                                        </div>
+                                        <div className="w-12 h-12 bg-green-200 rounded-xl flex items-center justify-center">
+                                            <TrendingUp className="w-6 h-6 text-green-700" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-gradient-to-br from-yellow-50 to-amber-50 p-5 rounded-2xl border border-yellow-200 shadow-sm">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-slate-500 text-xs font-medium">Medium Intent</p>
+                                            <p className="text-3xl font-extrabold text-yellow-700 mt-1">
+                                                {stats.intentStats?.medium || 0}
+                                            </p>
+                                            <p className="text-xs text-slate-400">31-70% Score</p>
+                                        </div>
+                                        <div className="w-12 h-12 bg-yellow-200 rounded-xl flex items-center justify-center">
+                                            <Activity className="w-6 h-6 text-yellow-700" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-gradient-to-br from-red-50 to-rose-50 p-5 rounded-2xl border border-red-200 shadow-sm">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-slate-500 text-xs font-medium">Low Intent</p>
+                                            <p className="text-3xl font-extrabold text-red-700 mt-1">
+                                                {stats.intentStats?.low || 0}
+                                            </p>
+                                            <p className="text-xs text-slate-400">0-30% Score</p>
+                                        </div>
+                                        <div className="w-12 h-12 bg-red-200 rounded-xl flex items-center justify-center">
+                                            <TrendingDown className="w-6 h-6 text-red-700" />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -615,7 +714,6 @@ const RecoveryDashboard = () => {
                                                     outerRadius={70}
                                                     paddingAngle={2}
                                                     dataKey="value"
-                                                    // label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                                                     labelLine={false}
                                                 >
                                                     {stats.intentDistribution.map((entry, index) => (

@@ -23,7 +23,6 @@ import {
     X,
     Image,
     Link2,
-    Cross,
     ChevronLeft,
     ChevronRight,
     Sparkles,
@@ -33,10 +32,22 @@ import {
     Crown,
     Star,
     Zap,
-    BarChart3
+    BarChart3,
+    Clock,
+    DollarSign,
+    ShoppingBag as ShoppingBagIcon,
+    Target,
+    Gift,
+    Truck,
+    Percent,
+    Shield,
+    Info,
+    ClipboardList,
+    Warehouse
 } from 'lucide-react';
 import Header from './components/header.jsx';
 import Sidebar from './components/sidebar.jsx';
+import { toast, Toaster } from 'react-hot-toast';
 
 const API_URL = 'http://localhost:5000/api/merchant';
 
@@ -73,6 +84,17 @@ const Dashboard = () => {
     const [predictionData, setPredictionData] = useState(null);
     const [predictionError, setPredictionError] = useState('');
     const [selectedPredictionType, setSelectedPredictionType] = useState('bestSeller');
+
+    // Inventory Management Modal State
+    const [showInventoryModal, setShowInventoryModal] = useState(false);
+    const [inventoryLoading, setInventoryLoading] = useState(false);
+    const [inventoryData, setInventoryData] = useState({
+        totalStock: 0,
+        lowStockItems: [],
+        outOfStockItems: [],
+        categories: [],
+        totalValue: 0
+    });
 
     // New Product Form State
     const [productForm, setProductForm] = useState({
@@ -223,6 +245,105 @@ const Dashboard = () => {
         }
     };
 
+    // Fetch Inventory Data
+    const fetchInventoryData = async () => {
+        try {
+            setInventoryLoading(true);
+            const token = getToken();
+            if (!token) {
+                toast.error('Please login first');
+                setInventoryLoading(false);
+                return;
+            }
+
+            const response = await fetch(`${API_URL}/products?limit=100`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch inventory data');
+            }
+
+            const data = await response.json();
+            if (data.success) {
+                const products = data.products || [];
+
+                // Calculate inventory stats
+                let totalStock = 0;
+                let totalValue = 0;
+                const lowStockItems = [];
+                const outOfStockItems = [];
+                const categoryMap = {};
+
+                products.forEach(product => {
+                    const stock = product.stock || 0;
+                    const price = product.price || 0;
+                    totalStock += stock;
+                    totalValue += stock * price;
+
+                    // Track low stock (1-10 items)
+                    if (stock > 0 && stock <= 10) {
+                        lowStockItems.push({
+                            id: product._id,
+                            name: product.name,
+                            stock: stock,
+                            price: price,
+                            category: product.categoryId?.name || 'Uncategorized'
+                        });
+                    }
+
+                    // Track out of stock
+                    if (stock === 0) {
+                        outOfStockItems.push({
+                            id: product._id,
+                            name: product.name,
+                            price: price,
+                            category: product.categoryId?.name || 'Uncategorized'
+                        });
+                    }
+
+                    // Track categories
+                    const catName = product.categoryId?.name || 'Uncategorized';
+                    if (!categoryMap[catName]) {
+                        categoryMap[catName] = { count: 0, value: 0 };
+                    }
+                    categoryMap[catName].count += 1;
+                    categoryMap[catName].value += stock * price;
+                });
+
+                // Convert category map to array
+                const categories = Object.entries(categoryMap).map(([name, data]) => ({
+                    name,
+                    count: data.count,
+                    value: data.value
+                })).sort((a, b) => b.value - a.value);
+
+                setInventoryData({
+                    totalStock,
+                    totalValue,
+                    lowStockItems: lowStockItems.sort((a, b) => a.stock - b.stock),
+                    outOfStockItems: outOfStockItems,
+                    categories: categories.slice(0, 5) // Top 5 categories
+                });
+            }
+        } catch (err) {
+            console.error('Error fetching inventory data:', err);
+            toast.error(err.message || 'Failed to load inventory data');
+        } finally {
+            setInventoryLoading(false);
+        }
+    };
+
+    // Open Inventory Modal
+    const openInventoryModal = () => {
+        setShowInventoryModal(true);
+        fetchInventoryData();
+    };
+
+    // Run prediction
     const runPrediction = async (type) => {
         try {
             setPredictionLoading(true);
@@ -254,12 +375,15 @@ const Dashboard = () => {
             if (data.success) {
                 setPredictionData(data.data);
                 setSelectedPredictionType(type);
+                toast.success('Prediction completed successfully!');
             } else {
                 setPredictionError(data.message || 'Failed to get prediction');
+                toast.error(data.message || 'Failed to get prediction');
             }
         } catch (err) {
             console.error('Error running prediction:', err);
             setPredictionError(err.message);
+            toast.error(err.message);
         } finally {
             setPredictionLoading(false);
         }
@@ -697,6 +821,7 @@ const Dashboard = () => {
 
     return (
         <div className="min-h-screen flex flex-col bg-slate-50">
+            <Toaster position="top-right" />
             <Header />
 
             <div className="flex flex-1 overflow-hidden">
@@ -756,10 +881,10 @@ const Dashboard = () => {
                             </div>
                         </div>
 
-                        {/* PAGE HEADING & PREDICTION BUTTON */}
-                        <div className="flex justify-between items-center mb-6">
+                        {/* PAGE HEADING & ACTION BUTTONS */}
+                        <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
                             <h1 className="text-2xl font-bold text-[#1e427b]">Product Management</h1>
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-wrap">
                                 <div className="flex items-center gap-2 text-sm text-gray-500">
                                     <span>Pending Approval: {stats.pendingProducts}</span>
                                     <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
@@ -767,9 +892,18 @@ const Dashboard = () => {
                                     <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
                                     <span>Total: {totalProductsCount} products</span>
                                 </div>
+                                {/* Inventory Management Button */}
+                                <button
+                                    onClick={openInventoryModal}
+                                    className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-cyan-950 font-medium px-5 py-2.5 rounded-lg text-sm shadow-lg shadow-emerald-200 transition-all"
+                                >
+                                    <Warehouse className="w-4 h-4" />
+                                    Inventory Management
+                                </button>
+                                {/* Prediction Button */}
                                 <button
                                     onClick={openPredictionModal}
-                                    className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-blue-900 font-medium px-5 py-2.5 rounded-lg text-sm shadow-lg shadow-purple-200 transition-all"
+                                    className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-cyan-950 font-medium px-5 py-2.5 rounded-lg text-sm shadow-lg shadow-purple-200 transition-all"
                                 >
                                     <Sparkles className="w-4 h-4" />
                                     Product Performance Prediction
@@ -810,6 +944,7 @@ const Dashboard = () => {
                             </div>
                         ) : (
                             <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+                                {/* ... rest of the table code remains the same ... */}
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left border-collapse">
                                         <thead>
@@ -829,7 +964,6 @@ const Dashboard = () => {
                                                 filteredProducts.map((product) => {
                                                     const stockStatus = getStockStatus(product.stock);
                                                     const categoryName = product.categoryId?.name || 'Uncategorized';
-                                                    const primaryImage = product.images?.find(img => img.isPrimary) || product.images?.[0];
                                                     return (
                                                         <tr key={product._id} className="hover:bg-slate-50 transition-colors">
                                                             <td className="py-3 px-4">
@@ -990,10 +1124,174 @@ const Dashboard = () => {
                 </div>
             </div>
 
+            {/* INVENTORY MANAGEMENT MODAL */}
+            {showInventoryModal && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                        <div className="sticky top-0 bg-white z-10 p-6 border-b flex justify-between items-center">
+                            <div>
+                                <h2 className="text-xl font-bold text-[#1e427b] flex items-center gap-2">
+                                    <Warehouse className="w-5 h-5 text-emerald-500" />
+                                    Inventory Management
+                                </h2>
+                                <p className="text-sm text-gray-500 mt-1">
+                                    Overview of your inventory status and stock levels
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setShowInventoryModal(false)}
+                                className="p-2 hover:bg-gray-100 rounded-lg transition"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-6">
+                            {inventoryLoading ? (
+                                <div className="flex justify-center py-12">
+                                    <div className="text-center">
+                                        <Loader2 className="w-10 h-10 text-emerald-500 animate-spin mx-auto" />
+                                        <p className="text-gray-500 mt-3">Loading inventory data...</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    {/* Inventory Summary Cards */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+                                            <p className="text-xs text-gray-500">Total Products</p>
+                                            <p className="text-2xl font-bold text-[#1e427b]">{totalProductsCount}</p>
+                                        </div>
+                                        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-4 border border-emerald-200">
+                                            <p className="text-xs text-gray-500">Total Stock Units</p>
+                                            <p className="text-2xl font-bold text-emerald-600">{inventoryData.totalStock}</p>
+                                        </div>
+                                        <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200">
+                                            <p className="text-xs text-gray-500">Inventory Value</p>
+                                            <p className="text-2xl font-bold text-purple-600">
+                                                Rs. {inventoryData.totalValue?.toLocaleString() || 0}
+                                            </p>
+                                        </div>
+                                        <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200">
+                                            <p className="text-xs text-gray-500">Low Stock Items</p>
+                                            <p className="text-2xl font-bold text-amber-600">{inventoryData.lowStockItems?.length || 0}</p>
+                                            <p className="text-xs text-gray-400">Out of Stock: {inventoryData.outOfStockItems?.length || 0}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Low Stock Items */}
+                                    {inventoryData.lowStockItems && inventoryData.lowStockItems.length > 0 && (
+                                        <div>
+                                            <h3 className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                                                <AlertTriangle className="w-4 h-4 text-amber-500" />
+                                                Low Stock Items (≤ 10 units)
+                                                <span className="text-xs text-gray-400 font-normal">
+                                                    ({inventoryData.lowStockItems.length} items)
+                                                </span>
+                                            </h3>
+                                            <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                                                {inventoryData.lowStockItems.map((item, idx) => (
+                                                    <div key={idx} className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-200">
+                                                        <div>
+                                                            <p className="text-sm font-medium text-slate-800">{item.name}</p>
+                                                            <p className="text-xs text-gray-400">{item.category}</p>
+                                                        </div>
+                                                        <div className="flex items-center gap-4">
+                                                            <span className={`text-sm font-semibold ${item.stock <= 3 ? 'text-red-600' : 'text-amber-600'
+                                                                }`}>
+                                                                {item.stock} units
+                                                            </span>
+                                                            <span className="text-sm text-slate-600">Rs. {item.price}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Out of Stock Items */}
+                                    {inventoryData.outOfStockItems && inventoryData.outOfStockItems.length > 0 && (
+                                        <div>
+                                            <h3 className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                                                <AlertCircle className="w-4 h-4 text-red-500" />
+                                                Out of Stock Items
+                                                <span className="text-xs text-gray-400 font-normal">
+                                                    ({inventoryData.outOfStockItems.length} items)
+                                                </span>
+                                            </h3>
+                                            <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                                                {inventoryData.outOfStockItems.map((item, idx) => (
+                                                    <div key={idx} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
+                                                        <div>
+                                                            <p className="text-sm font-medium text-slate-800">{item.name}</p>
+                                                            <p className="text-xs text-gray-400">{item.category}</p>
+                                                        </div>
+                                                        <div className="flex items-center gap-4">
+                                                            <span className="text-sm font-semibold text-red-600">0 units</span>
+                                                            <span className="text-sm text-slate-600">Rs. {item.price}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Category Breakdown */}
+                                    {inventoryData.categories && inventoryData.categories.length > 0 && (
+                                        <div>
+                                            <h3 className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                                                <Package className="w-4 h-4 text-blue-500" />
+                                                Inventory by Category
+                                            </h3>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                {inventoryData.categories.map((cat, idx) => (
+                                                    <div key={idx} className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                                                        <p className="text-sm font-medium text-slate-800">{cat.name}</p>
+                                                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                                            <span>{cat.count} products</span>
+                                                            <span>Rs. {cat.value?.toLocaleString() || 0}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* No Data State */}
+                                    {inventoryData.lowStockItems?.length === 0 &&
+                                        inventoryData.outOfStockItems?.length === 0 &&
+                                        inventoryData.categories?.length === 0 && (
+                                            <div className="text-center py-12 text-gray-400">
+                                                <Warehouse className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                                                <p className="font-medium">No inventory data available</p>
+                                                <p className="text-sm">Start adding products to track your inventory</p>
+                                            </div>
+                                        )}
+
+                                    {/* Quick Actions */}
+                                    <div className="border-t pt-4 flex flex-wrap gap-3">
+                                        <button
+                                            onClick={() => {
+                                                setShowInventoryModal(false);
+                                                fetchProducts(currentPage);
+                                            }}
+                                            className="text-xs border border-slate-300 text-slate-600 px-4 py-2 rounded-lg hover:bg-slate-50 transition"
+                                        >
+                                            <RefreshCw className="w-3 h-3 inline mr-1" />
+                                            Refresh
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Product Performance Prediction Modal */}
             {showPredictionModal && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+                    <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
                         <div className="sticky top-0 bg-white z-10 p-6 border-b flex justify-between items-center">
                             <div>
                                 <h2 className="text-xl font-bold text-[#1e427b] flex items-center gap-2">
@@ -1001,7 +1299,7 @@ const Dashboard = () => {
                                     Product Performance Prediction
                                 </h2>
                                 <p className="text-sm text-gray-500 mt-1">
-                                    Predict product performance based on sales data, trends, and customer behavior
+                                    AI-powered predictions based on sales data, trends, and customer behavior
                                 </p>
                             </div>
                             <button
@@ -1014,23 +1312,24 @@ const Dashboard = () => {
 
                         <div className="p-6 space-y-6">
                             {/* Prediction Type Selector */}
-                            <div className="flex gap-3">
+                            <div className="flex flex-wrap gap-3">
                                 {[
-                                    { id: 'bestSeller', label: 'Best Sellers', icon: Crown, color: 'text-yellow-500' },
-                                    { id: 'poorSeller', label: 'Poor Sellers', icon: TrendingDown, color: 'text-red-500' },
-                                    { id: 'highReturnRisk', label: 'High Return Risk', icon: AlertTriangle, color: 'text-orange-500' }
+                                    { id: 'bestSeller', label: 'Best Sellers', icon: Crown, color: 'text-yellow-500', bg: 'bg-yellow-50 border-yellow-200' },
+                                    { id: 'poorSeller', label: 'Poor Sellers', icon: TrendingDown, color: 'text-red-500', bg: 'bg-red-50 border-red-200' },
+                                    { id: 'highReturnRisk', label: 'High Return Risk', icon: AlertTriangle, color: 'text-orange-500', bg: 'bg-orange-50 border-orange-200' }
                                 ].map((type) => {
                                     const Icon = type.icon;
                                     return (
                                         <button
                                             key={type.id}
                                             onClick={() => runPrediction(type.id)}
-                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${selectedPredictionType === type.id
-                                                ? 'bg-[#1e427b] text-white shadow-md'
-                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                                }`}
+                                            disabled={predictionLoading}
+                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 border-2 ${selectedPredictionType === type.id
+                                                ? `${type.bg} border-${type.color} shadow-md`
+                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border-transparent'
+                                                } disabled:opacity-50 disabled:cursor-not-allowed`}
                                         >
-                                            <Icon className={`w-4 h-4 ${selectedPredictionType === type.id ? 'text-white' : type.color}`} />
+                                            <Icon className={`w-4 h-4 ${selectedPredictionType === type.id ? type.color : 'text-gray-400'}`} />
                                             {type.label}
                                         </button>
                                     );
@@ -1060,19 +1359,36 @@ const Dashboard = () => {
                             ) : predictionData ? (
                                 <div className="space-y-6">
                                     {/* Summary Stats */}
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-4 text-center">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                        <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-4 text-center border border-purple-200">
                                             <p className="text-xs text-gray-500">Total Products Analyzed</p>
                                             <p className="text-2xl font-bold text-[#1e427b]">{predictionData.totalProducts}</p>
                                         </div>
-                                        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-4 text-center">
+                                        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-4 text-center border border-emerald-200">
                                             <p className="text-xs text-gray-500">Predicted {predictionData.predictionType === 'bestSeller' ? 'Best Sellers' : predictionData.predictionType === 'poorSeller' ? 'Poor Sellers' : 'High Return Risk'}</p>
                                             <p className="text-2xl font-bold text-emerald-600">{predictionData.predictedCount}</p>
                                         </div>
-                                        <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl p-4 text-center">
+                                        <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl p-4 text-center border border-amber-200">
                                             <p className="text-xs text-gray-500">Confidence Level</p>
                                             <p className="text-2xl font-bold text-amber-600">{predictionData.confidence}%</p>
                                             <p className="text-xs text-gray-400 mt-1">Based on historical data</p>
+                                        </div>
+                                        <div className={`bg-gradient-to-br rounded-xl p-4 text-center border ${predictionData.trend === 'up'
+                                            ? 'from-green-50 to-emerald-50 border-green-200'
+                                            : predictionData.trend === 'down'
+                                                ? 'from-red-50 to-rose-50 border-red-200'
+                                                : 'from-gray-50 to-slate-50 border-gray-200'
+                                            }`}>
+                                            <p className="text-xs text-gray-500">Trend</p>
+                                            <div className="flex items-center justify-center gap-1">
+                                                {predictionData.trend === 'up' && <TrendingUp className="w-5 h-5 text-green-600" />}
+                                                {predictionData.trend === 'down' && <TrendingDown className="w-5 h-5 text-red-600" />}
+                                                {predictionData.trend === 'stable' && <Minus className="w-5 h-5 text-gray-600" />}
+                                                <span className="text-2xl font-bold capitalize">
+                                                    {predictionData.trend === 'up' ? 'Rising' : predictionData.trend === 'down' ? 'Falling' : 'Stable'}
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-gray-400 mt-1">Avg Score: {predictionData.avgScore}%</p>
                                         </div>
                                     </div>
 
@@ -1085,25 +1401,52 @@ const Dashboard = () => {
                                             {predictionData.predictionType === 'bestSeller' && 'Top Predicted Best Sellers'}
                                             {predictionData.predictionType === 'poorSeller' && 'Top Predicted Poor Sellers'}
                                             {predictionData.predictionType === 'highReturnRisk' && 'Top Predicted High Return Risk Products'}
+                                            <span className="text-xs text-gray-400 font-normal">({predictionData.topProducts?.length || 0} products)</span>
                                         </h4>
-                                        <div className="space-y-2">
+                                        <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
                                             {predictionData.topProducts && predictionData.topProducts.length > 0 ? (
                                                 predictionData.topProducts.map((product, idx) => (
-                                                    <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition">
-                                                        <div className="flex items-center gap-3">
-                                                            <span className="text-sm font-bold text-[#1e427b]">#{idx + 1}</span>
-                                                            <div>
-                                                                <span className="font-medium text-slate-800">{product.name}</span>
+                                                    <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition border border-slate-100">
+                                                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                            <span className="text-sm font-bold text-[#1e427b] w-8">#{idx + 1}</span>
+                                                            <div className="min-w-0 flex-1">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-medium text-slate-800 truncate">{product.name}</span>
+                                                                    {product.image && (
+                                                                        <img
+                                                                            src={product.image}
+                                                                            alt={product.name}
+                                                                            className="w-6 h-6 rounded object-cover flex-shrink-0"
+                                                                            onError={(e) => e.target.style.display = 'none'}
+                                                                        />
+                                                                    )}
+                                                                </div>
                                                                 <p className="text-xs text-gray-400">{product.category}</p>
                                                             </div>
                                                         </div>
-                                                        <div className="text-right">
-                                                            <span className="text-sm font-semibold text-purple-600">
-                                                                {predictionData.predictionType === 'bestSeller' && `Score: ${product.score}%`}
-                                                                {predictionData.predictionType === 'poorSeller' && `Score: ${product.score}%`}
-                                                                {predictionData.predictionType === 'highReturnRisk' && `Risk: ${product.score}%`}
-                                                            </span>
-                                                            <p className="text-xs text-gray-400">{product.sales} sales</p>
+                                                        <div className="text-right flex-shrink-0 ml-2">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="text-right">
+                                                                    <span className="text-sm font-semibold text-purple-600 block">
+                                                                        {predictionData.predictionType === 'bestSeller' && `${product.score}%`}
+                                                                        {predictionData.predictionType === 'poorSeller' && `${product.score}%`}
+                                                                        {predictionData.predictionType === 'highReturnRisk' && `${product.score}%`}
+                                                                    </span>
+                                                                    <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                                                        <div
+                                                                            className={`h-full rounded-full ${product.score >= 70 ? 'bg-emerald-500' :
+                                                                                product.score >= 40 ? 'bg-yellow-500' :
+                                                                                    'bg-red-500'
+                                                                                }`}
+                                                                            style={{ width: `${Math.min(product.score, 100)}%` }}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-xs text-gray-400 min-w-[50px]">
+                                                                    <span className="block">{product.sales} sales</span>
+                                                                    <span className="text-[10px]">Rs.{product.revenue?.toLocaleString()}</span>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 ))
@@ -1114,19 +1457,51 @@ const Dashboard = () => {
                                     </div>
 
                                     {/* Recommendations */}
-                                    <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
-                                        <h4 className="font-semibold text-blue-800 text-sm flex items-center gap-2">
-                                            <Sparkles className="w-4 h-4" />
-                                            Recommendations
+                                    <div className={`rounded-lg p-4 border ${predictionData.predictionType === 'bestSeller'
+                                        ? 'bg-blue-50 border-blue-200'
+                                        : predictionData.predictionType === 'poorSeller'
+                                            ? 'bg-amber-50 border-amber-200'
+                                            : 'bg-red-50 border-red-200'
+                                        }`}>
+                                        <h4 className="font-semibold text-slate-800 text-sm flex items-center gap-2">
+                                            <Sparkles className="w-4 h-4 text-purple-500" />
+                                            AI Recommendations
                                         </h4>
-                                        <p className="text-sm text-blue-700 mt-1">
-                                            {predictionData.predictionType === 'bestSeller' &&
-                                                'Consider increasing stock for these products. Run targeted marketing campaigns to boost sales further.'}
-                                            {predictionData.predictionType === 'poorSeller' &&
-                                                'Review pricing, update product images/descriptions, or consider running promotional offers to improve sales.'}
-                                            {predictionData.predictionType === 'highReturnRisk' &&
-                                                'Review product quality, update descriptions to set correct expectations, and consider quality control improvements.'}
-                                        </p>
+                                        <p className="text-sm text-slate-700 mt-1">{predictionData.recommendation}</p>
+                                        <div className="mt-3 flex flex-wrap gap-2">
+                                            <button className="text-xs bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 transition">
+                                                Apply Recommendation
+                                            </button>
+                                            <button className="text-xs border border-slate-300 text-slate-600 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition">
+                                                View Details
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Prediction Details */}
+                                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                        <h4 className="font-semibold text-slate-800 text-sm flex items-center gap-2 mb-2">
+                                            <Info className="w-4 h-4 text-blue-500" />
+                                            Prediction Details
+                                        </h4>
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                                            <div>
+                                                <p className="text-gray-500">Prediction Type</p>
+                                                <p className="font-medium text-slate-800 capitalize">{predictionData.predictionType.replace(/([A-Z])/g, ' $1')}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-gray-500">Confidence</p>
+                                                <p className="font-medium text-slate-800">{predictionData.confidence}%</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-gray-500">Avg Score</p>
+                                                <p className="font-medium text-slate-800">{predictionData.avgScore}%</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-gray-500">Products Analyzed</p>
+                                                <p className="font-medium text-slate-800">{predictionData.totalProducts}</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             ) : (
@@ -1139,6 +1514,7 @@ const Dashboard = () => {
                 </div>
             )}
 
+            {/* Add/Edit Product Modal */}
             {showAddModal && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">

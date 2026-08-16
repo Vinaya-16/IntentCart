@@ -14,7 +14,6 @@ import AbandonedCart from '../models/AbandonedCart.js';
 export const getRecoveryDashboard = async (req, res) => {
     try {
         const merchantId = req.user._id;
-        // console.log('Fetching recovery dashboard for merchant:', merchantId);
 
         // Get all carts with customer details
         const allCarts = await Cart.find({})
@@ -27,7 +26,6 @@ export const getRecoveryDashboard = async (req, res) => {
             .select('customerId createdAt')
             .lean();
 
-        // ============ GET PURE ABANDONED CARTS ============
         // Get abandoned carts from the AbandonedCart model
         const pureAbandonedCarts = await AbandonedCart.find({
             merchantId: merchantId,
@@ -36,8 +34,6 @@ export const getRecoveryDashboard = async (req, res) => {
             .populate('customerId', 'name email phone mobile')
             .populate('items.productId', 'name price images')
             .sort({ createdAt: -1 });
-
-        // console.log(`Found ${pureAbandonedCarts.length} pure abandoned carts`);
 
         // Create a set of customer IDs who have placed orders
         const customersWithOrders = new Set();
@@ -56,8 +52,6 @@ export const getRecoveryDashboard = async (req, res) => {
                 cart.items.length > 0;
         });
 
-        // console.log(`Found ${abandonedCarts.length} abandoned carts`);
-
         // ============ FIND RECOVERED CARTS ============
         const recoveredCarts = allCarts.filter(cart => {
             const customerId = cart.customerId?._id?.toString() || cart.customerId?.toString();
@@ -67,27 +61,177 @@ export const getRecoveryDashboard = async (req, res) => {
                 cart.items.length > 0;
         });
 
-        // console.log(`Found ${recoveredCarts.length} recovered carts`);
-
         // ============ CALCULATE STATS ============
         const totalAbandonments = abandonedCarts.length;
-        const pureTotalAbandonments = pureAbandonedCarts.length; // Add pure abandoned count
+        const pureTotalAbandonments = pureAbandonedCarts.length;
         const recoverableRevenue = abandonedCarts.reduce((sum, cart) => sum + (cart.total || 0), 0);
         const pureRecoverableRevenue = pureAbandonedCarts.reduce((sum, cart) => sum + (cart.total || 0), 0);
         const recoveredRevenue = recoveredCarts.reduce((sum, cart) => sum + (cart.total || 0), 0);
         const recoveryRate = totalAbandonments > 0 ? Math.round((recoveredCarts.length / totalAbandonments) * 100) : 0;
 
+        // ============ PURCHASE INTENT PREDICTION ============
+        // Calculate intent score for each abandoned cart based on multiple factors
+
+        const calculateIntentScore = (cart) => {
+            let score = 0;
+            let factors = [];
+
+            // 1. PRODUCT VIEWS (based on items count) - Max 25 points
+            const itemsCount = cart.items?.length || 0;
+            if (itemsCount >= 5) {
+                score += 25;
+                factors.push({ name: 'Product Views', value: 'High (5+ items)', points: 25 });
+            } else if (itemsCount >= 3) {
+                score += 18;
+                factors.push({ name: 'Product Views', value: 'Medium (3-4 items)', points: 18 });
+            } else if (itemsCount >= 1) {
+                score += 10;
+                factors.push({ name: 'Product Views', value: 'Low (1-2 items)', points: 10 });
+            }
+
+            // 2. CART ACTIVITY (based on cart total value) - Max 25 points
+            const cartTotal = cart.total || 0;
+            if (cartTotal > 5000) {
+                score += 25;
+                factors.push({ name: 'Cart Activity', value: `High Value (Rs.${cartTotal})`, points: 25 });
+            } else if (cartTotal > 2000) {
+                score += 18;
+                factors.push({ name: 'Cart Activity', value: `Medium Value (Rs.${cartTotal})`, points: 18 });
+            } else if (cartTotal > 500) {
+                score += 10;
+                factors.push({ name: 'Cart Activity', value: `Low Value (Rs.${cartTotal})`, points: 10 });
+            } else {
+                score += 5;
+                factors.push({ name: 'Cart Activity', value: `Very Low (Rs.${cartTotal})`, points: 5 });
+            }
+
+            // 3. PREVIOUS PURCHASES - Max 20 points
+            const customerId = cart.customerId?._id?.toString() || cart.customerId?.toString();
+            let previousOrders = 0;
+            if (customerId) {
+                previousOrders = allOrders.filter(o => o.customerId?.toString() === customerId).length;
+            }
+
+            if (previousOrders >= 5) {
+                score += 20;
+                factors.push({ name: 'Previous Purchases', value: 'Loyal Customer (5+ orders)', points: 20 });
+            } else if (previousOrders >= 2) {
+                score += 14;
+                factors.push({ name: 'Previous Purchases', value: 'Returning Customer (2-4 orders)', points: 14 });
+            } else if (previousOrders >= 1) {
+                score += 8;
+                factors.push({ name: 'Previous Purchases', value: 'New Customer (1 order)', points: 8 });
+            } else {
+                score += 4;
+                factors.push({ name: 'Previous Purchases', value: 'First-time Visitor', points: 4 });
+            }
+
+            // 4. WISHLIST ACTIVITY - Max 15 points
+            // Check if customer has wishlist items (simplified - you can enhance this)
+            const hasWishlist = cart.customerId?.wishlist?.length > 0 || false;
+            if (hasWishlist) {
+                score += 15;
+                factors.push({ name: 'Wishlist Activity', value: 'Has wishlist items', points: 15 });
+            } else {
+                score += 5;
+                factors.push({ name: 'Wishlist Activity', value: 'No wishlist activity', points: 5 });
+            }
+
+            // 5. SESSION DURATION (based on cart age) - Max 15 points
+            const cartAge = Math.floor((Date.now() - new Date(cart.createdAt).getTime()) / (1000 * 60)); // minutes
+            if (cartAge > 30) {
+                score += 15;
+                factors.push({ name: 'Session Duration', value: `Long session (${Math.round(cartAge)} min)`, points: 15 });
+            } else if (cartAge > 15) {
+                score += 10;
+                factors.push({ name: 'Session Duration', value: `Medium session (${Math.round(cartAge)} min)`, points: 10 });
+            } else if (cartAge > 5) {
+                score += 5;
+                factors.push({ name: 'Session Duration', value: `Short session (${Math.round(cartAge)} min)`, points: 5 });
+            } else {
+                score += 2;
+                factors.push({ name: 'Session Duration', value: 'Very short session', points: 2 });
+            }
+
+            // Normalize score to 0-100
+            const finalScore = Math.min(100, Math.round(score));
+
+            // Determine intent level
+            let level = 'Low';
+            let color = '#ef4444'; // Red
+            if (finalScore >= 71) {
+                level = 'High';
+                color = '#22c55e'; // Green
+            } else if (finalScore >= 31) {
+                level = 'Medium';
+                color = '#f59e0b'; // Yellow/Orange
+            }
+
+            return {
+                score: finalScore,
+                level: level,
+                color: color,
+                factors: factors,
+                breakdown: {
+                    itemsCount,
+                    cartTotal,
+                    previousOrders,
+                    cartAge: Math.round(cartAge),
+                    hasWishlist
+                }
+            };
+        };
+
+        // Calculate intent for each abandoned cart
+        const cartsWithIntent = abandonedCarts.map(cart => {
+            const intent = calculateIntentScore(cart);
+            const customer = cart.customerId || {};
+            return {
+                _id: cart._id,
+                customer: customer.name || 'Unknown',
+                email: customer.email || 'No email',
+                phone: customer.phone || customer.mobile || 'No phone',
+                amount: cart.total || 0,
+                items: cart.items || [],
+                itemsCount: cart.items?.length || 0,
+                abandonedAt: cart.createdAt,
+                status: 'abandoned',
+                customerId: customer._id || cart.customerId,
+                // Add intent data
+                intent: intent
+            };
+        });
+
+        // Calculate overall intent statistics
+        const intentStats = {
+            average: 0,
+            high: 0,
+            medium: 0,
+            low: 0,
+            distribution: []
+        };
+
+        if (cartsWithIntent.length > 0) {
+            const totalScore = cartsWithIntent.reduce((sum, cart) => sum + (cart.intent?.score || 0), 0);
+            intentStats.average = Math.round(totalScore / cartsWithIntent.length);
+
+            cartsWithIntent.forEach(cart => {
+                if (cart.intent?.level === 'High') intentStats.high++;
+                else if (cart.intent?.level === 'Medium') intentStats.medium++;
+                else intentStats.low++;
+            });
+        }
+
+        // Create intent distribution for chart
+        const intentDistribution = [
+            { name: 'High Intent (71-100)', value: intentStats.high, color: '#22c55e' },
+            { name: 'Medium Intent (31-70)', value: intentStats.medium, color: '#f59e0b' },
+            { name: 'Low Intent (0-30)', value: intentStats.low, color: '#ef4444' }
+        ];
+
         // ============ ABANDONMENT REASONS ============
-        // Calculate real abandonment reasons based on cart data
         const reasons = [];
-
-        // Only add reasons if there are abandonments
         if (totalAbandonments > 0) {
-            // Distribute based on cart characteristics
-            const highValueCarts = abandonedCarts.filter(c => c.total > 5000);
-            const mediumValueCarts = abandonedCarts.filter(c => c.total > 1000 && c.total <= 5000);
-
-            // Build reasons dynamically
             const reasonCounts = {
                 'High shipping cost': Math.min(1, totalAbandonments),
                 'Price too high': Math.min(1, Math.max(0, totalAbandonments - 1)),
@@ -98,19 +242,16 @@ export const getRecoveryDashboard = async (req, res) => {
                 'Long delivery time': 0
             };
 
-            // If there are 2 abandonments, distribute differently
             if (totalAbandonments === 2) {
                 reasonCounts['High shipping cost'] = 1;
                 reasonCounts['Price too high'] = 1;
             }
 
-            // Create reasons array with counts
             Object.entries(reasonCounts).forEach(([name, count]) => {
                 const percentage = totalAbandonments > 0 ? Math.round((count / totalAbandonments) * 100) : 0;
                 reasons.push({ name, count, percentage });
             });
         } else {
-            // Default reasons with 0 counts when no abandonments
             const defaultReasons = [
                 'High shipping cost', 'Price too high', 'Not ready to buy',
                 'Payment issues', 'Login required', 'Product out of stock', 'Long delivery time'
@@ -148,29 +289,15 @@ export const getRecoveryDashboard = async (req, res) => {
         }
 
         // ============ INTENT DISTRIBUTION ============
-        const intentDistribution = [
+        const intentDistributionChart = [
             { name: 'Add to Cart', value: Math.round(totalAbandonments * 0.5) },
             { name: 'Started Checkout', value: Math.round(totalAbandonments * 0.5) },
             { name: 'Payment Page', value: 0 },
             { name: 'Product View', value: 0 }
         ];
 
-        // ============ ACTIVE ABANDONMENTS ============
-        const activeAbandonments = abandonedCarts.map(cart => {
-            const customer = cart.customerId || {};
-            return {
-                _id: cart._id,
-                customer: customer.name || 'Unknown',
-                email: customer.email || 'No email',
-                phone: customer.phone || customer.mobile || 'No phone',
-                amount: cart.total || 0,
-                items: cart.items || [],
-                itemsCount: cart.items?.length || 0,
-                abandonedAt: cart.createdAt,
-                status: 'abandoned',
-                customerId: customer._id || cart.customerId
-            };
-        });
+        // ============ ACTIVE ABANDONMENTS WITH INTENT ============
+        const activeAbandonments = cartsWithIntent;
 
         // ============ RECENT RECOVERIES ============
         const recentRecoveries = recoveredCarts.slice(0, 10).map(cart => {
@@ -189,6 +316,35 @@ export const getRecoveryDashboard = async (req, res) => {
         // ============ AI RECOMMENDATIONS ============
         const recommendations = [];
 
+        // High intent customers recommendations
+        const highIntentCount = cartsWithIntent.filter(c => c.intent?.level === 'High').length;
+        if (highIntentCount > 0) {
+            recommendations.push({
+                type: 'high_intent_recovery',
+                title: `${highIntentCount} High-Intent Customers Ready to Buy`,
+                description: `These customers have shown strong purchase signals. Prioritize recovery efforts.`,
+                details: `Customers with High intent score (71-100%) are most likely to complete purchase. Send personalized offers.`,
+                priority: 'high',
+                impact: `+${Math.round(highIntentCount * 0.7)} potential conversions`,
+                intentLevel: 'High'
+            });
+        }
+
+        // Medium intent customers
+        const mediumIntentCount = cartsWithIntent.filter(c => c.intent?.level === 'Medium').length;
+        if (mediumIntentCount > 0) {
+            recommendations.push({
+                type: 'medium_intent_nurture',
+                title: `${mediumIntentCount} Medium-Intent Customers`,
+                description: 'Nurture these customers with targeted campaigns.',
+                details: `Medium intent customers (31-70%) need gentle reminders and incentives. Send discount offers.`,
+                priority: 'medium',
+                impact: `+${Math.round(mediumIntentCount * 0.3)} potential conversions`,
+                intentLevel: 'Medium'
+            });
+        }
+
+        // General recommendations
         if (totalAbandonments > 0) {
             recommendations.push({
                 type: 'improve_checkout',
@@ -232,7 +388,16 @@ export const getRecoveryDashboard = async (req, res) => {
                 recoveryAttempts: Math.round(recoveredCarts.length * 0.7),
                 totalAbandonments,
                 recoveredRevenue,
-                // Add pure abandoned carts data
+                // Purchase Intent Stats
+                intentStats: {
+                    average: intentStats.average,
+                    high: intentStats.high,
+                    medium: intentStats.medium,
+                    low: intentStats.low,
+                    distribution: intentDistribution,
+                    totalCartsAnalyzed: cartsWithIntent.length
+                },
+                // Pure abandoned carts data
                 pureAbandonedCarts: {
                     count: pureTotalAbandonments,
                     totalRevenue: pureRecoverableRevenue,
@@ -254,10 +419,22 @@ export const getRecoveryDashboard = async (req, res) => {
                 },
                 abandonmentReasons: reasons,
                 recoveryTrend,
-                intentDistribution,
+                intentDistribution: intentDistributionChart,
                 recommendations,
                 recentRecoveries,
-                activeAbandonments
+                activeAbandonments: activeAbandonments.map(cart => ({
+                    _id: cart._id,
+                    customer: cart.customer,
+                    email: cart.email,
+                    phone: cart.phone,
+                    amount: cart.amount,
+                    items: cart.items,
+                    itemsCount: cart.itemsCount,
+                    abandonedAt: cart.abandonedAt,
+                    status: cart.status,
+                    customerId: cart.customerId,
+                    intent: cart.intent
+                }))
             }
         });
 
@@ -279,7 +456,7 @@ export const getRecoveryDashboard = async (req, res) => {
 export const triggerRecovery = async (req, res) => {
     try {
         const merchantId = req.user._id;
-        const { abandonmentId, source } = req.body; 
+        const { abandonmentId, source } = req.body;
 
         let cart;
         let customer;
@@ -506,7 +683,7 @@ export const getAbandonments = async (req, res) => {
             itemsCount: cart.items?.length || 0,
             abandonedAt: cart.createdAt,
             status: cart.status, // 'abandoned' or 'recovery_attempted'
-            source: 'abandoned_cart', 
+            source: 'abandoned_cart',
             recoveryAttempts: cart.recoveryAttempts || 0,
             lastRecoveryAttempt: cart.lastRecoveryAttempt || null,
             removalType: cart.removalType,
