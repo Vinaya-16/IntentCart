@@ -44,6 +44,12 @@ import {
   recalculateMerchantRisk,
   updateMerchantStatus,
 
+  //shipper approval
+  approveShipper,
+  getShipperStats,
+  getShippers,
+  updateShipperDetails,
+
 
 } from '../controllers/adminController.js';
 
@@ -126,5 +132,13 @@ router.put('/risk/merchant/:id/status', updateMerchantStatus);
 
 // Recalculate merchant risk
 router.post('/risk/merchant/:id/recalculate', recalculateMerchantRisk);
+
+
+// ======================== Shipper Management ============================
+
+router.put('/users/:id/approve-shipper', protect, approveShipper);
+router.get('/users/shippers', protect, getShippers);
+router.get('/users/shippers/stats', protect, getShipperStats);
+router.put('/users/:id/shipper-details', protect, updateShipperDetails);
 
 export default router;

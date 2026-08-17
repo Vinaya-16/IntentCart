@@ -170,7 +170,7 @@ const userSchema = new mongoose.Schema({
   tier: {
     type: String,
     enum: ['Silver Member', 'Gold Member', 'Platinum Member'],
-    default: 'Paltinum Member'
+    default: 'Platinum Member'
   },
   rewardPoints: {
     type: Number,
@@ -232,6 +232,122 @@ const userSchema = new mongoose.Schema({
     isDefault: {
       type: Boolean,
       default: false
+    },
+
+    // ==================== SHIPPER SPECIFIC ====================
+    shipperDetails: {
+      branch: {
+        type: String,
+        trim: true
+      },
+      assignedRegion: {
+        type: String,
+        trim: true
+      },
+      vehicleNumber: {
+        type: String,
+        trim: true
+      },
+      licenseNumber: {
+        type: String,
+        trim: true
+      },
+      experience: {
+        type: Number,
+        default: 0
+      },
+      rating: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 5
+      },
+      totalDeliveries: {
+        type: Number,
+        default: 0
+      },
+      successfulDeliveries: {
+        type: Number,
+        default: 0
+      },
+      failedDeliveries: {
+        type: Number,
+        default: 0
+      },
+      currentStatus: {
+        type: String,
+        enum: ['available', 'busy', 'offline', 'on_break'],
+        default: 'available'
+      },
+      lastLocation: {
+        type: {
+          type: String,
+          enum: ['Point'],
+          default: 'Point'
+        },
+        coordinates: {
+          type: [Number],
+          default: [0, 0]
+        },
+        updatedAt: {
+          type: Date,
+          default: Date.now
+        }
+      },
+      assignedOrders: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Order'
+      }]
+    },
+
+    // ==================== SHIPPING PREFERENCES ====================
+    shippingPreferences: {
+      maxWeight: {
+        type: Number,
+        default: 100 // in kg
+      },
+      serviceRadius: {
+        type: Number,
+        default: 50 // in km
+      },
+      preferredAreas: [{
+        type: String,
+        trim: true
+      }],
+      workingHours: {
+        start: {
+          type: String,
+          default: '09:00'
+        },
+        end: {
+          type: String,
+          default: '18:00'
+        }
+      }
+    },
+
+    // Track shipper performance
+    performanceMetrics: {
+      onTimeDelivery: {
+        type: Number,
+        default: 0
+      },
+      averageDeliveryTime: {
+        type: Number,
+        default: 0 // in minutes
+      },
+      customerRating: {
+        type: Number,
+        default: 0
+      },
+      totalEarnings: {
+        type: Number,
+        default: 0
+      },
+      weeklyEarnings: {
+        type: Number,
+        default: 0
+      }
     }
   }]
 

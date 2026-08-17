@@ -25,21 +25,78 @@ const createAdminNotification = async (title, message, type, category, metadata 
 
 // ==================== USER MANAGEMENT ====================
 
+// @desc    Get all users with filtering and pagination
+// @route   GET /api/auth/users
+// @access  Private (Admin only)
 export const getAllUsers = async (req, res) => {
   try {
-    const { role } = req.query;
+    const { role, isActive, isApproved, search, page = 1, limit = 10 } = req.query;
     let query = {};
 
+    // Filter by role
     if (role) {
       query.role = role;
     }
 
-    const users = await User.find(query).select('-password');
+    // Filter by active status
+    if (isActive !== undefined) {
+      query.isActive = isActive === 'true';
+    }
+
+    // Filter by approval status (for shippers and merchants)
+    if (isApproved !== undefined) {
+      query.isApproved = isApproved === 'true';
+    }
+
+    // Search by username, email, or role-specific fields
+    if (search) {
+      query.$or = [
+        { username: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { firstName: { $regex: search, $options: 'i' } },
+        { lastName: { $regex: search, $options: 'i' } },
+        { 'shipperDetails.branch': { $regex: search, $options: 'i' } },
+        { 'shipperDetails.vehicleNumber': { $regex: search, $options: 'i' } },
+        { businessName: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [users, total] = await Promise.all([
+      User.find(query)
+        .select('-password')
+        .skip(skip)
+        .limit(parseInt(limit))
+        .sort({ createdAt: -1 }),
+      User.countDocuments(query)
+    ]);
+
+    // Add additional info for shippers
+    const usersWithDetails = users.map(user => {
+      const userObj = user.toJSON();
+
+      // Add shipper-specific stats if role is shipper
+      if (user.role === 'shipper' && user.shipperDetails) {
+        userObj.shipperStats = {
+          totalDeliveries: user.shipperDetails.totalDeliveries || 0,
+          successfulDeliveries: user.shipperDetails.successfulDeliveries || 0,
+          failedDeliveries: user.shipperDetails.failedDeliveries || 0,
+          rating: user.shipperDetails.rating || 0,
+          currentStatus: user.shipperDetails.currentStatus || 'offline'
+        };
+      }
+
+      return userObj;
+    });
 
     res.status(200).json({
       success: true,
       count: users.length,
-      users
+      total,
+      totalPages: Math.ceil(total / limit),
+      currentPage: parseInt(page),
+      users: usersWithDetails
     });
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -51,18 +108,68 @@ export const getAllUsers = async (req, res) => {
   }
 };
 
+// @desc    Get user by ID with role-specific details
+// @route   GET /api/auth/users/:id
+// @access  Private (Admin only)
 export const getUserById = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('-password');
+    const user = await User.findById(req.params.id)
+      .select('-password')
+      .populate('shipperDetails.assignedOrders', 'orderNumber status totalAmount shippingAddress customerName createdAt');
+
     if (!user) {
       return res.status(404).json({
         success: false,
         message: 'User not found'
       });
     }
+
+    // Prepare response based on role
+    const userObj = user.toJSON();
+
+    // Add role-specific information
+    if (user.role === 'shipper' && user.shipperDetails) {
+      userObj.shipperStats = {
+        totalDeliveries: user.shipperDetails.totalDeliveries || 0,
+        successfulDeliveries: user.shipperDetails.successfulDeliveries || 0,
+        failedDeliveries: user.shipperDetails.failedDeliveries || 0,
+        successRate: user.shipperDetails.totalDeliveries > 0
+          ? ((user.shipperDetails.successfulDeliveries / user.shipperDetails.totalDeliveries) * 100).toFixed(2)
+          : 0,
+        rating: user.shipperDetails.rating || 0,
+        currentStatus: user.shipperDetails.currentStatus || 'offline',
+        assignedOrdersCount: user.shipperDetails.assignedOrders?.length || 0,
+        lastLocation: user.shipperDetails.lastLocation
+      };
+
+      // Add performance metrics if they exist
+      if (user.performanceMetrics) {
+        userObj.performanceMetrics = user.performanceMetrics;
+      }
+    }
+
+    if (user.role === 'merchant') {
+      userObj.merchantInfo = {
+        businessName: user.businessName,
+        businessDescription: user.businessDescription,
+        businessAddress: user.businessAddress,
+        businessPhone: user.businessPhone,
+        merchantStatus: user.merchantStatus || 'pending'
+      };
+    }
+
+    if (user.role === 'customer') {
+      userObj.customerInfo = {
+        tier: user.tier || 'Platinum Member',
+        rewardPoints: user.rewardPoints || 0,
+        totalOrders: user.totalOrders || 0,
+        wishlistCount: user.wishlistCount || 0
+      };
+    }
+
     res.status(200).json({
       success: true,
-      user
+      user: userObj
     });
   } catch (error) {
     console.error('Error fetching user:', error);
@@ -74,9 +181,13 @@ export const getUserById = async (req, res) => {
   }
 };
 
+// @desc    Delete user with cleanup
+// @route   DELETE /api/auth/users/:id
+// @access  Private (Admin only)
 export const deleteUser = async (req, res) => {
   try {
-    const user = await User.findByIdAndDelete(req.params.id);
+    const user = await User.findById(req.params.id);
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -84,17 +195,47 @@ export const deleteUser = async (req, res) => {
       });
     }
 
-    await createAdminNotification(
-      `User Deleted: ${user.username}`,
-      `User ${user.username} (${user.email}) was deleted from the system.`,
-      'alert',
-      'System',
-      { userId: user._id, email: user.email }
-    );
+    // Prevent deleting super admin
+    if (user.email === process.env.SUPER_ADMIN_EMAIL) {
+      return res.status(403).json({
+        success: false,
+        message: 'Cannot delete super admin account'
+      });
+    }
+
+    // Store user info for notification before deletion
+    const userInfo = {
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      shipperDetails: user.shipperDetails,
+      businessName: user.businessName
+    };
+
+    // Delete the user
+    await User.findByIdAndDelete(req.params.id);
+
+    // Create admin notification (if you have this function)
+    if (typeof createAdminNotification === 'function') {
+      await createAdminNotification(
+        `User Deleted: ${userInfo.username}`,
+        `User ${userInfo.username} (${userInfo.email}) with role '${userInfo.role}' was deleted from the system.`,
+        'alert',
+        'System',
+        { userId: userInfo.id, email: userInfo.email }
+      );
+    }
 
     res.status(200).json({
       success: true,
-      message: 'User deleted successfully'
+      message: 'User deleted successfully',
+      deletedUser: {
+        id: userInfo.id,
+        username: userInfo.username,
+        email: userInfo.email,
+        role: userInfo.role
+      }
     });
   } catch (error) {
     console.error('Error deleting user:', error);
@@ -111,16 +252,7 @@ export const toggleBlockUser = async (req, res) => {
     const { id } = req.params;
     const { isActive, reason } = req.body;
 
-    const user = await User.findByIdAndUpdate(
-      id,
-      {
-        isActive: isActive,
-        blockedAt: isActive ? null : new Date(),
-        blockReason: isActive ? null : (reason || 'No reason provided')
-      },
-      { new: true }
-    ).select('-password');
-
+    const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -128,6 +260,63 @@ export const toggleBlockUser = async (req, res) => {
       });
     }
 
+    // Prevent blocking super admin
+    if (user.email === process.env.SUPER_ADMIN_EMAIL) {
+      return res.status(403).json({
+        success: false,
+        message: 'Cannot block super admin account'
+      });
+    }
+
+    // If blocking a shipper, also set isApproved to false
+    if (user.role === 'shipper' && isActive === false) {
+      user.isApproved = false;
+    }
+
+    // If unblocking a shipper, set isApproved to true and ensure shipperDetails exist
+    if (user.role === 'shipper' && isActive === true) {
+      user.isApproved = true;
+
+      // Ensure shipperDetails exist
+      if (!user.shipperDetails || Object.keys(user.shipperDetails).length === 0) {
+        user.shipperDetails = {
+          branch: "Not Assigned",
+          assignedRegion: "Not Assigned",
+          vehicleNumber: "Not Assigned",
+          licenseNumber: "Not Assigned",
+          experience: 0,
+          currentStatus: "available",
+          totalDeliveries: 0,
+          successfulDeliveries: 0,
+          failedDeliveries: 0,
+          rating: 0,
+          lastLocation: {
+            type: "Point",
+            coordinates: [0, 0],
+            updatedAt: new Date()
+          },
+          assignedOrders: []
+        };
+      }
+
+      if (!user.performanceMetrics || Object.keys(user.performanceMetrics).length === 0) {
+        user.performanceMetrics = {
+          onTimeDelivery: 0,
+          averageDeliveryTime: 0,
+          customerRating: 0,
+          totalEarnings: 0,
+          weeklyEarnings: 0
+        };
+      }
+    }
+
+    user.isActive = isActive;
+    user.blockedAt = isActive ? null : new Date();
+    user.blockReason = isActive ? null : (reason || 'No reason provided');
+
+    await user.save();
+
+    // Create notification
     if (!isActive) {
       await createAdminNotification(
         `User Blocked: ${user.username}`,
@@ -149,10 +338,337 @@ export const toggleBlockUser = async (req, res) => {
     res.status(200).json({
       success: true,
       message: `User ${isActive ? 'unblocked' : 'blocked'} successfully`,
-      user
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        isActive: user.isActive,
+        isApproved: user.isApproved,
+        shipperDetails: user.shipperDetails
+      }
     });
   } catch (error) {
     console.error('Error blocking/unblocking user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// ==================== SHIPPER MANAGEMENT ====================
+
+// @desc    Approve/Reject shipper (Admin only)
+// @route   PUT /api/auth/users/:id/approve-shipper
+// @access  Private (Admin only)
+export const approveShipper = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isApproved, reason } = req.body;
+
+    if (isApproved === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'isApproved status is required'
+      });
+    }
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Check if user is a shipper
+    if (user.role !== 'shipper') {
+      return res.status(400).json({
+        success: false,
+        message: 'User is not a shipper'
+      });
+    }
+
+    // Update shipper approval status
+    user.isApproved = isApproved;
+
+    // If approving, make sure shipper details exist
+    if (isApproved === true) {
+      // If shipperDetails is missing, add default values
+      if (!user.shipperDetails || Object.keys(user.shipperDetails).length === 0) {
+        user.shipperDetails = {
+          branch: "Not Assigned",
+          assignedRegion: "Not Assigned",
+          vehicleNumber: "Not Assigned",
+          licenseNumber: "Not Assigned",
+          experience: 0,
+          currentStatus: "available",
+          totalDeliveries: 0,
+          successfulDeliveries: 0,
+          failedDeliveries: 0,
+          rating: 0,
+          lastLocation: {
+            type: "Point",
+            coordinates: [0, 0],
+            updatedAt: new Date()
+          },
+          assignedOrders: []
+        };
+      }
+
+      // Add performance metrics if missing
+      if (!user.performanceMetrics || Object.keys(user.performanceMetrics).length === 0) {
+        user.performanceMetrics = {
+          onTimeDelivery: 0,
+          averageDeliveryTime: 0,
+          customerRating: 0,
+          totalEarnings: 0,
+          weeklyEarnings: 0
+        };
+      }
+
+      // Also ensure the user is active
+      if (!user.isActive) {
+        user.isActive = true;
+      }
+    }
+
+    // Save the updated user
+    await user.save();
+
+    // Create notification
+    await createAdminNotification(
+      `Shipper ${isApproved ? 'Approved' : 'Rejected'}: ${user.username}`,
+      `Shipper ${user.username} (${user.email}) has been ${isApproved ? 'approved' : 'rejected'}.${reason ? ` Reason: ${reason}` : ''}`,
+      isApproved ? 'success' : 'alert',
+      'Shipper Management',
+      {
+        shipperId: user._id,
+        email: user.email,
+        username: user.username,
+        isApproved,
+        reason: reason || 'No reason provided'
+      }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: `Shipper ${isApproved ? 'approved' : 'rejected'} successfully`,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        isApproved: user.isApproved,
+        isActive: user.isActive,
+        shipperDetails: user.shipperDetails,
+        performanceMetrics: user.performanceMetrics
+      }
+    });
+  } catch (error) {
+    console.error('Error approving shipper:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get all shippers with filtering (Admin only)
+// @route   GET /api/auth/users/shippers
+// @access  Private (Admin only)
+export const getShippers = async (req, res) => {
+  try {
+    const { status, search, page = 1, limit = 10 } = req.query;
+
+    let query = { role: 'shipper' };
+
+    // Filter by approval status
+    if (status === 'pending') {
+      query.isApproved = false;
+    } else if (status === 'approved') {
+      query.isApproved = true;
+    }
+
+    // Search by username, email, or shipper details
+    if (search) {
+      query.$or = [
+        { username: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { 'shipperDetails.branch': { $regex: search, $options: 'i' } },
+        { 'shipperDetails.vehicleNumber': { $regex: search, $options: 'i' } },
+        { 'shipperDetails.assignedRegion': { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [shippers, total] = await Promise.all([
+      User.find(query)
+        .select('-password')
+        .skip(skip)
+        .limit(parseInt(limit))
+        .sort({ createdAt: -1 }),
+      User.countDocuments(query)
+    ]);
+
+    // Add shipper stats
+    const shippersWithStats = shippers.map(shipper => {
+      const shipperObj = shipper.toJSON();
+      shipperObj.shipperStats = {
+        totalDeliveries: shipper.shipperDetails?.totalDeliveries || 0,
+        successfulDeliveries: shipper.shipperDetails?.successfulDeliveries || 0,
+        failedDeliveries: shipper.shipperDetails?.failedDeliveries || 0,
+        rating: shipper.shipperDetails?.rating || 0,
+        currentStatus: shipper.shipperDetails?.currentStatus || 'offline',
+        assignedOrders: shipper.shipperDetails?.assignedOrders?.length || 0
+      };
+      return shipperObj;
+    });
+
+    res.status(200).json({
+      success: true,
+      count: shippers.length,
+      total,
+      totalPages: Math.ceil(total / limit),
+      currentPage: parseInt(page),
+      shippers: shippersWithStats
+    });
+  } catch (error) {
+    console.error('Error fetching shippers:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get shipper statistics (Admin only)
+// @route   GET /api/auth/users/shippers/stats
+// @access  Private (Admin only)
+export const getShipperStats = async (req, res) => {
+  try {
+    const totalShippers = await User.countDocuments({ role: 'shipper' });
+    const pendingShippers = await User.countDocuments({
+      role: 'shipper',
+      isApproved: false
+    });
+    const approvedShippers = await User.countDocuments({
+      role: 'shipper',
+      isApproved: true
+    });
+    const activeShippers = await User.countDocuments({
+      role: 'shipper',
+      isActive: true
+    });
+    const availableShippers = await User.countDocuments({
+      role: 'shipper',
+      'shipperDetails.currentStatus': 'available',
+      isActive: true,
+      isApproved: true
+    });
+    const busyShippers = await User.countDocuments({
+      role: 'shipper',
+      'shipperDetails.currentStatus': 'busy',
+      isActive: true,
+      isApproved: true
+    });
+
+    res.status(200).json({
+      success: true,
+      stats: {
+        total: totalShippers,
+        pending: pendingShippers,
+        approved: approvedShippers,
+        active: activeShippers,
+        available: availableShippers,
+        busy: busyShippers,
+        offline: totalShippers - (availableShippers + busyShippers)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching shipper stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Update shipper details (Admin only)
+// @route   PUT /api/auth/users/:id/shipper-details
+// @access  Private (Admin only)
+export const updateShipperDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      branch,
+      assignedRegion,
+      vehicleNumber,
+      licenseNumber,
+      experience,
+      currentStatus
+    } = req.body;
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (user.role !== 'shipper') {
+      return res.status(400).json({
+        success: false,
+        message: 'User is not a shipper'
+      });
+    }
+
+    // Initialize shipperDetails if it doesn't exist
+    if (!user.shipperDetails) {
+      user.shipperDetails = {};
+    }
+
+    // Update fields
+    if (branch) user.shipperDetails.branch = branch;
+    if (assignedRegion) user.shipperDetails.assignedRegion = assignedRegion;
+    if (vehicleNumber) user.shipperDetails.vehicleNumber = vehicleNumber;
+    if (licenseNumber) user.shipperDetails.licenseNumber = licenseNumber;
+    if (experience !== undefined) user.shipperDetails.experience = parseInt(experience);
+    if (currentStatus) {
+      const validStatuses = ['available', 'busy', 'offline', 'on_break'];
+      if (!validStatuses.includes(currentStatus)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid status. Valid: available, busy, offline, on_break'
+        });
+      }
+      user.shipperDetails.currentStatus = currentStatus;
+    }
+
+    await user.save();
+
+    await createAdminNotification(
+      `Shipper Updated: ${user.username}`,
+      `Shipper ${user.username}'s details were updated by admin.`,
+      'info',
+      'Shipper Management',
+      { shipperId: user._id, email: user.email }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Shipper details updated successfully',
+      shipperDetails: user.shipperDetails
+    });
+  } catch (error) {
+    console.error('Error updating shipper details:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',

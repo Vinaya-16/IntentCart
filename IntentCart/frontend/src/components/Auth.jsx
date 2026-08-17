@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Mail, Lock, ArrowRight, Eye, EyeOff, Store, ShoppingBag, Briefcase, MapPin, Phone } from 'lucide-react';
+import { User, Mail, Lock, ArrowRight, Eye, EyeOff, Store, ShoppingBag, Briefcase, MapPin, Phone, Truck } from 'lucide-react';
 
 const API_URL = 'http://localhost:5000/api/auth';
 
@@ -14,7 +14,15 @@ export default function AuthPage() {
     businessName: '',
     businessDescription: '',
     businessAddress: '',
-    businessPhone: ''
+    businessPhone: '',
+    // Shipping specific fields
+    shipperDetails: {
+      branch: '',
+      assignedRegion: '',
+      vehicleNumber: '',
+      licenseNumber: '',
+      experience: 0
+    }
   });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -22,10 +30,24 @@ export default function AuthPage() {
   const [success, setSuccess] = useState('');
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    const { name, value } = e.target;
+
+    // Handle nested shipper details
+    if (name.startsWith('shipper.')) {
+      const field = name.split('.')[1];
+      setFormData({
+        ...formData,
+        shipperDetails: {
+          ...formData.shipperDetails,
+          [field]: value
+        }
+      });
+    } else {
+      setFormData({
+        ...formData,
+        [name]: value,
+      });
+    }
     setError('');
   };
 
@@ -57,9 +79,25 @@ export default function AuthPage() {
         setError('Password must contain at least one letter and one number');
         return false;
       }
+
       if (role === 'merchant' && !formData.businessName.trim()) {
         setError('Business name is required for merchants');
         return false;
+      }
+
+      if (role === 'shipper') {
+        if (!formData.shipperDetails.branch.trim()) {
+          setError('Branch is required for shippers');
+          return false;
+        }
+        if (!formData.shipperDetails.vehicleNumber.trim()) {
+          setError('Vehicle number is required for shippers');
+          return false;
+        }
+        if (!formData.shipperDetails.licenseNumber.trim()) {
+          setError('License number is required for shippers');
+          return false;
+        }
       }
     }
     return true;
@@ -67,7 +105,7 @@ export default function AuthPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
@@ -78,7 +116,7 @@ export default function AuthPage() {
 
     try {
       const endpoint = isSignUp ? '/signup' : '/signin';
-      
+
       let dataToSend;
       if (isSignUp) {
         dataToSend = {
@@ -87,12 +125,23 @@ export default function AuthPage() {
           password: formData.password,
           role: formData.role
         };
-        
+
         if (formData.role === 'merchant') {
           dataToSend.businessName = formData.businessName.trim();
           dataToSend.businessDescription = formData.businessDescription?.trim() || '';
           dataToSend.businessAddress = formData.businessAddress?.trim() || '';
           dataToSend.businessPhone = formData.businessPhone?.trim() || '';
+        }
+
+        if (formData.role === 'shipper') {
+          dataToSend.shipperDetails = {
+            branch: formData.shipperDetails.branch.trim(),
+            assignedRegion: formData.shipperDetails.assignedRegion?.trim() || '',
+            vehicleNumber: formData.shipperDetails.vehicleNumber.trim(),
+            licenseNumber: formData.shipperDetails.licenseNumber.trim(),
+            experience: parseInt(formData.shipperDetails.experience) || 0,
+            currentStatus: 'available'
+          };
         }
       } else {
         dataToSend = {
@@ -100,8 +149,6 @@ export default function AuthPage() {
           password: formData.password
         };
       }
-
-      // console.log('Sending login request...');
 
       const response = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
@@ -112,7 +159,6 @@ export default function AuthPage() {
       });
 
       const data = await response.json();
-      // console.log('Server response:', data);
 
       if (!response.ok) {
         if (data.errors) {
@@ -125,10 +171,6 @@ export default function AuthPage() {
       // Store token and user data
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
-      
-      // console.log('Login successful!');
-      // console.log('User role:', data.user.role);
-      // console.log('Redirect URL:', data.user.redirectUrl);
 
       setSuccess(`Welcome ${data.user.username}!`);
 
@@ -137,16 +179,16 @@ export default function AuthPage() {
         const roleRedirects = {
           admin: '/admin-dashboard',
           merchant: '/merchant-dashboard',
-          customer: '/'
+          customer: '/',
+          shipper: '/shipping-dashboard'
         };
-        
+
         const redirectUrl = data.user.redirectUrl || roleRedirects[data.user.role] || '/';
-        // console.log('Redirecting to:', redirectUrl);
-        
+
         // Use replace to prevent back button issues
         window.location.replace(redirectUrl);
       }, 800);
-      
+
     } catch (err) {
       console.error('Error:', err);
       setError(err.message);
@@ -168,7 +210,14 @@ export default function AuthPage() {
       businessName: '',
       businessDescription: '',
       businessAddress: '',
-      businessPhone: ''
+      businessPhone: '',
+      shipperDetails: {
+        branch: '',
+        assignedRegion: '',
+        vehicleNumber: '',
+        licenseNumber: '',
+        experience: 0
+      }
     });
   };
 
@@ -198,7 +247,7 @@ export default function AuthPage() {
       {/* Right Column - Auth Form Container */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-8 md:p-12 min-h-screen">
         <div className="w-full max-w-md">
-          
+
           {/* Mobile Logo Header */}
           <div className="lg:hidden flex flex-col items-center mb-8">
             <div className="w-12 h-12 bg-[#4B2EC2] rounded-2xl flex items-center justify-center mb-3 shadow-md shadow-[#4B2EC2]/20">
@@ -209,14 +258,14 @@ export default function AuthPage() {
 
           {/* Card Component */}
           <div className="w-full bg-white rounded-3xl border border-gray-200/80 p-8 sm:p-10 lg:p-12 shadow-xl shadow-slate-200/50">
-            
+
             {/* Card Header */}
             <div>
               <h2 className="text-2xl sm:text-3xl font-bold text-[#1D1068] text-center tracking-tight">
                 {isSignUp ? 'Create Account' : 'Welcome back'}
               </h2>
               <p className="text-gray-500 text-center mt-2 text-sm">
-                {isSignUp ? 'Join as a customer or merchant' : 'Sign in to your account'}
+                {isSignUp ? 'Join as a customer, merchant, or shipper' : 'Sign in to your account'}
               </p>
             </div>
 
@@ -234,37 +283,46 @@ export default function AuthPage() {
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="w-full space-y-5 mt-6">
-              
+
               {/* Role Selection - Only for Sign Up */}
               {isSignUp && (
                 <div className="space-y-3">
                   <label className="block text-sm font-medium text-gray-700">
                     I want to join as:
                   </label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <button
                       type="button"
                       onClick={() => handleRoleChange('customer')}
-                      className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all ${
-                        role === 'customer'
-                          ? 'border-[#4B2EC2] bg-[#4B2EC2]/5 text-[#4B2EC2]'
-                          : 'border-gray-300 hover:border-gray-400 text-gray-600'
-                      }`}
+                      className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all ${role === 'customer'
+                        ? 'border-[#4B2EC2] bg-[#4B2EC2]/5 text-[#4B2EC2]'
+                        : 'border-gray-300 hover:border-gray-400 text-gray-600'
+                        }`}
                     >
                       <ShoppingBag className="w-5 h-5" />
-                      <span className="font-medium">Customer</span>
+                      <span className="font-medium text-xs sm:text-sm">Customer</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => handleRoleChange('merchant')}
-                      className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all ${
-                        role === 'merchant'
-                          ? 'border-[#4B2EC2] bg-[#4B2EC2]/5 text-[#4B2EC2]'
-                          : 'border-gray-300 hover:border-gray-400 text-gray-600'
-                      }`}
+                      className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all ${role === 'merchant'
+                        ? 'border-[#4B2EC2] bg-[#4B2EC2]/5 text-[#4B2EC2]'
+                        : 'border-gray-300 hover:border-gray-400 text-gray-600'
+                        }`}
                     >
                       <Store className="w-5 h-5" />
-                      <span className="font-medium">Merchant</span>
+                      <span className="font-medium text-xs sm:text-sm">Merchant</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRoleChange('shipper')}
+                      className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all ${role === 'shipper'
+                        ? 'border-[#4B2EC2] bg-[#4B2EC2]/5 text-[#4B2EC2]'
+                        : 'border-gray-300 hover:border-gray-400 text-gray-600'
+                        }`}
+                    >
+                      <Truck className="w-5 h-5" />
+                      <span className="font-medium text-xs sm:text-sm">Shipper</span>
                     </button>
                   </div>
                 </div>
@@ -334,6 +392,76 @@ export default function AuthPage() {
                       placeholder="Business Description (Optional)"
                       rows="3"
                       className="w-full px-4 py-3.5 border border-gray-300 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4B2EC2]/20 focus:border-[#4B2EC2] transition-all text-sm sm:text-base bg-white resize-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Shipper Specific Fields */}
+              {isSignUp && role === 'shipper' && (
+                <div className="space-y-4 border-l-4 border-[#4B2EC2] pl-4 bg-gray-50/30 p-4 rounded-r-xl">
+                  <div className="relative flex items-center">
+                    <MapPin className="absolute left-4 text-gray-400 w-5 h-5 pointer-events-none" />
+                    <input
+                      type="text"
+                      name="shipper.branch"
+                      value={formData.shipperDetails.branch}
+                      onChange={handleChange}
+                      placeholder="Branch / Depot *"
+                      required={role === 'shipper'}
+                      className="w-full pl-12 pr-4 py-3.5 border border-gray-300 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4B2EC2]/20 focus:border-[#4B2EC2] transition-all text-sm sm:text-base bg-white"
+                    />
+                  </div>
+
+                  <div className="relative flex items-center">
+                    <MapPin className="absolute left-4 text-gray-400 w-5 h-5 pointer-events-none" />
+                    <input
+                      type="text"
+                      name="shipper.assignedRegion"
+                      value={formData.shipperDetails.assignedRegion}
+                      onChange={handleChange}
+                      placeholder="Assigned Region (e.g., North District)"
+                      className="w-full pl-12 pr-4 py-3.5 border border-gray-300 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4B2EC2]/20 focus:border-[#4B2EC2] transition-all text-sm sm:text-base bg-white"
+                    />
+                  </div>
+
+                  <div className="relative flex items-center">
+                    <Truck className="absolute left-4 text-gray-400 w-5 h-5 pointer-events-none" />
+                    <input
+                      type="text"
+                      name="shipper.vehicleNumber"
+                      value={formData.shipperDetails.vehicleNumber}
+                      onChange={handleChange}
+                      placeholder="Vehicle Number *"
+                      required={role === 'shipper'}
+                      className="w-full pl-12 pr-4 py-3.5 border border-gray-300 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4B2EC2]/20 focus:border-[#4B2EC2] transition-all text-sm sm:text-base bg-white"
+                    />
+                  </div>
+
+                  <div className="relative flex items-center">
+                    <Briefcase className="absolute left-4 text-gray-400 w-5 h-5 pointer-events-none" />
+                    <input
+                      type="text"
+                      name="shipper.licenseNumber"
+                      value={formData.shipperDetails.licenseNumber}
+                      onChange={handleChange}
+                      placeholder="Driver's License Number *"
+                      required={role === 'shipper'}
+                      className="w-full pl-12 pr-4 py-3.5 border border-gray-300 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4B2EC2]/20 focus:border-[#4B2EC2] transition-all text-sm sm:text-base bg-white"
+                    />
+                  </div>
+
+                  <div className="relative flex items-center">
+                    <input
+                      type="number"
+                      name="shipper.experience"
+                      value={formData.shipperDetails.experience}
+                      placeholder="Experiance"
+                      onChange={handleChange}
+                      placeholder="Years of Experience"
+                      min="0"
+                      max="50"
+                      className="w-full pl-4 pr-4 py-3.5 border border-gray-300 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4B2EC2]/20 focus:border-[#4B2EC2] transition-all text-sm sm:text-base bg-white"
                     />
                   </div>
                 </div>
