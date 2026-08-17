@@ -20,7 +20,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         { 
             id: 'dashboard', 
             label: 'Dashboard', 
-            path: '/shipping-shippingM', 
+            path: '/shipping-dashboard', 
             icon: LayoutDashboard 
         },
         { 

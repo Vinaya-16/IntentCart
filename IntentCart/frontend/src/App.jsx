@@ -89,7 +89,7 @@ function App() {
             <Route path="/order/:id" element={<OrderDetailPage />} />
 
             {/* Shipping Panel Paths  */}
-            <Route path="/shipping-shippingM" element={<ShippingDashboard />} />
+            <Route path="/shipping-dashboard" element={<ShippingDashboard />} />
             <Route path="/shipping-OrderM" element={<ShippingOrderDetails />}/>
             <Route path="/shipping-tracking" element={<ShippingTracking />}/>
             <Route path="/shipping-returns" element={<ShippingReturns />}/>
