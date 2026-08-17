@@ -25,7 +25,14 @@ import {
     updateTrackingNumber,
     assignShipperToOrder,
     getShippingStats,
-    getAvailableShippers
+    getAvailableShippers,
+
+    //notifications
+    getShipperNotifications,
+    markNotificationAsRead,
+    markAllNotificationsAsRead,
+    deleteNotification,
+    getUnreadCount
 } from '../controllers/shippingController.js';
 
 const router = express.Router();
@@ -62,5 +69,12 @@ router.get('/orders/:id', getShippingOrderById);
 router.put('/orders/:id/status', updateShippingStatus);
 router.put('/orders/:id/tracking', updateTrackingNumber);
 router.put('/orders/:id/assign', assignShipperToOrder);
+
+// ==================== SHIPPER NOTIFICATION ROUTES ====================
+router.get('/notifications/shipper', getShipperNotifications);
+router.get('/notifications/shipper/unread-count', getUnreadCount);
+router.put('/notifications/shipper/:id/read', markNotificationAsRead);
+router.put('/notifications/shipper/mark-all-read', markAllNotificationsAsRead);
+router.delete('/notifications/shipper/:id', deleteNotification);
 
 export default router;

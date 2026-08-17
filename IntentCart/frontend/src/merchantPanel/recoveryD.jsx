@@ -147,28 +147,27 @@ const RecoveryDashboard = () => {
             }
 
             const data = await response.json();
-            console.log('Recovery Dashboard Data from Backend:', data);
+            console.log('✅ Recovery Dashboard Data from Backend:', data);
 
             if (data.success) {
                 setStats({
-                    recoverableRevenue: data.stats.recoverableRevenue || 0,
-                    recoveryRate: data.stats.recoveryRate || 0,
-                    recoveryAttempts: data.stats.recoveryAttempts || 0,
-                    totalAbandonments: data.stats.totalAbandonments || 0,
-                    recoveredRevenue: data.stats.recoveredRevenue || 0,
-                    abandonmentReasons: data.stats.abandonmentReasons || [],
-                    recoveryTrend: data.stats.recoveryTrend || [],
-                    intentDistribution: data.stats.intentDistribution || [],
-                    recommendations: data.stats.recommendations || [],
-                    recentRecoveries: data.stats.recentRecoveries || [],
-                    activeAbandonments: data.stats.activeAbandonments || [],
-                    pureAbandonedCarts: data.stats.pureAbandonedCarts || {
+                    recoverableRevenue: data.stats?.recoverableRevenue || 0,
+                    recoveryRate: data.stats?.recoveryRate || 0,
+                    recoveryAttempts: data.stats?.recoveryAttempts || 0,
+                    totalAbandonments: data.stats?.totalAbandonments || 0,
+                    recoveredRevenue: data.stats?.recoveredRevenue || 0,
+                    abandonmentReasons: data.stats?.abandonmentReasons || [],
+                    recoveryTrend: data.stats?.recoveryTrend || [],
+                    intentDistribution: data.stats?.intentDistribution || [],
+                    recommendations: data.stats?.recommendations || [],
+                    recentRecoveries: data.stats?.recentRecoveries || [],
+                    activeAbandonments: data.stats?.activeAbandonments || [],
+                    pureAbandonedCarts: data.stats?.pureAbandonedCarts || {
                         count: 0,
                         totalRevenue: 0,
                         carts: []
                     },
-                    // ✅ Add intent stats from backend
-                    intentStats: data.stats.intentStats || {
+                    intentStats: data.stats?.intentStats || {
                         average: 0,
                         high: 0,
                         medium: 0,
@@ -177,6 +176,10 @@ const RecoveryDashboard = () => {
                         totalCartsAnalyzed: 0
                     }
                 });
+                
+                console.log('📊 Active Abandonments (Cart model):', data.stats?.activeAbandonments?.length || 0);
+                console.log('📊 Pure Abandoned Carts (AbandonedCart model):', data.stats?.pureAbandonedCarts?.count || 0);
+                console.log('📊 Total Abandonments:', data.stats?.totalAbandonments || 0);
             } else {
                 setError(data.message || 'Failed to load recovery data');
             }
@@ -211,12 +214,13 @@ const RecoveryDashboard = () => {
                 },
                 body: JSON.stringify({
                     abandonmentId,
-                    source: source // 'cart' or 'abandonedCart'
+                    source: source
                 })
             });
 
             if (!response.ok) {
-                throw new Error('Failed to trigger recovery');
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to trigger recovery');
             }
 
             const data = await response.json();
@@ -228,7 +232,7 @@ const RecoveryDashboard = () => {
             }
         } catch (err) {
             console.error('Error triggering recovery:', err);
-            toast.error(err.message);
+            toast.error(err.message || 'Failed to trigger recovery');
         } finally {
             setTriggeringRecovery(null);
         }
@@ -259,6 +263,19 @@ const RecoveryDashboard = () => {
             'recovery_attempted': { icon: <Clock className="w-3 h-3" />, label: 'Recovery Sent', color: 'bg-blue-100 text-blue-700' }
         };
         return statusMap[status] || statusMap['abandoned'];
+    };
+
+    // Get intent badge
+    const getIntentBadge = (level) => {
+        if (!level) return <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">N/A</span>;
+        
+        const levelMap = {
+            'High': 'bg-green-100 text-green-700',
+            'Medium': 'bg-yellow-100 text-yellow-700',
+            'Low': 'bg-red-100 text-red-700'
+        };
+        const className = levelMap[level] || 'bg-gray-100 text-gray-700';
+        return <span className={`text-xs ${className} px-2 py-0.5 rounded-full`}>{level}</span>;
     };
 
     // Get reason icon
@@ -455,7 +472,6 @@ const RecoveryDashboard = () => {
                                 </h2>
                             </div>
 
-                            {/* Intent Score Summary Cards */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                                 <div className="bg-gradient-to-br from-purple-50 to-indigo-50 p-5 rounded-2xl border border-purple-200 shadow-sm">
                                     <div className="flex items-center justify-between">
@@ -524,7 +540,7 @@ const RecoveryDashboard = () => {
                             </div>
                         </div>
 
-                        {/* Pure Abandoned Carts Section */}
+                        {/* SECTION 1: PURE ABANDONED CARTS (from AbandonedCart model) */}
                         {stats.pureAbandonedCarts?.carts?.length > 0 && (
                             <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl border border-indigo-200 shadow-sm overflow-hidden mb-8">
                                 <div
@@ -533,7 +549,7 @@ const RecoveryDashboard = () => {
                                 >
                                     <h3 className="text-sm font-bold text-indigo-800 flex items-center gap-2">
                                         <Database className="w-4 h-4" />
-                                        Pure Abandoned Carts
+                                        🟣 Pure Abandoned Carts (Explicitly Abandoned)
                                         <span className="text-xs bg-indigo-200 text-indigo-800 px-2 py-0.5 rounded-full">
                                             {stats.pureAbandonedCarts?.count || 0} carts
                                         </span>
@@ -562,9 +578,9 @@ const RecoveryDashboard = () => {
                                                     <th className="text-left text-xs font-semibold text-indigo-700 px-4 py-3">Contact</th>
                                                     <th className="text-left text-xs font-semibold text-indigo-700 px-4 py-3 text-center">Items</th>
                                                     <th className="text-left text-xs font-semibold text-indigo-700 px-4 py-3 text-center">Amount</th>
+                                                    <th className="text-left text-xs font-semibold text-indigo-700 px-4 py-3 text-center">Intent</th>
                                                     <th className="text-left text-xs font-semibold text-indigo-700 px-4 py-3 text-center">Status</th>
                                                     <th className="text-left text-xs font-semibold text-indigo-700 px-4 py-3 text-center">Attempts</th>
-                                                    <th className="text-left text-xs font-semibold text-indigo-700 px-4 py-3 text-center">Removal Type</th>
                                                     <th className="text-left text-xs font-semibold text-indigo-700 px-4 py-3 text-center">Abandoned</th>
                                                     <th className="text-left text-xs font-semibold text-indigo-700 px-4 py-3 text-center">Action</th>
                                                 </tr>
@@ -576,13 +592,14 @@ const RecoveryDashboard = () => {
                                                         <tr key={idx} className="hover:bg-indigo-50/50 transition">
                                                             <td className="px-4 py-3">
                                                                 <div>
-                                                                    <p className="text-sm font-medium text-slate-800">{cart.customer}</p>
-                                                                    <p className="text-xs text-slate-400">ID: {cart._id?.substring(0, 8)}</p>
+                                                                    <p className="text-sm font-medium text-slate-800">{cart.customer || 'Unknown'}</p>
+                                                                    <p className="text-xs text-slate-400">ID: {cart._id?.substring(0, 8) || 'N/A'}</p>
+                                                                    <p className="text-xs text-indigo-600 font-medium">🔮 Source: AbandonedCart</p>
                                                                 </div>
                                                             </td>
                                                             <td className="px-4 py-3">
                                                                 <div>
-                                                                    <p className="text-sm text-slate-600">{cart.email}</p>
+                                                                    <p className="text-sm text-slate-600">{cart.email || 'No email'}</p>
                                                                     {cart.phone && cart.phone !== 'No phone' && (
                                                                         <p className="text-xs text-slate-400">{cart.phone}</p>
                                                                     )}
@@ -597,6 +614,12 @@ const RecoveryDashboard = () => {
                                                                 <span className="text-sm font-semibold text-indigo-700">
                                                                     {formatCurrency(cart.amount)}
                                                                 </span>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-center">
+                                                                {cart.intent?.level ? getIntentBadge(cart.intent.level) : 'N/A'}
+                                                                {cart.intent?.score && (
+                                                                    <p className="text-xs text-slate-400">{cart.intent.score}%</p>
+                                                                )}
                                                             </td>
                                                             <td className="px-4 py-3 text-center">
                                                                 <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full ${statusInfo.color}`}>
@@ -615,22 +638,12 @@ const RecoveryDashboard = () => {
                                                                 )}
                                                             </td>
                                                             <td className="px-4 py-3 text-center">
-                                                                <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
-                                                                    {cart.removalType || 'N/A'}
-                                                                </span>
-                                                                {cart.removedItemsCount > 0 && (
-                                                                    <p className="text-xs text-slate-400">
-                                                                        {cart.removedItemsCount} items removed
-                                                                    </p>
-                                                                )}
-                                                            </td>
-                                                            <td className="px-4 py-3 text-center">
                                                                 <span className="text-xs text-slate-400">
                                                                     {cart.abandonedAt ? new Date(cart.abandonedAt).toLocaleDateString() : 'N/A'}
                                                                 </span>
                                                             </td>
                                                             <td className="px-4 py-3 text-center">
-                                                                {cart.status !== 'recovered' && (
+                                                                {cart.status !== 'recovered' && cart.status !== 'Recovered' && (
                                                                     <button
                                                                         onClick={() => handleTriggerRecovery(cart._id, 'abandonedCart')}
                                                                         disabled={triggeringRecovery === cart._id}
@@ -644,7 +657,7 @@ const RecoveryDashboard = () => {
                                                                         {triggeringRecovery === cart._id ? 'Sending...' : 'Recover'}
                                                                     </button>
                                                                 )}
-                                                                {cart.status === 'recovered' && (
+                                                                {(cart.status === 'recovered' || cart.status === 'Recovered') && (
                                                                     <span className="text-xs text-emerald-600">✓ Recovered</span>
                                                                 )}
                                                             </td>
@@ -852,17 +865,17 @@ const RecoveryDashboard = () => {
                             </div>
                         </div>
 
-                        {/* Active Abandonments */}
+                        {/* SECTION 2: ACTIVE ABANDONMENTS (from Cart model) */}
                         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-8">
                             <div className="p-6 border-b border-slate-200 flex items-center justify-between">
                                 <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
                                     <ShoppingBag className="w-4 h-4 text-red-500" />
-                                    Active Abandonments
+                                    🟠 Active Abandonments (From Cart Model)
                                     <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
                                         {stats.activeAbandonments?.length || 0} customers
                                     </span>
                                 </h3>
-                                <span className="text-xs text-slate-400">Customers who abandoned their carts</span>
+                                <span className="text-xs text-slate-400">Carts that were abandoned (not explicitly marked)</span>
                             </div>
                             {stats.activeAbandonments && stats.activeAbandonments.length > 0 ? (
                                 <div className="overflow-x-auto">
@@ -873,6 +886,7 @@ const RecoveryDashboard = () => {
                                                 <th className="text-left text-xs font-semibold text-slate-600 px-4 py-3">Contact</th>
                                                 <th className="text-left text-xs font-semibold text-slate-600 px-4 py-3 text-center">Items</th>
                                                 <th className="text-left text-xs font-semibold text-slate-600 px-4 py-3 text-center">Amount</th>
+                                                <th className="text-left text-xs font-semibold text-slate-600 px-4 py-3 text-center">Intent</th>
                                                 <th className="text-left text-xs font-semibold text-slate-600 px-4 py-3 text-center">Status</th>
                                                 <th className="text-left text-xs font-semibold text-slate-600 px-4 py-3 text-center">Abandoned</th>
                                                 <th className="text-left text-xs font-semibold text-slate-600 px-4 py-3 text-center">Action</th>
@@ -885,13 +899,14 @@ const RecoveryDashboard = () => {
                                                     <tr key={idx} className="hover:bg-slate-50 transition">
                                                         <td className="px-4 py-3">
                                                             <div>
-                                                                <p className="text-sm font-medium text-slate-800">{abandonment.customer}</p>
-                                                                <p className="text-xs text-slate-400">ID: {abandonment._id?.substring(0, 8)}</p>
+                                                                <p className="text-sm font-medium text-slate-800">{abandonment.customer || 'Unknown'}</p>
+                                                                <p className="text-xs text-slate-400">ID: {abandonment._id?.substring(0, 8) || 'N/A'}</p>
+                                                                <p className="text-xs text-orange-600 font-medium">🔮 Source: Cart</p>
                                                             </div>
                                                         </td>
                                                         <td className="px-4 py-3">
                                                             <div>
-                                                                <p className="text-sm text-slate-600">{abandonment.email}</p>
+                                                                <p className="text-sm text-slate-600">{abandonment.email || 'No email'}</p>
                                                                 {abandonment.phone && abandonment.phone !== 'No phone' && (
                                                                     <p className="text-xs text-slate-400">{abandonment.phone}</p>
                                                                 )}
@@ -906,6 +921,12 @@ const RecoveryDashboard = () => {
                                                             <span className={`text-sm font-semibold ${abandonment.amount > 5000 ? 'text-red-600' : 'text-[#1e3a6a]'}`}>
                                                                 {formatCurrency(abandonment.amount)}
                                                             </span>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-center">
+                                                            {abandonment.intent?.level ? getIntentBadge(abandonment.intent.level) : 'N/A'}
+                                                            {abandonment.intent?.score && (
+                                                                <p className="text-xs text-slate-400">{abandonment.intent.score}%</p>
+                                                            )}
                                                         </td>
                                                         <td className="px-4 py-3 text-center">
                                                             <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full ${statusInfo.color}`}>
@@ -948,7 +969,7 @@ const RecoveryDashboard = () => {
                                 </div>
                             ) : (
                                 <div className="text-center py-8 text-slate-400 text-sm">
-                                    No abandoned carts found
+                                    No active abandoned carts found
                                 </div>
                             )}
                         </div>
@@ -979,8 +1000,8 @@ const RecoveryDashboard = () => {
                                                 <tr key={idx} className="hover:bg-slate-50 transition">
                                                     <td className="px-4 py-3">
                                                         <div>
-                                                            <p className="text-sm font-medium text-slate-800">{recovery.customer}</p>
-                                                            <p className="text-xs text-slate-400">{recovery.email}</p>
+                                                            <p className="text-sm font-medium text-slate-800">{recovery.customer || 'Unknown'}</p>
+                                                            <p className="text-xs text-slate-400">{recovery.email || 'No email'}</p>
                                                         </div>
                                                     </td>
                                                     <td className="px-4 py-3">
@@ -989,7 +1010,7 @@ const RecoveryDashboard = () => {
                                                         </span>
                                                     </td>
                                                     <td className="px-4 py-3">
-                                                        <span className="text-xs text-slate-600">{recovery.reason}</span>
+                                                        <span className="text-xs text-slate-600">{recovery.reason || 'N/A'}</span>
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full ${recovery.status === 'recovered' || recovery.status === 'Recovered'
@@ -1001,7 +1022,7 @@ const RecoveryDashboard = () => {
                                                             ) : (
                                                                 <Clock className="w-3 h-3" />
                                                             )}
-                                                            {recovery.status.charAt(0).toUpperCase() + recovery.status.slice(1)}
+                                                            {recovery.status ? recovery.status.charAt(0).toUpperCase() + recovery.status.slice(1) : 'N/A'}
                                                         </span>
                                                     </td>
                                                     <td className="px-4 py-3">

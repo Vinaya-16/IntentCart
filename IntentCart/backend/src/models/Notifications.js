@@ -25,7 +25,7 @@ const notificationSchema = new mongoose.Schema({
   },
   panel: {
     type: String,
-    enum: ['admin', 'merchant', 'customer'],
+    enum: ['admin', 'merchant', 'customer', 'shipper'],
     required: [true, 'Panel is required']
   },
   merchantId: {

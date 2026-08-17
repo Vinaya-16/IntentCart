@@ -1,13 +1,112 @@
 import Order from '../models/Order.js';
 import User from '../models/User.js';
 import mongoose from 'mongoose';
+import Notification from '../models/Notifications.js';
+
+// ==================== NOTIFICATION HELPERS ====================
+
+// Shipper notification triggers
+const createShipperNotification = async (title, message, type, category, metadata = {}) => {
+    try {
+        await Notification.create({
+            title,
+            message,
+            type: type || 'info',
+            category: category || 'Orders',
+            panel: 'shipper',
+            isGlobal: false,
+            actionLink: metadata?.orderId ? `/shipping/orders/${metadata.orderId}` : '/shipping-dashboard',
+            actionLabel: 'View Order',
+            metadata
+        });
+    } catch (error) {
+        console.error('Error creating shipper notification:', error);
+    }
+};
+
+const triggerOrderProcessingNotification = async (orderId, customerName) => {
+    await createShipperNotification(
+        'Order Processing Started',
+        `Order #${orderId} for ${customerName} is now being processed.`,
+        'info',
+        'Orders',
+        { orderId, customerName }
+    );
+};
+
+const triggerOrderShippedNotification = async (orderId, customerName, trackingNumber) => {
+    await createShipperNotification(
+        'Order Shipped!',
+        `Order #${orderId} for ${customerName} has been shipped. Tracking: ${trackingNumber || 'N/A'}`,
+        'success',
+        'Orders',
+        { orderId, customerName, trackingNumber }
+    );
+};
+
+const triggerOrderDeliveredNotification = async (orderId, customerName) => {
+    await createShipperNotification(
+        'Order Delivered!',
+        `Order #${orderId} for ${customerName} has been successfully delivered.`,
+        'success',
+        'Orders',
+        { orderId, customerName }
+    );
+};
+
+const triggerOrderCancelledNotification = async (orderId, customerName, reason) => {
+    await createShipperNotification(
+        'Order Cancelled',
+        `Order #${orderId} for ${customerName} has been cancelled. Reason: ${reason || 'No reason provided'}`,
+        'alert',
+        'Orders',
+        { orderId, customerName, reason }
+    );
+};
+
+const triggerTrackingUpdatedNotification = async (orderId, customerName, trackingNumber) => {
+    await createShipperNotification(
+        'Tracking Updated',
+        `Tracking number for order #${orderId} (${customerName}) has been updated to ${trackingNumber}`,
+        'info',
+        'Shipping',
+        { orderId, customerName, trackingNumber }
+    );
+};
+
+const triggerShipperAssignedNotification = async (orderId, customerName, shipperName) => {
+    await createShipperNotification(
+        'Shipper Assigned',
+        `Order #${orderId} for ${customerName} has been assigned to ${shipperName}.`,
+        'info',
+        'Orders',
+        { orderId, customerName, shipperName }
+    );
+};
+
+// ==================== CONTROLLER FUNCTIONS ====================
 
 // @desc    Get all orders for shipping
 // @route   GET /api/shipping/orders
 // @access  Private (Shipper only)
 export const getShippingOrders = async (req, res) => {
     try {
-        const { status, page = 1, limit = 100 } = req.query;
+        // Check if user is authenticated and is a shipper
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'Unauthorized: Please login first'
+            });
+        }
+
+        if (req.user.role !== 'shipper') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: Only shippers can access this endpoint'
+            });
+        }
+
+        const { status, page = 1, limit = 1000 } = req.query;
 
         let query = {};
 
@@ -15,7 +114,6 @@ export const getShippingOrders = async (req, res) => {
         if (status && status !== 'all') {
             query.status = status;
         }
-        // If no status filter, get ALL orders (not just pending/processing)
 
         const skip = (page - 1) * limit;
 
@@ -23,13 +121,13 @@ export const getShippingOrders = async (req, res) => {
             Order.find(query)
                 .populate('customerId', 'username email phone')
                 .populate('items.productId', 'name price images')
+                .populate('merchantId', 'username email businessName')
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(parseInt(limit)),
             Order.countDocuments(query)
         ]);
 
-        // Format orders for shipping
         const formattedOrders = orders.map(order => ({
             id: order._id,
             orderId: order.orderId || `ORD-${order._id.toString().slice(-6).toUpperCase()}`,
@@ -56,7 +154,9 @@ export const getShippingOrders = async (req, res) => {
             shippingAddress: order.shippingAddress || {},
             trackingNumber: order.trackingNumber || '',
             estimatedDelivery: order.estimatedDelivery || '',
-            deliveredAt: order.deliveredAt || ''
+            deliveredAt: order.deliveredAt || '',
+            merchantId: order.merchantId?._id || null,
+            merchantName: order.merchantId?.businessName || order.merchantId?.username || 'Unknown Merchant'
         }));
 
         res.status(200).json({
@@ -82,9 +182,22 @@ export const getShippingOrders = async (req, res) => {
 // @access  Private (Shipper only)
 export const getShippingOrderById = async (req, res) => {
     try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'Unauthorized: Please login first'
+            });
+        }
+
+        if (req.user.role !== 'shipper') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: Only shippers can access this endpoint'
+            });
+        }
+
         const { id } = req.params;
 
-        // Check if id is valid
         if (!id || id === 'undefined' || id === 'null') {
             return res.status(400).json({
                 success: false,
@@ -92,7 +205,6 @@ export const getShippingOrderById = async (req, res) => {
             });
         }
 
-        // Check if id is a valid ObjectId
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({
                 success: false,
@@ -112,7 +224,6 @@ export const getShippingOrderById = async (req, res) => {
             });
         }
 
-        // Format order for shipping
         const formattedOrder = {
             id: order._id,
             orderId: order.orderId || `ORD-${order._id.toString().slice(-6).toUpperCase()}`,
@@ -155,6 +266,7 @@ export const getShippingOrderById = async (req, res) => {
                     day: '2-digit'
                 }) : '',
             merchant: order.merchantId?.businessName || order.merchantId?.username || 'Unknown Merchant',
+            merchantId: order.merchantId?._id || null,
             couponCode: order.couponCode || '',
             discountAmount: order.discountAmount || 0
         };
@@ -178,6 +290,20 @@ export const getShippingOrderById = async (req, res) => {
 // @access  Private (Shipper only)
 export const updateShippingStatus = async (req, res) => {
     try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'Unauthorized: Please login first'
+            });
+        }
+
+        if (req.user.role !== 'shipper') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: Only shippers can update order status'
+            });
+        }
+
         const { id } = req.params;
         const { status, notes } = req.body;
 
@@ -190,7 +316,10 @@ export const updateShippingStatus = async (req, res) => {
             });
         }
 
-        const order = await Order.findById(id);
+        const order = await Order.findById(id)
+            .populate('customerId', 'username email')
+            .populate('merchantId', 'username email businessName');
+
         if (!order) {
             return res.status(404).json({
                 success: false,
@@ -198,26 +327,66 @@ export const updateShippingStatus = async (req, res) => {
             });
         }
 
+        const previousStatus = order.status;
+        const orderId = order.orderId || order._id.toString().slice(-6).toUpperCase();
+        const customerName = order.customerId?.username || 'Customer';
+
         // Update order status
         order.status = status;
 
-        // If delivered, update deliveredAt
-        if (status === 'delivered') {
-            order.deliveredAt = new Date();
-            order.paymentStatus = 'paid';
+        // ==================== SEND NOTIFICATIONS ====================
+
+        // 1. When order is marked as PROCESSING
+        if (status === 'processing' && previousStatus !== 'processing') {
+            await triggerOrderProcessingNotification(orderId, customerName);
+            // console.log(`Processing notification sent for order ${orderId}`);
         }
 
-        // If cancelled, update cancelledAt
-        if (status === 'cancelled') {
+        // 2. When order is marked as SHIPPED
+        if (status === 'shipped' && previousStatus !== 'shipped') {
+            await triggerOrderShippedNotification(
+                orderId,
+                customerName,
+                order.trackingNumber || 'Not available'
+            );
+            // console.log(`Shipping notification sent for order ${orderId}`);
+        }
+
+        // 3. When order is marked as DELIVERED
+        if (status === 'delivered' && previousStatus !== 'delivered') {
+            order.deliveredAt = new Date();
+            order.paymentStatus = 'paid';
+
+            await triggerOrderDeliveredNotification(orderId, customerName);
+            // console.log(`Delivery notification sent for order ${orderId}`);
+        }
+
+        // 4. When order is CANCELLED
+        if (status === 'cancelled' && previousStatus !== 'cancelled') {
             order.cancelledAt = new Date();
             if (notes) {
                 order.cancellationReason = notes;
             }
+
+            await triggerOrderCancelledNotification(orderId, customerName, notes);
+            // console.log(`Cancellation notification sent for order ${orderId}`);
+        }
+
+        // 5. When order is REFUNDED
+        if (status === 'refunded' && previousStatus !== 'refunded') {
+            await createShipperNotification(
+                'Order Refunded',
+                `Order #${orderId} for ${customerName} has been refunded.`,
+                'payment',
+                'Payments',
+                { orderId, customerName }
+            );
+            // console.log(`Refund notification sent for order ${orderId}`);
         }
 
         await order.save();
 
-        // Update shipper performance metrics (if shipper is assigned)
+        // Update shipper performance metrics
         if (req.user && req.user.role === 'shipper') {
             await updateShipperPerformance(req.user._id, status === 'delivered');
         }
@@ -261,7 +430,6 @@ const updateShipperPerformance = async (shipperId, isSuccessful) => {
             shipper.shipperDetails.failedDeliveries = (shipper.shipperDetails.failedDeliveries || 0) + 1;
         }
 
-        // Update rating (simple calculation)
         const successRate = shipper.shipperDetails.successfulDeliveries / shipper.shipperDetails.totalDeliveries;
         shipper.shipperDetails.rating = Math.round(successRate * 5 * 10) / 10;
 
@@ -276,6 +444,20 @@ const updateShipperPerformance = async (shipperId, isSuccessful) => {
 // @access  Private (Shipper only)
 export const updateTrackingNumber = async (req, res) => {
     try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'Unauthorized: Please login first'
+            });
+        }
+
+        if (req.user.role !== 'shipper') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: Only shippers can update tracking numbers'
+            });
+        }
+
         const { id } = req.params;
         const { trackingNumber, estimatedDelivery } = req.body;
 
@@ -286,7 +468,9 @@ export const updateTrackingNumber = async (req, res) => {
             });
         }
 
-        const order = await Order.findById(id);
+        const order = await Order.findById(id)
+            .populate('customerId', 'username email');
+
         if (!order) {
             return res.status(404).json({
                 success: false,
@@ -294,17 +478,23 @@ export const updateTrackingNumber = async (req, res) => {
             });
         }
 
+        const orderId = order.orderId || order._id.toString().slice(-6).toUpperCase();
+        const customerName = order.customerId?.username || 'Customer';
+
         order.trackingNumber = trackingNumber;
         if (estimatedDelivery) {
             order.estimatedDelivery = new Date(estimatedDelivery);
         }
 
-        // Update status to shipped if it's not already
         if (order.status === 'processing') {
             order.status = 'shipped';
         }
 
         await order.save();
+
+        // Send tracking update notification
+        await triggerTrackingUpdatedNotification(orderId, customerName, trackingNumber);
+        // console.log(`Tracking update notification sent for order ${orderId}`);
 
         res.status(200).json({
             success: true,
@@ -332,6 +522,20 @@ export const updateTrackingNumber = async (req, res) => {
 // @access  Private (Shipper only)
 export const getShippingStats = async (req, res) => {
     try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'Unauthorized: Please login first'
+            });
+        }
+
+        if (req.user.role !== 'shipper') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: Only shippers can access stats'
+            });
+        }
+
         const stats = {
             total: await Order.countDocuments(),
             pending: await Order.countDocuments({ status: 'pending' }),
@@ -342,7 +546,6 @@ export const getShippingStats = async (req, res) => {
             refunded: await Order.countDocuments({ status: 'refunded' })
         };
 
-        // Get payment stats
         const paymentStats = {
             paid: await Order.countDocuments({ paymentStatus: 'paid' }),
             pending: await Order.countDocuments({ paymentStatus: 'pending' }),
@@ -350,7 +553,6 @@ export const getShippingStats = async (req, res) => {
             refunded: await Order.countDocuments({ paymentStatus: 'refunded' })
         };
 
-        // Get revenue stats
         const revenueAgg = await Order.aggregate([
             {
                 $match: { status: { $in: ['delivered', 'shipped'] } }
@@ -394,6 +596,20 @@ export const getShippingStats = async (req, res) => {
 // @access  Private (Admin only)
 export const getAvailableShippers = async (req, res) => {
     try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'Unauthorized: Please login first'
+            });
+        }
+
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: Only admins can view available shippers'
+            });
+        }
+
         const shippers = await User.find({
             role: 'shipper',
             isActive: true,
@@ -428,9 +644,23 @@ export const getAvailableShippers = async (req, res) => {
 
 // @desc    Assign shipper to order
 // @route   PUT /api/shipping/orders/:id/assign
-// @access  Private (Admin or Shipper)
+// @access  Private (Admin only)
 export const assignShipperToOrder = async (req, res) => {
     try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'Unauthorized: Please login first'
+            });
+        }
+
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: Only admins can assign shippers'
+            });
+        }
+
         const { id } = req.params;
         const { shipperId } = req.body;
 
@@ -441,7 +671,9 @@ export const assignShipperToOrder = async (req, res) => {
             });
         }
 
-        const order = await Order.findById(id);
+        const order = await Order.findById(id)
+            .populate('customerId', 'username email');
+
         if (!order) {
             return res.status(404).json({
                 success: false,
@@ -456,6 +688,9 @@ export const assignShipperToOrder = async (req, res) => {
                 message: 'Shipper not found'
             });
         }
+
+        const orderId = order.orderId || order._id.toString().slice(-6).toUpperCase();
+        const customerName = order.customerId?.username || 'Customer';
 
         // Update order with shipper info
         order.status = 'processing';
@@ -472,6 +707,10 @@ export const assignShipperToOrder = async (req, res) => {
         shipper.shipperDetails.currentStatus = 'busy';
         await shipper.save();
 
+        // Send shipper assignment notification
+        await triggerShipperAssignedNotification(orderId, customerName, shipper.username);
+        // console.log(`Shipper assignment notification sent for order ${orderId}`);
+
         res.status(200).json({
             success: true,
             message: 'Shipper assigned successfully',
@@ -484,6 +723,202 @@ export const assignShipperToOrder = async (req, res) => {
         });
     } catch (error) {
         console.error('Error assigning shipper:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// ==================== SHIPPER NOTIFICATION FUNCTIONS ====================
+
+// @desc    Get shipper notifications (only shipper panel)
+// @route   GET /api/shipping/notifications/shipper
+// @access  Private (Shipper only)
+export const getShipperNotifications = async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'Unauthorized: Please login first'
+            });
+        }
+
+        if (req.user.role !== 'shipper') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: Only shippers can view notifications'
+            });
+        }
+
+        // Import Notification model at the top of the file
+        const notifications = await Notification.find({
+            panel: 'shipper'
+        })
+            .sort({ createdAt: -1 })
+            .limit(100);
+
+        res.status(200).json({
+            success: true,
+            count: notifications.length,
+            notifications
+        });
+    } catch (error) {
+        console.error('Error fetching notifications:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Mark notification as read
+// @route   PUT /api/shipping/notifications/shipper/:id/read
+// @access  Private (Shipper only)
+export const markNotificationAsRead = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'shipper') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        const { id } = req.params;
+
+        const notification = await Notification.findOne({
+            _id: id,
+            panel: 'shipper'
+        });
+
+        if (!notification) {
+            return res.status(404).json({
+                success: false,
+                message: 'Notification not found'
+            });
+        }
+
+        notification.read = true;
+        notification.readAt = new Date();
+        await notification.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Notification marked as read',
+            notification
+        });
+    } catch (error) {
+        console.error('Error marking notification as read:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Mark all notifications as read
+// @route   PUT /api/shipping/notifications/shipper/mark-all-read
+// @access  Private (Shipper only)
+export const markAllNotificationsAsRead = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'shipper') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        await Notification.updateMany(
+            {
+                panel: 'shipper',
+                read: false
+            },
+            {
+                read: true,
+                readAt: new Date()
+            }
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'All notifications marked as read'
+        });
+    } catch (error) {
+        console.error('Error marking all as read:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Delete notification
+// @route   DELETE /api/shipping/notifications/shipper/:id
+// @access  Private (Shipper only)
+export const deleteNotification = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'shipper') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        const { id } = req.params;
+
+        const notification = await Notification.findOneAndDelete({
+            _id: id,
+            panel: 'shipper'
+        });
+
+        if (!notification) {
+            return res.status(404).json({
+                success: false,
+                message: 'Notification not found'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Notification deleted successfully'
+        });
+    } catch (error) {
+        console.error('Error deleting notification:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Get unread count
+// @route   GET /api/shipping/notifications/shipper/unread-count
+// @access  Private (Shipper only)
+export const getUnreadCount = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'shipper') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        const count = await Notification.countDocuments({
+            panel: 'shipper',
+            read: false
+        });
+
+        res.status(200).json({
+            success: true,
+            unreadCount: count
+        });
+    } catch (error) {
+        console.error('Error getting unread count:', error);
         res.status(500).json({
             success: false,
             message: 'Server error',

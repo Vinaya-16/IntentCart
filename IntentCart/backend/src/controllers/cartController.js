@@ -15,10 +15,16 @@ export const getCart = async (req, res) => {
     const customerId = req.user._id;
 
     let cart = await Cart.findOne({ customerId })
-      .populate('items.productId', 'name price images stock');
+      .populate('items.productId', 'name price images stock merchantId');
 
     if (!cart) {
-      cart = await Cart.create({ customerId, items: [], subtotal: 0, total: 0 });
+      cart = await Cart.create({
+        customerId,
+        // ✅ Don't set merchantId here - let it be undefined
+        items: [],
+        subtotal: 0,
+        total: 0
+      });
     }
 
     res.status(200).json({
@@ -59,10 +65,25 @@ export const addToCart = async (req, res) => {
       });
     }
 
+    // ✅ Get merchantId from product
+    const merchantId = product ? product.merchantId : null;
+
     let cart = await Cart.findOne({ customerId });
 
     if (!cart) {
-      cart = new Cart({ customerId, items: [] });
+      cart = new Cart({ 
+        customerId, 
+        merchantId: merchantId,
+        items: [],
+        subtotal: 0,
+        total: 0,
+        discount: 0
+      });
+    }
+
+    // If cart is empty, set merchantId
+    if (cart.items.length === 0) {
+      cart.merchantId = merchantId;
     }
 
     // Check if product already in cart
@@ -73,24 +94,28 @@ export const addToCart = async (req, res) => {
     if (existingItem) {
       existingItem.quantity += quantity;
       existingItem.total = existingItem.quantity * existingItem.price;
+      // ✅ Update merchantId in existing item
+      existingItem.merchantId = merchantId;
     } else {
+      // ✅ Add merchantId to the item
       cart.items.push({
         productId,
         quantity,
         price: product.price,
-        total: quantity * product.price
+        total: quantity * product.price,
+        merchantId: merchantId  // ✅ merchantId in each item
       });
     }
 
     // Recalculate totals
     cart.subtotal = cart.items.reduce((sum, item) => sum + item.total, 0);
-    cart.total = cart.subtotal - cart.discount;
+    cart.total = cart.subtotal - (cart.discount || 0);
 
     await cart.save();
 
     // Get updated cart with populated products
     const updatedCart = await Cart.findById(cart._id)
-      .populate('items.productId', 'name price images stock');
+      .populate('items.productId', 'name price images stock merchantId');
 
     res.status(200).json({
       success: true,
@@ -123,7 +148,9 @@ export const updateCartItem = async (req, res) => {
       });
     }
 
-    const cart = await Cart.findOne({ customerId });
+    const cart = await Cart.findOne({ customerId })
+      .populate('items.productId', 'name price images stock merchantId');
+
     if (!cart) {
       return res.status(404).json({
         success: false,
@@ -153,12 +180,12 @@ export const updateCartItem = async (req, res) => {
 
     // Recalculate totals
     cart.subtotal = cart.items.reduce((sum, i) => sum + i.total, 0);
-    cart.total = cart.subtotal - cart.discount;
+    cart.total = cart.subtotal - (cart.discount || 0);
 
     await cart.save();
 
     const updatedCart = await Cart.findById(cart._id)
-      .populate('items.productId', 'name price images stock');
+      .populate('items.productId', 'name price images stock merchantId');
 
     res.status(200).json({
       success: true,
@@ -167,6 +194,151 @@ export const updateCartItem = async (req, res) => {
     });
   } catch (error) {
     console.error('Error updating cart:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+
+// @desc    Get cart items count
+// @route   GET /api/customer/cart/count
+// @access  Private (Customer)
+export const getCartCount = async (req, res) => {
+  try {
+    const customerId = req.user._id;
+
+    const cart = await Cart.findOne({ customerId });
+
+    const count = cart && cart.items ? cart.items.length : 0;
+
+    res.status(200).json({
+      success: true,
+      count
+    });
+  } catch (error) {
+    console.error('Error getting cart count:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Check if cart exists and has items
+// @route   GET /api/customer/cart/exists
+// @access  Private (Customer)
+export const cartExists = async (req, res) => {
+  try {
+    const customerId = req.user._id;
+
+    const cart = await Cart.findOne({ customerId });
+
+    const exists = cart && cart.items && cart.items.length > 0;
+
+    res.status(200).json({
+      success: true,
+      exists,
+      itemCount: exists ? cart.items.length : 0
+    });
+  } catch (error) {
+    console.error('Error checking cart:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Apply coupon to cart
+// @route   POST /api/customer/cart/coupon
+// @access  Private (Customer)
+export const applyCoupon = async (req, res) => {
+  try {
+    const customerId = req.user._id;
+    const { couponCode, discountAmount } = req.body;
+
+    if (!couponCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'Coupon code is required'
+      });
+    }
+
+    const cart = await Cart.findOne({ customerId })
+      .populate('items.productId', 'name price images stock merchantId');
+
+    if (!cart || cart.items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cart is empty'
+      });
+    }
+
+    // Validate coupon logic here (integrate with your coupon model)
+    const discount = discountAmount || cart.subtotal * 0.1; // 10% discount example
+
+    cart.discount = discount;
+    cart.couponCode = couponCode;
+    cart.total = cart.subtotal - discount;
+
+    await cart.save();
+
+    const updatedCart = await Cart.findById(cart._id)
+      .populate('items.productId', 'name price images stock merchantId');
+
+    res.status(200).json({
+      success: true,
+      message: 'Coupon applied successfully',
+      cart: updatedCart
+    });
+  } catch (error) {
+    console.error('Error applying coupon:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Remove coupon from cart
+// @route   DELETE /api/customer/cart/coupon
+// @access  Private (Customer)
+export const removeCoupon = async (req, res) => {
+  try {
+    const customerId = req.user._id;
+
+    const cart = await Cart.findOne({ customerId })
+      .populate('items.productId', 'name price images stock merchantId');
+
+    if (!cart) {
+      return res.status(404).json({
+        success: false,
+        message: 'Cart not found'
+      });
+    }
+
+    cart.discount = 0;
+    cart.couponCode = null;
+    cart.total = cart.subtotal;
+
+    await cart.save();
+
+    const updatedCart = await Cart.findById(cart._id)
+      .populate('items.productId', 'name price images stock merchantId');
+
+    res.status(200).json({
+      success: true,
+      message: 'Coupon removed successfully',
+      cart: updatedCart
+    });
+  } catch (error) {
+    console.error('Error removing coupon:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',

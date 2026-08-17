@@ -93,7 +93,7 @@ const Sidebar = ({ isOpen, onClose }) => {
             {/* Sidebar Drawer Container */}
             <aside 
                 className={`
-                    fixed lg:static top-0 left-0 z-50 h-screen h-[100dvh] w-64 bg-[#1e2356] text-white 
+                    fixed lg:static top-0 left-0 z-50 h-full w-64 bg-[#1e2356] text-white 
                     flex-shrink-0 flex flex-col shadow-xl lg:shadow-none
                     transform transition-transform duration-300 ease-in-out
                     ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
