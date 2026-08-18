@@ -147,7 +147,6 @@ const RecoveryDashboard = () => {
             }
 
             const data = await response.json();
-            // console.log('Recovery Dashboard Data from Backend:', data);
 
             if (data.success) {
                 setStats({
@@ -176,10 +175,6 @@ const RecoveryDashboard = () => {
                         totalCartsAnalyzed: 0
                     }
                 });
-
-                // console.log('Active Abandonments (Cart model):', data.stats?.activeAbandonments?.length || 0);
-                // console.log('Pure Abandoned Carts (AbandonedCart model):', data.stats?.pureAbandonedCarts?.count || 0);
-                // console.log('Total Abandonments:', data.stats?.totalAbandonments || 0);
             } else {
                 setError(data.message || 'Failed to load recovery data');
             }
@@ -252,8 +247,15 @@ const RecoveryDashboard = () => {
         }).format(value || 0);
     };
 
-    // Get status icon and label
+    // Get status icon and label with case-insensitive matching
     const getStatusInfo = (status) => {
+        if (!status) {
+            return { icon: <Clock className="w-3 h-3" />, label: 'Abandoned', color: 'bg-yellow-100 text-yellow-700' };
+        }
+
+        // Normalize status to lowercase for consistent matching
+        const normalizedStatus = status.toLowerCase();
+
         const statusMap = {
             'abandoned': { icon: <Clock className="w-3 h-3" />, label: 'Abandoned', color: 'bg-yellow-100 text-yellow-700' },
             'partially_removed': { icon: <Edit className="w-3 h-3" />, label: 'Modified', color: 'bg-orange-100 text-orange-700' },
@@ -262,12 +264,14 @@ const RecoveryDashboard = () => {
             'recovered': { icon: <CheckCircle className="w-3 h-3" />, label: 'Recovered', color: 'bg-emerald-100 text-emerald-700' },
             'recovery_attempted': { icon: <Clock className="w-3 h-3" />, label: 'Recovery Sent', color: 'bg-blue-100 text-blue-700' }
         };
-        return statusMap[status] || statusMap['abandoned'];
+        return statusMap[normalizedStatus] || statusMap['abandoned'];
     };
 
-    // Get intent badge
+    // Get intent badge with better handling
     const getIntentBadge = (level) => {
-        if (!level) return <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">N/A</span>;
+        if (!level) {
+            return <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">N/A</span>;
+        }
 
         const levelMap = {
             'High': 'bg-green-100 text-green-700',
@@ -401,7 +405,7 @@ const RecoveryDashboard = () => {
                             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-slate-500 text-sm font-medium">Recovery Rate</p>
+                                        <p className="text-slate-500 text-sm font-medium">Recovery Attempts Rate</p>
                                         <p className="text-2xl font-extrabold text-emerald-600 mt-1">
                                             {stats.recoveryRate || 0}%
                                         </p>
@@ -549,7 +553,7 @@ const RecoveryDashboard = () => {
                                 >
                                     <h3 className="text-sm font-bold text-indigo-800 flex items-center gap-2">
                                         <Database className="w-4 h-4" />
-                                        🟣 Pure Abandoned Carts (Explicitly Abandoned)
+                                        Pure Abandoned Carts
                                         <span className="text-xs bg-indigo-200 text-indigo-800 px-2 py-0.5 rounded-full">
                                             {stats.pureAbandonedCarts?.count || 0} carts
                                         </span>
@@ -870,7 +874,7 @@ const RecoveryDashboard = () => {
                             <div className="p-6 border-b border-slate-200 flex items-center justify-between">
                                 <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
                                     <ShoppingBag className="w-4 h-4 text-red-500" />
-                                    🟠 Active Abandonments (From Cart Model)
+                                    Active Abandonments
                                     <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
                                         {stats.activeAbandonments?.length || 0} customers
                                     </span>
