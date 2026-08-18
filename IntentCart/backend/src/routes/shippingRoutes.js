@@ -32,7 +32,11 @@ import {
     markNotificationAsRead,
     markAllNotificationsAsRead,
     deleteNotification,
-    getUnreadCount
+    getUnreadCount,
+
+    // tracking 
+    searchOrderByOrderId,
+
 } from '../controllers/shippingController.js';
 
 const router = express.Router();
@@ -76,5 +80,9 @@ router.get('/notifications/shipper/unread-count', getUnreadCount);
 router.put('/notifications/shipper/:id/read', markNotificationAsRead);
 router.put('/notifications/shipper/mark-all-read', markAllNotificationsAsRead);
 router.delete('/notifications/shipper/:id', deleteNotification);
+
+
+// ======================= Tracking Orders ============================= 
+router.get('/orders/search/:orderId', searchOrderByOrderId);
 
 export default router;

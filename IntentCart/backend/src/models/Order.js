@@ -70,6 +70,8 @@ const orderSchema = new mongoose.Schema({
     enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'],
     default: 'pending'
   },
+
+  // ==================== PAYMENT FIELDS ====================
   paymentStatus: {
     type: String,
     enum: ['pending', 'paid', 'failed', 'refunded'],
@@ -77,9 +79,46 @@ const orderSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['credit_card', 'debit_card', 'paypal', 'bank_transfer', 'cod'],
+    enum: ['credit_card', 'debit_card', 'paypal', 'bank_transfer', 'cod', 'upi', 'razorpay', 'stripe'],
     required: true
   },
+  paymentId: {
+    type: String,
+    default: ''
+  },
+  paymentGateway: {
+    type: String,
+    enum: ['razorpay', 'stripe', 'paypal', 'instamojo', 'none'],
+    default: 'none'
+  },
+  paymentOrderId: {
+    type: String,
+    default: ''
+  },
+  paymentSignature: {
+    type: String,
+    default: ''
+  },
+  paidAt: {
+    type: Date
+  },
+  refundedAt: {
+    type: Date
+  },
+  refundAmount: {
+    type: Number,
+    default: 0
+  },
+  refundReason: {
+    type: String,
+    trim: true
+  },
+  paymentDetails: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+
+  // ==================== SHIPPING FIELDS ====================
   shippingAddress: {
     street: {
       type: String,
@@ -153,6 +192,8 @@ const orderSchema = new mongoose.Schema({
 
 orderSchema.index({ couponCode: 1, createdAt: -1 });
 orderSchema.index({ campaignId: 1, status: 1 });
+orderSchema.index({ paymentId: 1 });
+orderSchema.index({ paymentStatus: 1 });
 
 orderSchema.pre('save', function (next) {
   if (!this.orderId) {

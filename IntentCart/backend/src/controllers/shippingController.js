@@ -307,7 +307,7 @@ export const updateShippingStatus = async (req, res) => {
         const { id } = req.params;
         const { status, notes } = req.body;
 
-        const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'];
+        const validStatuses = ['pending', 'processing', 'packed', 'shipped', 'delivered', 'cancelled', 'refunded'];
 
         if (!validStatuses.includes(status)) {
             return res.status(400).json({
@@ -339,7 +339,6 @@ export const updateShippingStatus = async (req, res) => {
         // 1. When order is marked as PROCESSING
         if (status === 'processing' && previousStatus !== 'processing') {
             await triggerOrderProcessingNotification(orderId, customerName);
-            // console.log(`Processing notification sent for order ${orderId}`);
         }
 
         // 2. When order is marked as SHIPPED
@@ -349,16 +348,25 @@ export const updateShippingStatus = async (req, res) => {
                 customerName,
                 order.trackingNumber || 'Not available'
             );
-            // console.log(`Shipping notification sent for order ${orderId}`);
         }
 
         // 3. When order is marked as DELIVERED
         if (status === 'delivered' && previousStatus !== 'delivered') {
             order.deliveredAt = new Date();
-            order.paymentStatus = 'paid';
+
+            // Process payment when delivered
+            await processOrderPayment(order);
+
+            // Send payment confirmation notification
+            await createShipperNotification(
+                'Payment Processed',
+                `Payment of Rs.${order.total} for order #${orderId} has been successfully processed.`,
+                'success',
+                'Payments',
+                { orderId, amount: order.total }
+            );
 
             await triggerOrderDeliveredNotification(orderId, customerName);
-            // console.log(`Delivery notification sent for order ${orderId}`);
         }
 
         // 4. When order is CANCELLED
@@ -368,12 +376,17 @@ export const updateShippingStatus = async (req, res) => {
                 order.cancellationReason = notes;
             }
 
+            // If order was paid, process refund
+            if (order.paymentStatus === 'paid') {
+                await processOrderRefund(order);
+            }
+
             await triggerOrderCancelledNotification(orderId, customerName, notes);
-            // console.log(`Cancellation notification sent for order ${orderId}`);
         }
 
         // 5. When order is REFUNDED
         if (status === 'refunded' && previousStatus !== 'refunded') {
+            await processOrderRefund(order);
             await createShipperNotification(
                 'Order Refunded',
                 `Order #${orderId} for ${customerName} has been refunded.`,
@@ -381,7 +394,6 @@ export const updateShippingStatus = async (req, res) => {
                 'Payments',
                 { orderId, customerName }
             );
-            // console.log(`Refund notification sent for order ${orderId}`);
         }
 
         await order.save();
@@ -398,6 +410,7 @@ export const updateShippingStatus = async (req, res) => {
                 id: order._id,
                 orderId: order.orderId,
                 status: order.status,
+                paymentStatus: order.paymentStatus,
                 deliveredAt: order.deliveredAt,
                 cancellationReason: order.cancellationReason
             }
@@ -409,6 +422,53 @@ export const updateShippingStatus = async (req, res) => {
             message: 'Server error',
             error: error.message
         });
+    }
+};
+
+// ==================== PAYMENT HELPER FUNCTIONS ====================
+
+// Process order payment
+const processOrderPayment = async (order) => {
+    try {
+        // Update payment status
+        order.paymentStatus = 'paid';
+        order.paidAt = new Date();
+
+        await createPaymentTransaction(order, 'captured');
+
+        console.log(`Payment processed for order ${order.orderId}: Rs.${order.total}`);
+    } catch (error) {
+        console.error('Payment processing failed:', error);
+        order.paymentStatus = 'failed';
+        // Log payment failure
+        await createPaymentTransaction(order, 'failed', error.message);
+        throw error;
+    }
+};
+
+// Process order refund
+const processOrderRefund = async (order) => {
+    try {
+        // Update payment status
+        order.paymentStatus = 'refunded';
+        order.refundedAt = new Date();
+
+        await createPaymentTransaction(order, 'refunded');
+
+        console.log(`Refund processed for order ${order.orderId}: Rs.${order.total}`);
+    } catch (error) {
+        console.error('Refund processing failed:', error);
+        throw error;
+    }
+};
+
+// Create payment transaction record
+const createPaymentTransaction = async (order, status, errorMessage = null) => {
+    try {
+
+        // console.log(`Payment transaction recorded: ${status} - ${order.orderId}`);
+    } catch (error) {
+        console.error('Error recording payment transaction:', error);
     }
 };
 
@@ -919,6 +979,121 @@ export const getUnreadCount = async (req, res) => {
         });
     } catch (error) {
         console.error('Error getting unread count:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Get order by orderId (search by orderId string)
+// @route   GET /api/shipping/orders/search/:orderId
+// @access  Private (Shipper only)
+export const searchOrderByOrderId = async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'Unauthorized: Please login first'
+            });
+        }
+
+        if (req.user.role !== 'shipper') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: Only shippers can access this endpoint'
+            });
+        }
+
+        const { orderId } = req.params;
+
+        if (!orderId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Order ID is required'
+            });
+        }
+
+        // Search by orderId field (not _id)
+        const order = await Order.findOne({ orderId: orderId })
+            .populate('customerId', 'username email phone address')
+            .populate('items.productId', 'name price images description')
+            .populate('merchantId', 'username email businessName');
+
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: `Order with ID "${orderId}" not found`
+            });
+        }
+
+        // console.log('Order found:', {
+        //     orderId: order.orderId,
+        //     total: order.total,
+        //     subtotal: order.subtotal,
+        //     items: order.items?.length,
+        //     paymentStatus: order.paymentStatus
+        // });
+
+        const formattedOrder = {
+            id: order._id,
+            orderId: order.orderId,
+            customer: order.customerId?.username || 'Unknown Customer',
+            email: order.customerId?.email || '',
+            phone: order.customerId?.phone || '',
+            product: order.items?.[0]?.productName || 'Multiple Items',
+            quantity: order.items?.length || 1,
+            price: order.subtotal || 0,
+            total: order.total || 0, 
+            subtotal: order.subtotal || 0,
+            shippingCost: order.shippingCost || 0,
+            tax: order.tax || 0,
+            discount: order.discount || 0,
+            address: order.shippingAddress ?
+                `${order.shippingAddress.street}, ${order.shippingAddress.city}, ${order.shippingAddress.state} - ${order.shippingAddress.zipCode}` :
+                'No address provided',
+            shippingAddress: order.shippingAddress || {},
+            payment: order.paymentMethod || 'Not specified',
+            paymentStatus: order.paymentStatus || 'pending',
+            status: order.status || 'pending',
+            date: new Date(order.createdAt).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: '2-digit'
+            }),
+            notes: order.cancellationReason || '',
+            items: order.items || [],
+            trackingNumber: order.trackingNumber || '',
+            estimatedDelivery: order.estimatedDelivery ?
+                new Date(order.estimatedDelivery).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: '2-digit'
+                }) : '',
+            deliveredAt: order.deliveredAt ?
+                new Date(order.deliveredAt).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: '2-digit'
+                }) : '',
+            merchant: order.merchantId?.businessName || order.merchantId?.username || 'Unknown Merchant',
+            merchantId: order.merchantId?._id || null,
+            couponCode: order.couponCode || '',
+            discountAmount: order.discountAmount || 0,
+            paidAt: order.paidAt || null,
+            refundedAt: order.refundedAt || null,
+            refundAmount: order.refundAmount || 0
+        };
+
+        // console.log('Formatted order total:', formattedOrder.total);
+
+        res.status(200).json({
+            success: true,
+            order: formattedOrder
+        });
+    } catch (error) {
+        console.error('Error searching order by orderId:', error);
         res.status(500).json({
             success: false,
             message: 'Server error',

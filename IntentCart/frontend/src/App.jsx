@@ -91,11 +91,12 @@ function App() {
 
             {/* Shipping Panel Paths  */}
             <Route path="/shipping-dashboard" element={<ShippingDashboard />} />
-            <Route path="/shipping-OrderM" element={<ShippingOrderDetails />}/>
-            <Route path="/shipping-tracking" element={<ShippingTracking />}/>
-            <Route path="/shipping-returns" element={<ShippingReturns />}/>
-            <Route path="/shipping-drivers" element={<ShippingDrivers />}/>
-            <Route path="/shipping-notifications" element={<ShippingNotifications />}/>
+            <Route path="/shipping-OrderM" element={<ShippingOrderDetails />} />
+            <Route path="/shipping-tracking" element={<ShippingTracking />} />
+            <Route path="/shipping/tracking/:id" element={<ShippingTracking />} />
+            <Route path="/shipping-returns" element={<ShippingReturns />} />
+            <Route path="/shipping-drivers" element={<ShippingDrivers />} />
+            <Route path="/shipping-notifications" element={<ShippingNotifications />} />
 
           </Routes>
         </BrowserRouter>
