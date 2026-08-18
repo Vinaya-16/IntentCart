@@ -20,7 +20,6 @@ export const getCart = async (req, res) => {
     if (!cart) {
       cart = await Cart.create({
         customerId,
-        // ✅ Don't set merchantId here - let it be undefined
         items: [],
         subtotal: 0,
         total: 0
@@ -65,14 +64,14 @@ export const addToCart = async (req, res) => {
       });
     }
 
-    // ✅ Get merchantId from product
+    // Get merchantId from product
     const merchantId = product ? product.merchantId : null;
 
     let cart = await Cart.findOne({ customerId });
 
     if (!cart) {
-      cart = new Cart({ 
-        customerId, 
+      cart = new Cart({
+        customerId,
         merchantId: merchantId,
         items: [],
         subtotal: 0,
@@ -94,16 +93,16 @@ export const addToCart = async (req, res) => {
     if (existingItem) {
       existingItem.quantity += quantity;
       existingItem.total = existingItem.quantity * existingItem.price;
-      // ✅ Update merchantId in existing item
+      // Update merchantId in existing item
       existingItem.merchantId = merchantId;
     } else {
-      // ✅ Add merchantId to the item
+      // Add merchantId to the item
       cart.items.push({
         productId,
         quantity,
         price: product.price,
         total: quantity * product.price,
-        merchantId: merchantId  // ✅ merchantId in each item
+        merchantId: merchantId  
       });
     }
 

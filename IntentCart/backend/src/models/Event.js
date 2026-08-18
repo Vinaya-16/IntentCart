@@ -57,6 +57,7 @@ const eventSchema = new mongoose.Schema({
             'recovery_attempted',
             'recovery_successful',
             'recovery_clicked',
+            'recovery_email_sent',
 
             // User events
             'user_login',

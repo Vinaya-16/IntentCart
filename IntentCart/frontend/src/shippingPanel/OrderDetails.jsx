@@ -407,7 +407,7 @@ const ShippingDashboard = () => {
                                         <div>
                                             <p className="text-xs font-medium text-slate-500">Revenue</p>
                                             <p className="text-xl font-bold text-[#1e2356]">
-                                                ₹{stats.revenue?.total?.toLocaleString() || 0}
+                                                Rs.{stats.revenue?.total?.toLocaleString() || 0}
                                             </p>
                                         </div>
                                         <div className="p-2 bg-emerald-50 rounded-lg">
@@ -521,7 +521,7 @@ const ShippingDashboard = () => {
                                                             </div>
                                                         </td>
                                                         <td className="py-3.5 px-4 font-bold text-[#1e2356]">
-                                                            ₹{order.total?.toLocaleString() || 0}
+                                                            Rs.{order.total?.toLocaleString() || 0}
                                                         </td>
                                                         <td className="py-3.5 px-4">
                                                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${order.paymentStatus === 'paid'

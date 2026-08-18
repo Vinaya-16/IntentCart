@@ -147,7 +147,7 @@ const RecoveryDashboard = () => {
             }
 
             const data = await response.json();
-            console.log('✅ Recovery Dashboard Data from Backend:', data);
+            // console.log('Recovery Dashboard Data from Backend:', data);
 
             if (data.success) {
                 setStats({
@@ -176,10 +176,10 @@ const RecoveryDashboard = () => {
                         totalCartsAnalyzed: 0
                     }
                 });
-                
-                console.log('📊 Active Abandonments (Cart model):', data.stats?.activeAbandonments?.length || 0);
-                console.log('📊 Pure Abandoned Carts (AbandonedCart model):', data.stats?.pureAbandonedCarts?.count || 0);
-                console.log('📊 Total Abandonments:', data.stats?.totalAbandonments || 0);
+
+                // console.log('Active Abandonments (Cart model):', data.stats?.activeAbandonments?.length || 0);
+                // console.log('Pure Abandoned Carts (AbandonedCart model):', data.stats?.pureAbandonedCarts?.count || 0);
+                // console.log('Total Abandonments:', data.stats?.totalAbandonments || 0);
             } else {
                 setError(data.message || 'Failed to load recovery data');
             }
@@ -268,7 +268,7 @@ const RecoveryDashboard = () => {
     // Get intent badge
     const getIntentBadge = (level) => {
         if (!level) return <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">N/A</span>;
-        
+
         const levelMap = {
             'High': 'bg-green-100 text-green-700',
             'Medium': 'bg-yellow-100 text-yellow-700',
@@ -594,7 +594,7 @@ const RecoveryDashboard = () => {
                                                                 <div>
                                                                     <p className="text-sm font-medium text-slate-800">{cart.customer || 'Unknown'}</p>
                                                                     <p className="text-xs text-slate-400">ID: {cart._id?.substring(0, 8) || 'N/A'}</p>
-                                                                    <p className="text-xs text-indigo-600 font-medium">🔮 Source: AbandonedCart</p>
+                                                                    <p className="text-xs text-indigo-600 font-medium">Source: AbandonedCart</p>
                                                                 </div>
                                                             </td>
                                                             <td className="px-4 py-3">
@@ -901,7 +901,7 @@ const RecoveryDashboard = () => {
                                                             <div>
                                                                 <p className="text-sm font-medium text-slate-800">{abandonment.customer || 'Unknown'}</p>
                                                                 <p className="text-xs text-slate-400">ID: {abandonment._id?.substring(0, 8) || 'N/A'}</p>
-                                                                <p className="text-xs text-orange-600 font-medium">🔮 Source: Cart</p>
+                                                                <p className="text-xs text-orange-600 font-medium">Source: Cart</p>
                                                             </div>
                                                         </td>
                                                         <td className="px-4 py-3">
