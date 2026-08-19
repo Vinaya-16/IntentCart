@@ -318,9 +318,9 @@ export default function CreateReturn() {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-medium text-slate-900 truncate">{item.productName}</p>
-                                        <p className="text-xs text-slate-500">Qty: {item.quantity} • ₹{item.price?.toLocaleString()}</p>
+                                        <p className="text-xs text-slate-500">Qty: {item.quantity} • Rs.{item.price?.toLocaleString()}</p>
                                     </div>
-                                    <span className="text-sm font-semibold text-slate-900">₹{item.total?.toLocaleString()}</span>
+                                    <span className="text-sm font-semibold text-slate-900">Rs.{item.total?.toLocaleString()}</span>
                                 </label>
                             ))}
                         </div>

@@ -45,7 +45,6 @@ const ShippingReturns = () => {
     const [selectedReturn, setSelectedReturn] = useState(null);
     const [showActionModal, setShowActionModal] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
-    // Track selected status in modal separately
     const [selectedStatus, setSelectedStatus] = useState('');
 
     const getToken = () => localStorage.getItem('token');
@@ -67,6 +66,16 @@ const ShippingReturns = () => {
 
     // Status filters - all backend statuses
     const statusFilters = ['All', 'Pending', 'Approved', 'Rejected', 'Pickup Scheduled', 'Picked Up', 'Quality Inspection', 'Refund Processed', 'Completed'];
+
+    // Helper: Calculate refund amount from items
+    const calculateRefundAmount = useCallback((items) => {
+        if (!items || items.length === 0) return 0;
+        return items.reduce((sum, item) => {
+            const price = item.price || item.productId?.price || 0;
+            const quantity = item.quantity || 1;
+            return sum + (price * quantity);
+        }, 0);
+    }, []);
 
     // Fetch returns from backend
     const fetchReturns = useCallback(async () => {
@@ -118,32 +127,41 @@ const ShippingReturns = () => {
             const returnsData = await returnsRes.json();
 
             if (returnsData.success) {
-                const formattedReturns = (returnsData.returns || []).map(ret => ({
-                    _id: ret._id,
-                    returnId: ret.returnId || ret._id?.slice(-6) || 'N/A',
-                    orderNumber: ret.orderNumber || ret.orderId?.orderId || 'N/A',
-                    customerId: ret.customerId || { username: 'Unknown', email: '' },
-                    items: (ret.items || []).map(item => ({
-                        ...item,
-                        productName: item.productName || item.productId?.name || 'Unknown Product',
-                        price: item.price || item.productId?.price || 0
-                    })),
-                    productName: ret.items?.[0]?.productName || ret.items?.[0]?.productId?.name || 'Multiple Items',
-                    itemCount: ret.items?.length || 0,
-                    reason: ret.reason || 'other',
-                    reasonDescription: ret.reasonDescription || '',
-                    status: ret.status || 'pending',
-                    refundMethod: ret.refundMethod || 'original_payment',
-                    refundAmount: ret.refundAmount || 0,
-                    pickupAddress: ret.pickupAddress || {},
-                    createdAt: ret.createdAt || new Date(),
-                    notes: ret.notes || '',
-                    rejectionReason: ret.rejectionReason || '',
-                    qualityCheckNotes: ret.qualityCheckNotes || '',
-                    pickupScheduledAt: ret.pickupScheduledAt,
-                    pickedUpAt: ret.pickedUpAt,
-                    refundProcessedAt: ret.refundProcessedAt
-                }));
+                const formattedReturns = (returnsData.returns || []).map(ret => {
+                    // Calculate refund amount from items if needed
+                    let refundAmount = ret.refundAmount || 0;
+                    if (refundAmount === 0 && ret.items && ret.items.length > 0) {
+                        refundAmount = calculateRefundAmount(ret.items);
+                    }
+
+                    return {
+                        _id: ret._id,
+                        returnId: ret.returnId || ret._id?.slice(-6) || 'N/A',
+                        orderNumber: ret.orderNumber || ret.orderId?.orderId || 'N/A',
+                        customerId: ret.customerId || { username: 'Unknown', email: '' },
+                        items: (ret.items || []).map(item => ({
+                            ...item,
+                            productName: item.productName || item.productId?.name || 'Unknown Product',
+                            price: item.price || item.productId?.price || 0,
+                            quantity: item.quantity || 1
+                        })),
+                        productName: ret.items?.[0]?.productName || ret.items?.[0]?.productId?.name || 'Multiple Items',
+                        itemCount: ret.items?.length || 0,
+                        reason: ret.reason || 'other',
+                        reasonDescription: ret.reasonDescription || '',
+                        status: ret.status || 'pending',
+                        refundMethod: ret.refundMethod || 'original_payment',
+                        refundAmount: refundAmount, 
+                        pickupAddress: ret.pickupAddress || {},
+                        createdAt: ret.createdAt || new Date(),
+                        notes: ret.notes || '',
+                        rejectionReason: ret.rejectionReason || '',
+                        qualityCheckNotes: ret.qualityCheckNotes || '',
+                        pickupScheduledAt: ret.pickupScheduledAt,
+                        pickedUpAt: ret.pickedUpAt,
+                        refundProcessedAt: ret.refundProcessedAt
+                    };
+                });
                 setReturns(formattedReturns);
             } else {
                 setReturns([]);
@@ -173,7 +191,7 @@ const ShippingReturns = () => {
         } finally {
             setLoading(false);
         }
-    }, [filterStatus, navigate]);
+    }, [filterStatus, navigate, calculateRefundAmount]);
 
     // Update return status
     const updateReturnStatus = useCallback(async (returnId, status, notes = '') => {
@@ -189,13 +207,30 @@ const ShippingReturns = () => {
                 return;
             }
 
+            // Find the return in local state to get items and calculate refund
+            const returnToUpdate = returns.find(r => r._id === returnId);
+
+            // Prepare update data
+            const updateData = { status, notes };
+
+            // If status is refund_processed or completed, calculate and send refund amount
+            if (status === 'refund_processed' || status === 'completed') {
+                if (returnToUpdate && returnToUpdate.items && returnToUpdate.items.length > 0) {
+                    const refundAmount = calculateRefundAmount(returnToUpdate.items);
+                    if (refundAmount > 0) {
+                        updateData.refundAmount = refundAmount;
+                        // console.log(`Calculated refund amount: Rs.${refundAmount}`);
+                    }
+                }
+            }
+
             const response = await fetch(`${API_URL}/${returnId}/status`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ status, notes })
+                body: JSON.stringify(updateData)
             });
 
             if (!response.ok) {
@@ -207,7 +242,7 @@ const ShippingReturns = () => {
             if (data.success) {
                 const statusDisplay = STATUS_CONFIG[status]?.label || status.replace('_', ' ');
                 setSuccess(`Return status updated to ${statusDisplay}`);
-                await fetchReturns();
+                await fetchReturns(); // Refresh data
                 setShowActionModal(false);
                 setSelectedReturn(null);
                 setSelectedStatus('');
@@ -220,7 +255,7 @@ const ShippingReturns = () => {
         } finally {
             setActionLoading(false);
         }
-    }, [fetchReturns]);
+    }, [fetchReturns, returns, calculateRefundAmount]);
 
     // Fetch returns on mount and filter change
     useEffect(() => {
@@ -245,61 +280,61 @@ const ShippingReturns = () => {
         return result;
     }, [returns, searchQuery]);
 
-    // Stats Cards
+    // Stats Cards - with proper refund calculation
     const statsCards = useMemo(() => {
-        if (!stats) {
-            const total = returns.length || 0;
-            const pending = returns.filter(r => r.status === 'pending').length;
-            const refundProcessed = returns.filter(r => r.status === 'refund_processed' || r.status === 'completed').length;
-            const rejected = returns.filter(r => r.status === 'rejected').length;
-            const totalRefund = returns
-                .filter(r => r.status === 'refund_processed' || r.status === 'completed')
-                .reduce((sum, r) => sum + (r.refundAmount || 0), 0);
-            const refundedOrders = returns.filter(r => r.status === 'refund_processed' || r.status === 'completed').length;
+        // Calculate from returns array directly
+        let calculatedTotalRefund = 0;
+        let calculatedRefundedOrders = 0;
 
-            return [
-                { label: 'Total Returns', value: total, icon: RotateCcw, color: 'purple' },
-                { label: 'Pending', value: pending, icon: Clock, color: 'amber' },
-                { label: 'Refund Processed', value: refundProcessed, icon: CheckCircle, color: 'emerald' },
-                { label: 'Rejected', value: rejected, icon: XCircle, color: 'red' },
-                { label: 'Total Refund', value: `₹${(totalRefund || 0).toLocaleString()}`, icon: ShoppingBag, color: 'indigo', subtext: `${refundedOrders || 0} orders refunded` }
-            ];
-        }
+        returns.forEach(ret => {
+            if (ret.status === 'refund_processed' || ret.status === 'completed') {
+                let refundAmount = ret.refundAmount || 0;
+                if (refundAmount === 0 && ret.items && ret.items.length > 0) {
+                    refundAmount = calculateRefundAmount(ret.items);
+                }
+                calculatedTotalRefund += refundAmount;
+                calculatedRefundedOrders++;
+            }
+        });
+
+        // Use backend stats if available, otherwise use calculated
+        const totalRefund = stats?.totalRefund || calculatedTotalRefund;
+        const refundedOrders = stats?.refundedOrders || calculatedRefundedOrders;
 
         return [
             {
                 label: 'Total Returns',
-                value: stats.total || returns.length || 0,
+                value: stats?.total || returns.length || 0,
                 icon: RotateCcw,
                 color: 'purple'
             },
             {
                 label: 'Pending',
-                value: stats.pending || 0,
+                value: stats?.pending || returns.filter(r => r.status === 'pending').length || 0,
                 icon: Clock,
                 color: 'amber'
             },
             {
                 label: 'Refund Processed',
-                value: stats.refundProcessed || stats.completed || 0,
+                value: stats?.refundProcessed || stats?.completed || returns.filter(r => r.status === 'refund_processed' || r.status === 'completed').length || 0,
                 icon: CheckCircle,
                 color: 'emerald'
             },
             {
                 label: 'Rejected',
-                value: stats.rejected || 0,
+                value: stats?.rejected || returns.filter(r => r.status === 'rejected').length || 0,
                 icon: XCircle,
                 color: 'red'
             },
             {
                 label: 'Total Refund',
-                value: `₹${(stats.totalRefund || 0).toLocaleString()}`,
+                value: `Rs.${(totalRefund || 0).toLocaleString()}`,
                 icon: ShoppingBag,
                 color: 'indigo',
-                subtext: `${stats.refundedOrders || 0} orders refunded`
+                subtext: `${refundedOrders || 0} orders refunded`
             }
         ];
-    }, [stats, returns]);
+    }, [stats, returns, calculateRefundAmount]);
 
     // Helper functions
     const formatCurrency = (amount) => {
@@ -335,7 +370,7 @@ const ShippingReturns = () => {
         setSelectedStatus(e.target.value);
     };
 
-    // Handle status update from modal - using the selected status
+    // Handle status update from modal
     const handleApplyStatusUpdate = async () => {
         if (!selectedReturn || !selectedStatus) return;
         if (selectedStatus === selectedReturn.status) {
@@ -808,7 +843,7 @@ const ShippingReturns = () => {
                                 </div>
                             </div>
 
-                            {/* Status Update - FIXED */}
+                            {/* Status Update */}
                             <div>
                                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">Update Status</label>
                                 <div className="flex gap-2">

@@ -122,15 +122,24 @@ export const getAllReturns = async (req, res) => {
 
         const total = await Return.countDocuments(query);
 
-        // Format returns for frontend
+        // Format returns for frontend 
         const formattedReturns = returns.map(ret => {
+            // Get refund amount from the return document
             let refundAmount = ret.refundAmount || 0;
+            
+            // If refundAmount is 0, calculate from items
             if (refundAmount === 0 && ret.items && ret.items.length > 0) {
                 refundAmount = ret.items.reduce((sum, item) => {
                     const price = item.price || item.productId?.price || 0;
-                    return sum + (price * (item.quantity || 1));
+                    const quantity = item.quantity || 1;
+                    return sum + (price * quantity);
                 }, 0);
             }
+
+            // Log for debugging
+            // if (refundAmount === 0 && ret.status === 'completed') {
+            //     console.log(`Return ${ret._id} has 0 refund amount but is completed`);
+            // }
 
             return {
                 _id: ret._id,
@@ -144,16 +153,20 @@ export const getAllReturns = async (req, res) => {
                     phone: ret.customerId.phone || ''
                 } : { username: 'Unknown', email: '' },
                 items: ret.items.map(item => ({
-                    ...item.toObject(),
+                    ...item.toObject ? item.toObject() : item,
                     productName: item.productId?.name || item.productName || 'Unknown Product',
                     price: item.price || item.productId?.price || 0,
-                    image: item.productId?.images?.[0]?.url || item.image || null
+                    image: item.productId?.images?.[0]?.url || item.image || null,
+                    quantity: item.quantity || 1,
+                    total: (item.price || item.productId?.price || 0) * (item.quantity || 1)
                 })),
+                itemCount: ret.items?.length || 0,
+                productName: ret.items?.[0]?.productName || ret.items?.[0]?.productId?.name || 'Multiple Items',
                 reason: ret.reason || 'other',
                 reasonDescription: ret.reasonDescription || '',
                 status: ret.status || 'pending',
                 refundMethod: ret.refundMethod || 'original_payment',
-                refundAmount: refundAmount,
+                refundAmount: refundAmount, 
                 pickupAddress: ret.pickupAddress || {},
                 pickupScheduledAt: ret.pickupScheduledAt,
                 pickedUpAt: ret.pickedUpAt,
@@ -268,6 +281,23 @@ export const updateReturnStatus = async (req, res) => {
             });
         }
 
+        // Ensure refund amount is calculated before completing
+        if (status === 'refund_processed' || status === 'completed') {
+            // Calculate refund amount if it's 0
+            if (returnData.refundAmount === 0 && returnData.items && returnData.items.length > 0) {
+                let refundAmount = returnData.items.reduce((sum, item) => {
+                    const price = item.price || 0;
+                    const quantity = item.quantity || 1;
+                    return sum + (price * quantity);
+                }, 0);
+                
+                if (refundAmount > 0) {
+                    returnData.refundAmount = refundAmount;
+                    // console.log(`Updated refund amount for return ${id}: Rs.${refundAmount}`);
+                }
+            }
+        }
+
         // Get the associated order
         const order = await Order.findById(returnData.orderId);
         if (!order) {
@@ -291,17 +321,17 @@ export const updateReturnStatus = async (req, res) => {
             returnData.pickedUpAt = new Date();
         }
 
-        // ONLY when return is COMPLETED, update order status to 'returned'
+        // ONLY when return is COMPLETED or REFUND_PROCESSED, update order status
         if (status === 'refund_processed' || status === 'completed') {
             returnData.refundProcessedAt = new Date();
-
+            
             order.status = 'returned';
             order.paymentStatus = 'refunded';
-
+            
             if (order.deliveredAt) {
                 order.returnedAt = new Date();
             }
-
+            
             await order.save();
             // console.log(`Order ${order.orderId} status updated to 'returned' (return completed)`);
         }
@@ -316,9 +346,6 @@ export const updateReturnStatus = async (req, res) => {
             }
         }
 
-        // For statuses like 'picked_up', 'quality_inspection', etc.
-        // The order status remains unchanged (stays as 'delivered')
-
         await returnData.save();
 
         // Create notification for customer
@@ -332,7 +359,7 @@ export const updateReturnStatus = async (req, res) => {
                                 ? 'Return Request Rejected'
                                 : `Return Status Updated: ${status.replace('_', ' ')}`,
                         message: status === 'completed' || status === 'refund_processed'
-                            ? `Your return for order #${order.orderId} has been completed and refund of ₹${returnData.refundAmount} has been processed.`
+                            ? `Your return for order ${order.orderId} has been completed and refund of Rs.${returnData.refundAmount || 0} has been processed.`
                             : status === 'rejected'
                                 ? `Your return request for order #${order.orderId} has been rejected. Reason: ${rejectionReason || 'No reason provided'}`
                                 : `Your return request for order #${order.orderId} is now ${status.replace('_', ' ')}.`,
@@ -385,44 +412,71 @@ export const getReturnStats = async (req, res) => {
             completed: await Return.countDocuments({ status: 'completed', isActive: true })
         };
 
-        // Calculate total refund from ALL refunded/completed returns
+        // Get ALL returns that are refunded OR completed
         const allRefunded = await Return.find({
             status: { $in: ['refund_processed', 'completed'] },
             isActive: true
-        });
+        }).populate('items.productId', 'price');
+
+        // console.log('Found refunded/completed returns:', allRefunded.length);
 
         let totalRefund = 0;
         let refundedOrders = 0;
 
-        allRefunded.forEach(ret => {
+        // Calculate refund amount for each return
+        for (const ret of allRefunded) {
             let refundAmount = ret.refundAmount || 0;
+            
+            // If refundAmount is 0, calculate from items
             if (refundAmount === 0 && ret.items && ret.items.length > 0) {
                 refundAmount = ret.items.reduce((sum, item) => {
-                    const price = item.price || 0;
-                    return sum + (price * (item.quantity || 1));
+                    const price = item.price || item.productId?.price || 0;
+                    const quantity = item.quantity || 1;
+                    return sum + (price * quantity);
                 }, 0);
+                // console.log(`Calculated refund for ${ret._id}: Rs.${refundAmount}`);
             }
+            
+            // If still 0, check if there's any item price
+            if (refundAmount === 0 && ret.items && ret.items.length > 0) {
+                // Fallback: use first item's price
+                const firstItem = ret.items[0];
+                refundAmount = (firstItem.price || 0) * (firstItem.quantity || 1);
+                // console.log(`Fallback refund for ${ret._id}: Rs.${refundAmount}`);
+            }
+            
             totalRefund += refundAmount;
             refundedOrders++;
-        });
+        }
 
-        // Also calculate total refund for completed returns specifically
+        // Also calculate for completed returns
         const completedReturns = await Return.find({
             status: 'completed',
             isActive: true
         });
 
         let completedRefund = 0;
-        completedReturns.forEach(ret => {
+        for (const ret of completedReturns) {
             let refundAmount = ret.refundAmount || 0;
+            
             if (refundAmount === 0 && ret.items && ret.items.length > 0) {
                 refundAmount = ret.items.reduce((sum, item) => {
-                    const price = item.price || 0;
-                    return sum + (price * (item.quantity || 1));
+                    const price = item.price || item.productId?.price || 0;
+                    const quantity = item.quantity || 1;
+                    return sum + (price * quantity);
                 }, 0);
             }
+            
             completedRefund += refundAmount;
-        });
+        }
+
+        // console.log('Return Stats Final:', {
+        //     totalRefund,
+        //     refundedOrders,
+        //     completedRefund,
+        //     allRefundedCount: allRefunded.length,
+        //     completedReturnsCount: completedReturns.length
+        // });
 
         res.status(200).json({
             success: true,
@@ -430,7 +484,14 @@ export const getReturnStats = async (req, res) => {
                 ...stats,
                 totalRefund: totalRefund,
                 refundedOrders: refundedOrders,
-                completedRefund: completedRefund
+                completedRefund: completedRefund,
+                // Include individual return details for debugging
+                _debug: allRefunded.map(r => ({
+                    id: r._id,
+                    status: r.status,
+                    refundAmount: r.refundAmount,
+                    calculatedRefund: r.items ? r.items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0) : 0
+                }))
             }
         });
     } catch (error) {
