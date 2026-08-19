@@ -100,6 +100,7 @@ const ShippingDrivers = () => {
                     id: driver.id || driver._id,
                     driverId: driver.driverId || driver.id?.slice(-6),
                     name: driver.name || 'Unknown Driver',
+                    email: driver.email || '',
                     phone: driver.phone || 'N/A',
                     zone: driver.zone || 'Not Assigned',
                     status: driver.status || 'offline',
@@ -260,7 +261,77 @@ const ShippingDrivers = () => {
         }
     };
 
-    // Update driver status
+    // Update driver
+    const handleUpdateDriver = async (e) => {
+        e.preventDefault();
+
+        if (!editDriverData) return;
+
+        try {
+            setLoading(true);
+            setError('');
+            setSuccess('');
+
+            const token = getToken();
+            if (!token) {
+                setError('Please login first');
+                setLoading(false);
+                return;
+            }
+
+            // Prepare update data
+            const updateData = {
+                name: editDriverData.name,
+                phone: editDriverData.phone,
+                zone: editDriverData.zone,
+                status: editDriverData.status,
+                vehicleNumber: editDriverData.vehicle,
+                vehicleType: editDriverData.vehicleType,
+                maxCapacity: editDriverData.maxCapacity,
+                experience: editDriverData.experience,
+                licenseNumber: editDriverData.licenseNumber
+            };
+
+            console.log('Updating driver:', {
+                id: editDriverData.id,
+                data: updateData
+            });
+
+            const response = await fetch(`${API_URL}/drivers/${editDriverData.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(updateData)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to update driver');
+            }
+
+            const data = await response.json();
+
+            if (data.success) {
+                setSuccess('Driver updated successfully!');
+                await fetchDrivers(); // Refresh the list
+                setShowEditDriverModal(false);
+                setEditDriverData(null);
+                setTimeout(() => setSuccess(''), 3000);
+            } else {
+                throw new Error(data.message || 'Failed to update driver');
+            }
+        } catch (err) {
+            console.error('Error updating driver:', err);
+            setError(err.message);
+            setTimeout(() => setError(''), 3000);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Update driver status (toggle)
     const updateDriverStatus = async (driverId, status) => {
         try {
             const token = getToken();
@@ -291,7 +362,6 @@ const ShippingDrivers = () => {
 
     // Delete driver
     const handleDeleteDriver = async (driverId) => {
-        // Get the driver name for the confirmation message
         const driverToDelete = drivers.find(d => d.id === driverId);
 
         if (!driverToDelete) {
@@ -315,8 +385,6 @@ const ShippingDrivers = () => {
                 return;
             }
 
-            // console.log(`Deleting driver: ${driverToDelete.name} (${driverId})`);
-
             const response = await fetch(`${API_URL}/drivers/${driverId}`, {
                 method: 'DELETE',
                 headers: {
@@ -326,22 +394,17 @@ const ShippingDrivers = () => {
             });
 
             const data = await response.json();
-            // console.log('Delete response:', data);
 
             if (!response.ok) {
                 throw new Error(data.message || 'Failed to delete driver');
             }
 
             if (data.success) {
-                // Remove the driver from the local state
                 setDrivers(prev => prev.filter(d => d.id !== driverId));
                 setSuccess(data.message || 'Driver removed successfully!');
-
-                // Close any open modals
                 setShowEditDriverModal(false);
                 setShowAssignModal(false);
 
-                // Refresh the list after a short delay
                 setTimeout(async () => {
                     await fetchDrivers();
                 }, 1000);
@@ -411,7 +474,7 @@ const ShippingDrivers = () => {
         fetchAvailableOrders();
     }, []);
 
-    // Driver Search Logic (No status filter)
+    // Driver Search Logic
     const filteredDrivers = useMemo(() => {
         if (!searchQuery) return drivers;
 
@@ -557,10 +620,7 @@ const ShippingDrivers = () => {
                         <Edit3 className="w-4 h-4" />
                     </button>
                     <button
-                        onClick={() => {
-                            console.log('🗑️ Delete button clicked for driver:', driver.name, driver.id);
-                            handleDeleteDriver(driver.id);
-                        }}
+                        onClick={() => handleDeleteDriver(driver.id)}
                         className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                         title="Remove Driver"
                     >
@@ -673,7 +733,7 @@ const ShippingDrivers = () => {
                         {/* DRIVER TABLE CONTAINER */}
                         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
 
-                            {/* SEARCH ROW - Filters removed */}
+                            {/* SEARCH ROW */}
                             <div className="p-3 sm:p-5 border-b border-slate-200/80 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 sm:gap-4 bg-slate-50/50">
                                 <div className="relative flex-1 max-w-full md:max-w-md">
                                     <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -1113,22 +1173,29 @@ const ShippingDrivers = () => {
                 </div>
             )}
 
-            {/* MODAL: Edit Driver */}
+            {/* Edit Driver with proper update handler */}
             {showEditDriverModal && editDriverData && (
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-hidden shadow-xl border border-slate-100">
                         <div className="p-4 sm:p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                             <h3 className="text-lg font-bold text-slate-900">Edit Driver</h3>
-                            <button onClick={() => setShowEditDriverModal(false)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition">
+                            <button
+                                onClick={() => {
+                                    setShowEditDriverModal(false);
+                                    setEditDriverData(null);
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition"
+                            >
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
-                        <form onSubmit={(e) => { e.preventDefault(); setShowEditDriverModal(false); }} className="p-4 sm:p-5 space-y-4 overflow-y-auto max-h-[60vh]">
+                        <form onSubmit={handleUpdateDriver} className="p-4 sm:p-5 space-y-4 overflow-y-auto max-h-[60vh]">
                             <div>
                                 <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name</label>
                                 <input
                                     type="text"
-                                    value={editDriverData.name}
+                                    required
+                                    value={editDriverData.name || ''}
                                     onChange={e => setEditDriverData({ ...editDriverData, name: e.target.value })}
                                     className="w-full bg-white border border-slate-200 text-sm text-slate-800 px-3 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                                 />
@@ -1137,24 +1204,60 @@ const ShippingDrivers = () => {
                                 <label className="block text-xs font-semibold text-slate-700 mb-1">Phone</label>
                                 <input
                                     type="text"
-                                    value={editDriverData.phone}
+                                    required
+                                    value={editDriverData.phone || ''}
                                     onChange={e => setEditDriverData({ ...editDriverData, phone: e.target.value })}
                                     className="w-full bg-white border border-slate-200 text-sm text-slate-800 px-3 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                                 />
                             </div>
                             <div>
+                                <label className="block text-xs font-semibold text-slate-700 mb-1">Email</label>
+                                <input
+                                    type="email"
+                                    value={editDriverData.email || ''}
+                                    onChange={e => setEditDriverData({ ...editDriverData, email: e.target.value })}
+                                    className="w-full bg-slate-100 border border-slate-200 text-sm text-slate-600 px-3 py-2 rounded-xl cursor-not-allowed"
+                                    disabled
+                                />
+                                <p className="text-[10px] text-slate-400 mt-0.5">Email cannot be changed</p>
+                            </div>
+                            <div>
                                 <label className="block text-xs font-semibold text-slate-700 mb-1">Zone</label>
                                 <input
                                     type="text"
-                                    value={editDriverData.zone}
+                                    value={editDriverData.zone || ''}
                                     onChange={e => setEditDriverData({ ...editDriverData, zone: e.target.value })}
                                     className="w-full bg-white border border-slate-200 text-sm text-slate-800 px-3 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                                 />
                             </div>
                             <div>
+                                <label className="block text-xs font-semibold text-slate-700 mb-1">Vehicle</label>
+                                <input
+                                    type="text"
+                                    value={editDriverData.vehicle || ''}
+                                    onChange={e => setEditDriverData({ ...editDriverData, vehicle: e.target.value })}
+                                    className="w-full bg-white border border-slate-200 text-sm text-slate-800 px-3 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-700 mb-1">Vehicle Type</label>
+                                <select
+                                    value={editDriverData.vehicleType || 'bike'}
+                                    onChange={e => setEditDriverData({ ...editDriverData, vehicleType: e.target.value })}
+                                    className="w-full bg-white border border-slate-200 text-sm text-slate-800 px-3 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                                >
+                                    <option value="bike">Bike</option>
+                                    <option value="scooter">Scooter</option>
+                                    <option value="car">Car</option>
+                                    <option value="van">Van</option>
+                                    <option value="truck">Truck</option>
+                                    <option value="auto">Auto</option>
+                                </select>
+                            </div>
+                            <div>
                                 <label className="block text-xs font-semibold text-slate-700 mb-1">Status</label>
                                 <select
-                                    value={editDriverData.status}
+                                    value={editDriverData.status || 'available'}
                                     onChange={e => setEditDriverData({ ...editDriverData, status: e.target.value })}
                                     className="w-full bg-white border border-slate-200 text-sm text-slate-800 px-3 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                                 >
@@ -1163,19 +1266,46 @@ const ShippingDrivers = () => {
                                     <option value="offline">Offline</option>
                                 </select>
                             </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-700 mb-1">Max Capacity</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={editDriverData.maxCapacity || 10}
+                                        onChange={e => setEditDriverData({ ...editDriverData, maxCapacity: parseInt(e.target.value) })}
+                                        className="w-full bg-white border border-slate-200 text-sm text-slate-800 px-3 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-700 mb-1">Experience</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={editDriverData.experience || 0}
+                                        onChange={e => setEditDriverData({ ...editDriverData, experience: parseInt(e.target.value) })}
+                                        className="w-full bg-white border border-slate-200 text-sm text-slate-800 px-3 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                                    />
+                                </div>
+                            </div>
                             <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
                                 <button
                                     type="button"
-                                    onClick={() => setShowEditDriverModal(false)}
+                                    onClick={() => {
+                                        setShowEditDriverModal(false);
+                                        setEditDriverData(null);
+                                    }}
                                     className="px-4 py-2 text-slate-600 hover:bg-slate-200/60 rounded-xl text-sm font-medium transition"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
-                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition shadow-sm"
+                                    disabled={loading}
+                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition shadow-sm flex items-center gap-2"
                                 >
-                                    Save Changes
+                                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                                    Update Driver
                                 </button>
                             </div>
                         </form>

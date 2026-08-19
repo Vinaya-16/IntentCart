@@ -6,7 +6,8 @@ import {
     getShipperDashboard,
     getShipperProfile,
     getAllShippers,
-    approveShipper
+    approveShipper,
+    updateShipperProfile,
 } from '../controllers/shippingAuthController.js';
 import {
     signup,
@@ -67,6 +68,7 @@ router.put('/shipper/status', updateShipperStatus);
 router.put('/shipper/location', updateShipperLocation);
 router.get('/shipper/dashboard', getShipperDashboard);
 router.get('/shipper/profile', getShipperProfile);
+router.put('/shipper/profile', updateShipperProfile);
 
 // Admin routes
 router.get('/admin/shippers', getAllShippers);

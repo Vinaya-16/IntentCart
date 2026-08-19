@@ -45,6 +45,7 @@ import ShippingTracking from "./shippingPanel/Tracking.jsx";
 import ShippingReturns from './shippingPanel/Returns.jsx';
 import ShippingDrivers from "./shippingPanel/drivers.jsx";
 import ShippingNotifications from "./shippingPanel/notifications.jsx";
+import ShipperProfile from "./shippingPanel/profile.jsx";
 
 function App() {
 
@@ -99,6 +100,7 @@ function App() {
             <Route path="/shipping-returns" element={<ShippingReturns />} />
             <Route path="/shipping-drivers" element={<ShippingDrivers />} />
             <Route path="/shipping-notifications" element={<ShippingNotifications />} />
+            <Route path="/shipping-profile" element={<ShipperProfile />}/>
 
           </Routes>
         </BrowserRouter>

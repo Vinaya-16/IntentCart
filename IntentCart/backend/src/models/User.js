@@ -82,7 +82,7 @@ const userSchema = new mongoose.Schema({
   avatarUrl: {
     type: String,
     trim: true,
-    default: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=250'
+    default: ''
   },
   coverImage: {
     type: String,
@@ -214,6 +214,97 @@ const userSchema = new mongoose.Schema({
     }
   }],
 
+  // ==================== SHIPPER DETAILS (ROOT LEVEL) ====================
+  shipperDetails: {
+    branch: {
+      type: String,
+      trim: true
+    },
+    assignedRegion: {
+      type: String,
+      trim: true
+    },
+    vehicleNumber: {
+      type: String,
+      trim: true
+    },
+    licenseNumber: {
+      type: String,
+      trim: true
+    },
+    experience: {
+      type: Number,
+      default: 0
+    },
+    rating: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5
+    },
+    totalDeliveries: {
+      type: Number,
+      default: 0
+    },
+    successfulDeliveries: {
+      type: Number,
+      default: 0
+    },
+    failedDeliveries: {
+      type: Number,
+      default: 0
+    },
+    currentStatus: {
+      type: String,
+      enum: ['available', 'busy', 'offline', 'on_break'],
+      default: 'available'
+    },
+    lastLocation: {
+      type: {
+        type: String,
+        enum: ['Point'],
+        default: 'Point'
+      },
+      coordinates: {
+        type: [Number],
+        default: [0, 0]
+      },
+      updatedAt: {
+        type: Date,
+        default: Date.now
+      }
+    },
+    // THIS IS THE KEY FIX - Add assignedOrders at root level
+    assignedOrders: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Order'
+    }]
+  },
+
+  // ==================== PERFORMANCE METRICS (ROOT LEVEL) ====================
+  performanceMetrics: {
+    onTimeDelivery: {
+      type: Number,
+      default: 0
+    },
+    averageDeliveryTime: {
+      type: Number,
+      default: 0
+    },
+    customerRating: {
+      type: Number,
+      default: 0
+    },
+    totalEarnings: {
+      type: Number,
+      default: 0
+    },
+    weeklyEarnings: {
+      type: Number,
+      default: 0
+    }
+  },
+
   // ==================== PAYMENTS ====================
   payments: [{
     brand: {
@@ -233,82 +324,14 @@ const userSchema = new mongoose.Schema({
       type: Boolean,
       default: false
     },
-
-    // ==================== SHIPPER SPECIFIC ====================
-    shipperDetails: {
-      branch: {
-        type: String,
-        trim: true
-      },
-      assignedRegion: {
-        type: String,
-        trim: true
-      },
-      vehicleNumber: {
-        type: String,
-        trim: true
-      },
-      licenseNumber: {
-        type: String,
-        trim: true
-      },
-      experience: {
-        type: Number,
-        default: 0
-      },
-      rating: {
-        type: Number,
-        default: 0,
-        min: 0,
-        max: 5
-      },
-      totalDeliveries: {
-        type: Number,
-        default: 0
-      },
-      successfulDeliveries: {
-        type: Number,
-        default: 0
-      },
-      failedDeliveries: {
-        type: Number,
-        default: 0
-      },
-      currentStatus: {
-        type: String,
-        enum: ['available', 'busy', 'offline', 'on_break'],
-        default: 'available'
-      },
-      lastLocation: {
-        type: {
-          type: String,
-          enum: ['Point'],
-          default: 'Point'
-        },
-        coordinates: {
-          type: [Number],
-          default: [0, 0]
-        },
-        updatedAt: {
-          type: Date,
-          default: Date.now
-        }
-      },
-      assignedOrders: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Order'
-      }]
-    },
-
-    // ==================== SHIPPING PREFERENCES ====================
     shippingPreferences: {
       maxWeight: {
         type: Number,
-        default: 100 // in kg
+        default: 100
       },
       serviceRadius: {
         type: Number,
-        default: 50 // in km
+        default: 50
       },
       preferredAreas: [{
         type: String,
@@ -324,36 +347,15 @@ const userSchema = new mongoose.Schema({
           default: '18:00'
         }
       }
-    },
-
-    // Track shipper performance
-    performanceMetrics: {
-      onTimeDelivery: {
-        type: Number,
-        default: 0
-      },
-      averageDeliveryTime: {
-        type: Number,
-        default: 0 // in minutes
-      },
-      customerRating: {
-        type: Number,
-        default: 0
-      },
-      totalEarnings: {
-        type: Number,
-        default: 0
-      },
-      weeklyEarnings: {
-        type: Number,
-        default: 0
-      }
     }
   }]
 
 }, {
   timestamps: true
 });
+
+// Add 2dsphere index for location queries
+userSchema.index({ 'shipperDetails.lastLocation': '2dsphere' });
 
 // Hash password before saving
 userSchema.pre('save', async function (next) {

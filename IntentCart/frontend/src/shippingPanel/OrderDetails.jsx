@@ -485,7 +485,7 @@ const ShippingDashboard = () => {
                                                 <th className="py-3.5 px-4">Status</th>
                                                 <th className="py-3.5 px-4">Driver Assigned</th>
                                                 <th className="py-3.5 px-4">Date</th>
-                                                <th className="py-3.5 px-4 text-center">Actions</th>
+                                                <th className="py-3.5 px-4 text-center">Driver</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-200 text-sm bg-white">

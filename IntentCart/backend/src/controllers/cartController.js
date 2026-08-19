@@ -201,7 +201,6 @@ export const updateCartItem = async (req, res) => {
   }
 };
 
-
 // @desc    Get cart items count
 // @route   GET /api/customer/cart/count
 // @access  Private (Customer)
@@ -395,9 +394,31 @@ export const removeFromCart = async (req, res) => {
     // Remove the item from cart
     cart.items = cart.items.filter(item => item._id.toString() !== itemId);
 
+    // Ensure all remaining items have merchantId before saving
+    // If items remain, make sure they have merchantId
+    if (cart.items.length > 0) {
+      for (const item of cart.items) {
+        if (!item.merchantId) {
+          // Try to get merchantId from product
+          const productData = await Product.findById(item.productId);
+          if (productData && productData.merchantId) {
+            item.merchantId = productData.merchantId;
+          } else {
+            // If no merchantId, use the merchantId from the cart or the removed item
+            item.merchantId = cart.merchantId || merchantId;
+          }
+        }
+      }
+    }
+
     // Recalculate totals
     cart.subtotal = cart.items.reduce((sum, i) => sum + i.total, 0);
-    cart.total = cart.subtotal - cart.discount;
+    cart.total = cart.subtotal - (cart.discount || 0);
+
+    // If cart is empty, reset merchantId
+    if (cart.items.length === 0) {
+      cart.merchantId = null;
+    }
 
     await cart.save();
 
@@ -526,6 +547,7 @@ export const clearCart = async (req, res) => {
     cart.total = 0;
     cart.discount = 0;
     cart.couponCode = null;
+    cart.merchantId = null;
     await cart.save();
 
     res.status(200).json({

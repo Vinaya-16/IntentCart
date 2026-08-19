@@ -49,7 +49,7 @@ const ShippingTracking = () => {
     const [searchOrderId, setSearchOrderId] = useState('');
     const [searching, setSearching] = useState(false);
 
-    // Driver Assignment
+    // Driver Assignment 
     const [isAssigned, setIsAssigned] = useState(false);
     const [assignedDriver, setAssignedDriver] = useState(null);
 
@@ -67,8 +67,6 @@ const ShippingTracking = () => {
                 setLoading(false);
                 return;
             }
-
-            // console.log('Fetching order with ID:', orderId);
 
             const response = await fetch(`${API_URL}/orders/search/${orderId}`, {
                 headers: {
@@ -90,32 +88,51 @@ const ShippingTracking = () => {
             }
 
             const data = await response.json();
-            // console.log('Order data received:', data);
 
             if (data.success) {
                 const orderData = data.order;
                 setOrder(orderData);
 
-                // Set assignment status from backend
-                const isAssignedToDriver = orderData.isAssignedToMyDriver || false;
-                setIsAssigned(isAssignedToDriver);
+                // Check if driver is assigned properly
+                // Check multiple possible fields for driver assignment
+                const hasDriver =
+                    orderData.assignedDriver !== null &&
+                    orderData.assignedDriver !== undefined &&
+                    orderData.assignedDriver !== 'null' &&
+                    orderData.assignedDriver !== '' &&
+                    orderData.isAssignedToMyDriver === true;
 
-                // console.log('Is Assigned to my driver:', isAssignedToDriver);
-                // console.log('Assigned Driver:', orderData.assignedDriver);
+                // Also check if assignedDriver has a name or id
+                const driverExists = orderData.assignedDriver &&
+                    (orderData.assignedDriver.name || orderData.assignedDriver.id);
+
+                const isAssignedToDriver = hasDriver || driverExists || false;
+
+                console.log('Driver assignment check:', {
+                    orderId: orderData.orderId,
+                    isAssignedToMyDriver: orderData.isAssignedToMyDriver,
+                    assignedDriver: orderData.assignedDriver,
+                    hasDriver: hasDriver,
+                    driverExists: driverExists,
+                    final: isAssignedToDriver
+                });
+
+                setIsAssigned(isAssignedToDriver);
 
                 // Set assigned driver if available
                 if (isAssignedToDriver && orderData.assignedDriver) {
+                    const driverData = orderData.assignedDriver;
                     setAssignedDriver({
-                        id: orderData.assignedDriver.id,
-                        name: orderData.assignedDriver.name || 'Unknown Driver',
-                        phone: orderData.assignedDriver.phone || 'N/A',
-                        vehicle: orderData.assignedDriver.vehicle || 'Not Assigned',
-                        vehicleType: orderData.assignedDriver.vehicleType || 'Not Specified',
-                        rating: orderData.assignedDriver.rating || 0,
-                        totalDeliveries: orderData.assignedDriver.totalDeliveries || 0,
-                        licenseNumber: orderData.assignedDriver.licenseNumber || 'N/A',
-                        status: orderData.assignedDriver.status || 'offline',
-                        experience: orderData.assignedDriver.experience || 0
+                        id: driverData.id || driverData._id || 'N/A',
+                        name: driverData.name || 'Unknown Driver',
+                        phone: driverData.phone || driverData.mobile || 'N/A',
+                        vehicle: driverData.vehicleNumber || driverData.vehicle || 'Not Assigned',
+                        vehicleType: driverData.vehicleType || 'Not Specified',
+                        rating: driverData.rating || 0,
+                        totalDeliveries: driverData.totalDeliveries || 0,
+                        licenseNumber: driverData.licenseNumber || 'N/A',
+                        status: driverData.status || 'offline',
+                        experience: driverData.experience || 0
                     });
                 } else {
                     setAssignedDriver(null);
@@ -176,7 +193,6 @@ const ShippingTracking = () => {
             const token = getToken();
             if (!token) return;
 
-            // Fetch drivers to find which one has this order assigned
             const response = await fetch(`${API_URL}/drivers`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -187,7 +203,6 @@ const ShippingTracking = () => {
             if (response.ok) {
                 const data = await response.json();
                 if (data.success) {
-                    // Find driver with this order assigned
                     const driver = data.drivers.find(d =>
                         d.assignedOrders && d.assignedOrders.some(o => o._id === orderId || o.id === orderId)
                     );
@@ -201,14 +216,17 @@ const ShippingTracking = () => {
                             rating: driver.rating || 0,
                             totalDeliveries: driver.totalDeliveries || 0
                         });
+                        setIsAssigned(true);
                     } else {
                         setAssignedDriver(null);
+                        setIsAssigned(false);
                     }
                 }
             }
         } catch (error) {
             console.error('Error fetching driver for order:', error);
             setAssignedDriver(null);
+            setIsAssigned(false);
         }
     };
 
@@ -326,6 +344,13 @@ const ShippingTracking = () => {
             return;
         }
 
+        // Check if driver is assigned before allowing update
+        if (!isAssigned) {
+            setError('This order is not assigned to your drivers. Status cannot be updated.');
+            setTimeout(() => setError(''), 3000);
+            return;
+        }
+
         try {
             setIsUpdating(true);
             setError('');
@@ -337,10 +362,8 @@ const ShippingTracking = () => {
                 return;
             }
 
-            // Get the correct order ID
             const orderId = order?.id || shipment?.id || id;
 
-            // Map status to valid backend statuses
             const statusMap = {
                 'pending': 'pending',
                 'processing': 'processing',
@@ -354,22 +377,13 @@ const ShippingTracking = () => {
             const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'];
             let statusToSend = selectedStatus.toLowerCase();
 
-            // Map the status if needed
             if (statusMap[statusToSend]) {
                 statusToSend = statusMap[statusToSend];
             }
 
-            // Validate the status
             if (!validStatuses.includes(statusToSend)) {
                 throw new Error(`Invalid status: ${statusToSend}. Valid: ${validStatuses.join(', ')}`);
             }
-
-            // console.log('Updating status:', {
-            //     orderId: orderId,
-            //     selectedStatus: selectedStatus,
-            //     mappedStatus: statusToSend,
-            //     currentStatus: shipment?.status
-            // });
 
             const response = await fetch(`${API_URL}/orders/${orderId}/status`, {
                 method: 'PUT',
@@ -392,7 +406,6 @@ const ShippingTracking = () => {
             const data = await response.json();
 
             if (data.success) {
-                // Refresh order data using the orderId
                 await fetchOrderById(order.orderId || shipment.orderId);
                 setLocationNote('');
                 setToastMessage(`Order status updated to "${statusToSend}"`);
@@ -601,16 +614,6 @@ const ShippingTracking = () => {
                                             </div>
                                         </div>
 
-                                        {/* <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 hover:border-slate-300 transition-colors">
-                                            <div className="p-3 bg-blue-50 rounded-lg text-blue-600">
-                                                <Package className="w-5 h-5" />
-                                            </div>
-                                            <div className="min-w-0 flex-1">
-                                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Tracking ID</p>
-                                                <p className="text-sm font-semibold text-slate-900 truncate font-mono">{shipment.name}</p>
-                                            </div>
-                                        </div> */}
-
                                         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 hover:border-slate-300 transition-colors">
                                             <div className="p-3 bg-emerald-50 rounded-lg text-emerald-600">
                                                 {(() => {
@@ -642,6 +645,22 @@ const ShippingTracking = () => {
                                                 )}
                                                 {shipment.refundedAt && (
                                                     <p className="text-[10px] text-slate-400">Refunded: {new Date(shipment.refundedAt).toLocaleDateString()}</p>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Driver Assignment Status Card */}
+                                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 hover:border-slate-300 transition-colors">
+                                            <div className={`p-3 rounded-lg ${isAssigned ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'}`}>
+                                                <User className="w-5 h-5" />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Driver Status</p>
+                                                <p className={`text-sm font-semibold truncate ${isAssigned ? 'text-green-600' : 'text-amber-600'}`}>
+                                                    {isAssigned ? 'Driver Assigned ✅' : 'No Driver Assigned'}
+                                                </p>
+                                                {isAssigned && assignedDriver && (
+                                                    <p className="text-[10px] text-slate-400">{assignedDriver.name}</p>
                                                 )}
                                             </div>
                                         </div>
@@ -800,8 +819,13 @@ const ShippingTracking = () => {
                                                     <Edit3 className="w-5 h-5 text-indigo-600" />
                                                     Update Status
                                                     {!isAssigned && (
-                                                        <span className="ml-2 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-200">
-                                                            <Lock /> Read Only
+                                                        <span className="ml-2 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-200 flex items-center gap-1">
+                                                            <Lock className="w-3 h-3" /> Read Only
+                                                        </span>
+                                                    )}
+                                                    {isAssigned && (
+                                                        <span className="ml-2 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full border border-green-200 flex items-center gap-1">
+                                                            <Check className="w-3 h-3" /> Can Update
                                                         </span>
                                                     )}
                                                 </h3>
@@ -814,7 +838,8 @@ const ShippingTracking = () => {
                                                         <select
                                                             value={selectedStatus}
                                                             onChange={(e) => setSelectedStatus(e.target.value)}
-                                                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500 focus:bg-white focus:outline-none transition-all"
+                                                            className={`w-full border rounded-lg px-3 py-2 text-sm text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all ${isAssigned ? 'bg-slate-50 border-slate-200 focus:bg-white' : 'bg-slate-100 border-slate-200 cursor-not-allowed opacity-70'
+                                                                }`}
                                                             disabled={!isAssigned || shipment.status === 'delivered' || shipment.status === 'cancelled' || shipment.status === 'refunded'}
                                                         >
                                                             {trackingHistory.map((h, idx) => {
@@ -830,8 +855,15 @@ const ShippingTracking = () => {
                                                             })}
                                                         </select>
                                                         {!isAssigned && (
-                                                            <p className="text-xs text-amber-600 mt-1.5">
+                                                            <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
+                                                                <AlertCircle className="w-3 h-3" />
                                                                 This order is not assigned to your drivers. Status cannot be changed.
+                                                            </p>
+                                                        )}
+                                                        {isAssigned && shipment.status === 'delivered' && (
+                                                            <p className="text-xs text-green-600 mt-1.5 flex items-center gap-1">
+                                                                <CheckCircle2 className="w-3 h-3" />
+                                                                Order is already delivered. No further updates needed.
                                                             </p>
                                                         )}
                                                     </div>
@@ -845,7 +877,8 @@ const ShippingTracking = () => {
                                                             value={locationNote}
                                                             onChange={(e) => setLocationNote(e.target.value)}
                                                             placeholder="e.g. Arrived at Regional Hub"
-                                                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:bg-white focus:outline-none transition-all placeholder:text-slate-400"
+                                                            className={`w-full border rounded-lg px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all placeholder:text-slate-400 ${isAssigned ? 'bg-slate-50 border-slate-200 focus:bg-white' : 'bg-slate-100 border-slate-200 cursor-not-allowed opacity-70'
+                                                                }`}
                                                             disabled={!isAssigned || shipment.status === 'delivered' || shipment.status === 'cancelled' || shipment.status === 'refunded'}
                                                         />
                                                     </div>
@@ -879,6 +912,11 @@ const ShippingTracking = () => {
                                                     {!isAssigned && (
                                                         <span className="ml-2 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-200">
                                                             Not Assigned
+                                                        </span>
+                                                    )}
+                                                    {isAssigned && assignedDriver && (
+                                                        <span className="ml-2 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full border border-green-200">
+                                                            Assigned
                                                         </span>
                                                     )}
                                                 </h3>
@@ -931,7 +969,11 @@ const ShippingTracking = () => {
                                                             <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
                                                                 Status
                                                             </p>
-                                                            <p className="text-xs font-semibold text-slate-700 capitalize">
+                                                            <p className="text-xs font-semibold text-slate-700 capitalize flex items-center gap-2">
+                                                                <span className={`w-2 h-2 rounded-full ${assignedDriver.status === 'online' ? 'bg-green-500' :
+                                                                    assignedDriver.status === 'busy' ? 'bg-yellow-500' :
+                                                                        'bg-gray-400'
+                                                                    }`} />
                                                                 {assignedDriver.status || 'Offline'}
                                                             </p>
                                                         </div>

@@ -107,8 +107,25 @@ export const getShipperDashboard = async (req, res) => {
             });
         }
 
+        // Use populate with strictPopulate: false
         const user = await User.findById(req.user._id)
-            .populate('shipperDetails.assignedOrders', 'orderNumber status totalAmount shippingAddress customerName createdAt');
+            .populate({
+                path: 'shipperDetails.assignedOrders',
+                select: 'orderNumber status totalAmount shippingAddress customerName createdAt',
+                options: { sort: { createdAt: -1 } },
+                strictPopulate: false
+            });
+
+        // Ensure shipperDetails exists
+        if (!user.shipperDetails) {
+            user.shipperDetails = {
+                totalDeliveries: 0,
+                successfulDeliveries: 0,
+                failedDeliveries: 0,
+                currentStatus: 'offline',
+                assignedOrders: []
+            };
+        }
 
         const stats = {
             totalDeliveries: user.shipperDetails?.totalDeliveries || 0,
@@ -156,9 +173,22 @@ export const getShipperProfile = async (req, res) => {
             });
         }
 
+        // Use populate with strictPopulate: false
         const user = await User.findById(req.user._id)
             .select('-password')
-            .populate('shipperDetails.assignedOrders', 'orderNumber status totalAmount shippingAddress customerName createdAt');
+            .populate({
+                path: 'shipperDetails.assignedOrders',
+                select: 'orderNumber status totalAmount shippingAddress customerName createdAt',
+                options: { sort: { createdAt: -1 } },
+                strictPopulate: false
+            });
+
+        // Ensure shipperDetails exists
+        if (!user.shipperDetails) {
+            user.shipperDetails = {
+                assignedOrders: []
+            };
+        }
 
         res.status(200).json({
             success: true,
@@ -166,6 +196,72 @@ export const getShipperProfile = async (req, res) => {
         });
     } catch (error) {
         console.error('Get shipper profile error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error'
+        });
+    }
+};
+
+// @desc    Update shipper profile
+// @route   PUT /api/auth/shipper/profile
+// @access  Private (Shipper only)
+export const updateShipperProfile = async (req, res) => {
+    try {
+        const {
+            name,
+            phone,
+            vehicleNumber,
+            licenseNumber,
+            experience,
+            branch,
+            assignedRegion
+        } = req.body;
+
+        // Check if user is a shipper
+        if (req.user.role !== 'shipper') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied. Shipper only.'
+            });
+        }
+
+        const user = await User.findById(req.user._id);
+
+        // Update basic info
+        if (name) user.name = name;
+        if (phone) user.phone = phone;
+
+        // Update shipper details
+        if (!user.shipperDetails) {
+            user.shipperDetails = {};
+        }
+
+        if (vehicleNumber !== undefined) user.shipperDetails.vehicleNumber = vehicleNumber;
+        if (licenseNumber !== undefined) user.shipperDetails.licenseNumber = licenseNumber;
+        if (experience !== undefined) user.shipperDetails.experience = parseInt(experience);
+        if (branch !== undefined) user.shipperDetails.branch = branch;
+        if (assignedRegion !== undefined) user.shipperDetails.assignedRegion = assignedRegion;
+
+        await user.save();
+
+        // Return updated profile
+        const updatedUser = await User.findById(user._id)
+            .select('-password')
+            .populate({
+                path: 'shipperDetails.assignedOrders',
+                select: 'orderNumber status totalAmount shippingAddress customerName createdAt',
+                options: { sort: { createdAt: -1 } },
+                strictPopulate: false
+            });
+
+        res.status(200).json({
+            success: true,
+            message: 'Profile updated successfully',
+            shipper: updatedUser
+        });
+    } catch (error) {
+        console.error('Update shipper profile error:', error);
         res.status(500).json({
             success: false,
             message: 'Server error'
