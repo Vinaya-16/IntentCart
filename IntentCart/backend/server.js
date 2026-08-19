@@ -22,6 +22,8 @@ import eventRoute from './src/routes/eventRoute.js';
 
 import shippingRoute from './src/routes/shippingRoutes.js';
 
+import returnRoute from './src/routes/returnRoute.js';
+
 // Load environment variables
 dotenv.config();
 
@@ -66,6 +68,8 @@ app.use('/api/product', productRoute);
 app.use('/api/events', eventRoute);
 
 app.use('/api/shipping', shippingRoute);
+
+app.use('/api/returns', returnRoute);
 
 // Health check
 app.get('/health', (req, res) => {

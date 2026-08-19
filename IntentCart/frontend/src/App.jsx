@@ -14,6 +14,7 @@ import CheckoutPage from "./mainPanel/Checkout.jsx";
 import OrderSuccess from "./mainPanel/OrderSuccess.jsx";
 import OrdersPage from './mainPanel/OrderPage.jsx';
 import OrderDetailPage from './mainPanel/OrderDetailPage.jsx';
+import CreateReturn from './mainPanel/ReturnPage.jsx';
 
 // Admin Panel
 import AdminDashboard from "./adminPanel/dashboard.jsx";
@@ -88,6 +89,7 @@ function App() {
             <Route path="/order-success/:orderId" element={<OrderSuccess />} />
             <Route path="/orders" element={<OrdersPage />} />
             <Route path="/order/:id" element={<OrderDetailPage />} />
+            <Route path="/returns/create/:orderId" element={<CreateReturn />} />
 
             {/* Shipping Panel Paths  */}
             <Route path="/shipping-dashboard" element={<ShippingDashboard />} />
