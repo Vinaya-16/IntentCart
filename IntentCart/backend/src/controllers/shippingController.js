@@ -2,6 +2,7 @@ import Order from '../models/Order.js';
 import User from '../models/User.js';
 import mongoose from 'mongoose';
 import Notification from '../models/Notifications.js';
+import Driver from '../models/Driver.js';
 
 // ==================== NOTIFICATION HELPERS ====================
 
@@ -1045,7 +1046,7 @@ export const searchOrderByOrderId = async (req, res) => {
             product: order.items?.[0]?.productName || 'Multiple Items',
             quantity: order.items?.length || 1,
             price: order.subtotal || 0,
-            total: order.total || 0, 
+            total: order.total || 0,
             subtotal: order.subtotal || 0,
             shippingCost: order.shippingCost || 0,
             tax: order.tax || 0,
@@ -1094,6 +1095,391 @@ export const searchOrderByOrderId = async (req, res) => {
         });
     } catch (error) {
         console.error('Error searching order by orderId:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// ==================== DRIVER MANAGEMENT ====================
+
+// @desc    Get all drivers for a shipper
+// @route   GET /api/shipping/drivers
+// @access  Private (Shipper/Admin)
+export const getAllDrivers = async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'Unauthorized: Please login first'
+            });
+        }
+
+        let query = {};
+
+        if (req.user.role === 'shipper') {
+            query.shipperId = req.user._id;
+        }
+
+        // Populate assignedOrders with order details
+        const drivers = await Driver.find(query)
+            .populate('shipperId', 'username email businessName')
+            .populate({
+                path: 'assignedOrders',
+                select: 'orderId status total shippingAddress trackingNumber createdAt',
+                populate: {
+                    path: 'customerId',
+                    select: 'username email'
+                }
+            })
+            .sort({ createdAt: -1 });
+
+        // Format drivers with proper order details
+        const formattedDrivers = drivers.map(driver => ({
+            id: driver._id,
+            driverId: driver.driverId,
+            name: driver.name,
+            email: driver.email,
+            phone: driver.phone,
+            vehicleType: driver.vehicleType,
+            vehicleNumber: driver.vehicleNumber,
+            status: driver.status,
+            currentLoad: driver.assignedOrders?.length || 0,
+            maxCapacity: driver.maxCapacity || 10,
+            rating: driver.rating || 0,
+            totalDeliveries: driver.totalDeliveries || 0,
+            successfulDeliveries: driver.successfulDeliveries || 0,
+            failedDeliveries: driver.failedDeliveries || 0,
+            zone: driver.address?.city || 'Not Assigned',
+            assignedOrders: driver.assignedOrders || [],
+            assignedOrdersCount: driver.assignedOrders?.length || 0,
+            createdAt: driver.createdAt,
+            isActive: driver.isActive,
+            licenseNumber: driver.licenseNumber,
+            experience: driver.experience
+        }));
+
+        res.status(200).json({
+            success: true,
+            count: formattedDrivers.length,
+            drivers: formattedDrivers
+        });
+    } catch (error) {
+        console.error('Error fetching drivers:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Get single driver
+// @route   GET /api/shipping/drivers/:id
+// @access  Private (Shipper/Admin)
+export const getDriverById = async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'Unauthorized: Please login first'
+            });
+        }
+
+        const driver = await Driver.findById(req.params.id)
+            .populate('shipperId', 'username email businessName phone')
+            .populate('assignedOrders', 'orderId status total shippingAddress');
+
+        if (!driver) {
+            return res.status(404).json({
+                success: false,
+                message: 'Driver not found'
+            });
+        }
+
+        // Check if shipper has access to this driver
+        if (req.user.role === 'shipper' && driver.shipperId._id.toString() !== req.user._id.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: This driver does not belong to you'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            driver
+        });
+    } catch (error) {
+        console.error('Error fetching driver:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Create new driver
+// @route   POST /api/shipping/drivers
+// @access  Private (Shipper/Admin)
+export const createDriver = async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'Unauthorized: Please login first'
+            });
+        }
+
+        const shipperId = req.user.role === 'shipper' ? req.user._id : req.body.shipperId;
+
+        if (!shipperId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Shipper ID is required'
+            });
+        }
+
+        const driverData = {
+            ...req.body,
+            shipperId: shipperId,
+            currentLoad: 0,
+            assignedOrders: []
+        };
+
+        const driver = new Driver(driverData);
+        await driver.save();
+
+        res.status(201).json({
+            success: true,
+            message: 'Driver created successfully',
+            driver
+        });
+    } catch (error) {
+        console.error('Error creating driver:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Update driver
+// @route   PUT /api/shipping/drivers/:id
+// @access  Private (Shipper/Admin)
+export const updateDriver = async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'Unauthorized: Please login first'
+            });
+        }
+
+        const driver = await Driver.findById(req.params.id);
+        if (!driver) {
+            return res.status(404).json({
+                success: false,
+                message: 'Driver not found'
+            });
+        }
+
+        // Check if shipper has access
+        if (req.user.role === 'shipper' && driver.shipperId.toString() !== req.user._id.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        const updatedDriver = await Driver.findByIdAndUpdate(
+            req.params.id,
+            req.body,
+            { new: true, runValidators: true }
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'Driver updated successfully',
+            driver: updatedDriver
+        });
+    } catch (error) {
+        console.error('Error updating driver:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Update driver status
+// @route   PUT /api/shipping/drivers/:id/status
+// @access  Private (Shipper/Admin)
+export const updateDriverStatus = async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'Unauthorized: Please login first'
+            });
+        }
+
+        const { status } = req.body;
+        const validStatuses = ['available', 'busy', 'on_break', 'offline', 'unavailable'];
+
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid status. Valid: ' + validStatuses.join(', ')
+            });
+        }
+
+        const driver = await Driver.findById(req.params.id);
+        if (!driver) {
+            return res.status(404).json({
+                success: false,
+                message: 'Driver not found'
+            });
+        }
+
+        // Check if shipper has access
+        if (req.user.role === 'shipper' && driver.shipperId.toString() !== req.user._id.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        driver.status = status;
+        await driver.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Driver status updated successfully',
+            driver
+        });
+    } catch (error) {
+        console.error('Error updating driver status:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Delete driver
+// @route   DELETE /api/shipping/drivers/:id
+// @access  Private (Shipper/Admin)
+export const deleteDriver = async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'Unauthorized: Please login first'
+            });
+        }
+
+        const driver = await Driver.findById(req.params.id);
+        if (!driver) {
+            return res.status(404).json({
+                success: false,
+                message: 'Driver not found'
+            });
+        }
+
+        // Check if shipper has access
+        if (req.user.role === 'shipper' && driver.shipperId.toString() !== req.user._id.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        // Soft delete
+        driver.isActive = false;
+        await driver.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Driver deactivated successfully'
+        });
+    } catch (error) {
+        console.error('Error deleting driver:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Assign order to driver
+// @route   PUT /api/shipping/drivers/:id/assign-order
+// @access  Private (Shipper/Admin)
+export const assignOrderToDriver = async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'Unauthorized: Please login first'
+            });
+        }
+
+        const { orderId } = req.body;
+
+        if (!orderId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Order ID is required'
+            });
+        }
+
+        const driver = await Driver.findById(req.params.id);
+        if (!driver) {
+            return res.status(404).json({
+                success: false,
+                message: 'Driver not found'
+            });
+        }
+
+        // Check if shipper has access
+        if (req.user.role === 'shipper' && driver.shipperId.toString() !== req.user._id.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        if (!driver.canAcceptOrder()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Driver cannot accept more orders'
+            });
+        }
+
+        const order = await Order.findById(orderId);
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        driver.assignOrder(orderId);
+        await driver.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Order assigned to driver successfully',
+            driver
+        });
+    } catch (error) {
+        console.error('Error assigning order to driver:', error);
         res.status(500).json({
             success: false,
             message: 'Server error',

@@ -37,6 +37,15 @@ import {
     // tracking 
     searchOrderByOrderId,
 
+    //driver M
+    getAllDrivers,
+    getDriverById,
+    createDriver,
+    updateDriver,
+    updateDriverStatus,
+    assignOrderToDriver,
+    deleteDriver
+
 } from '../controllers/shippingController.js';
 
 const router = express.Router();
@@ -84,5 +93,14 @@ router.delete('/notifications/shipper/:id', deleteNotification);
 
 // ======================= Tracking Orders ============================= 
 router.get('/orders/search/:orderId', searchOrderByOrderId);
+
+// ============================= Driver Management ======================== 
+router.get('/drivers', getAllDrivers);
+router.get('/drivers/:id', getDriverById);
+router.post('/drivers', createDriver);
+router.put('/drivers/:id', updateDriver);
+router.put('/drivers/:id/status', updateDriverStatus);
+router.put('/drivers/:id/assign-order', assignOrderToDriver);
+router.delete('/drivers/:id', deleteDriver);
 
 export default router;
