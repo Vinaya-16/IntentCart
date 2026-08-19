@@ -21,7 +21,8 @@ import {
     IndianRupee,
     Check,
     XCircle,
-    Clock as ClockIcon
+    Clock as ClockIcon,
+    Lock
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Sidebar from './components/sidebar.jsx';
@@ -47,6 +48,10 @@ const ShippingTracking = () => {
     // Search state
     const [searchOrderId, setSearchOrderId] = useState('');
     const [searching, setSearching] = useState(false);
+
+    // Driver Assignment
+    const [isAssigned, setIsAssigned] = useState(false);
+    const [assignedDriver, setAssignedDriver] = useState(null);
 
     const getToken = () => localStorage.getItem('token');
 
@@ -91,12 +96,42 @@ const ShippingTracking = () => {
                 const orderData = data.order;
                 setOrder(orderData);
 
+                // Set assignment status from backend
+                const isAssignedToDriver = orderData.isAssignedToMyDriver || false;
+                setIsAssigned(isAssignedToDriver);
+
+                // console.log('Is Assigned to my driver:', isAssignedToDriver);
+                // console.log('Assigned Driver:', orderData.assignedDriver);
+
+                // Set assigned driver if available
+                if (isAssignedToDriver && orderData.assignedDriver) {
+                    setAssignedDriver({
+                        id: orderData.assignedDriver.id,
+                        name: orderData.assignedDriver.name || 'Unknown Driver',
+                        phone: orderData.assignedDriver.phone || 'N/A',
+                        vehicle: orderData.assignedDriver.vehicle || 'Not Assigned',
+                        vehicleType: orderData.assignedDriver.vehicleType || 'Not Specified',
+                        rating: orderData.assignedDriver.rating || 0,
+                        totalDeliveries: orderData.assignedDriver.totalDeliveries || 0,
+                        licenseNumber: orderData.assignedDriver.licenseNumber || 'N/A',
+                        status: orderData.assignedDriver.status || 'offline',
+                        experience: orderData.assignedDriver.experience || 0
+                    });
+                } else {
+                    setAssignedDriver(null);
+                }
+
                 // Build tracking history
                 const history = buildTrackingHistory(orderData);
                 setTrackingHistory(history);
 
                 const nextStatus = getNextStatus(history, orderData.status);
                 setSelectedStatus(nextStatus);
+
+                // Get location from shipping address
+                const location = orderData.shippingAddress ?
+                    `${orderData.shippingAddress.city || 'Unknown'}, ${orderData.shippingAddress.state || 'Unknown'}` :
+                    'Unknown Location';
 
                 const shipmentData = {
                     id: orderData.id,
@@ -114,10 +149,13 @@ const ShippingTracking = () => {
                     refundedAt: orderData.refundedAt || null,
                     refundAmount: orderData.refundAmount || 0,
                     history: history,
+                    isAssignedToMyDriver: isAssignedToDriver,
                     agent: {
-                        name: 'Ravi Kumar',
-                        phone: '+91 99887 66554',
-                        currentLocation: getCurrentLocation(orderData)
+                        name: isAssignedToDriver && orderData.assignedDriver ?
+                            orderData.assignedDriver.name : 'Not Assigned',
+                        phone: isAssignedToDriver && orderData.assignedDriver ?
+                            orderData.assignedDriver.phone : 'N/A',
+                        currentLocation: location
                     }
                 };
                 setShipment(shipmentData);
@@ -129,6 +167,48 @@ const ShippingTracking = () => {
             setShipment(null);
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Fetch driver assigned to this order
+    const fetchDriverForOrder = async (orderId) => {
+        try {
+            const token = getToken();
+            if (!token) return;
+
+            // Fetch drivers to find which one has this order assigned
+            const response = await fetch(`${API_URL}/drivers`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    // Find driver with this order assigned
+                    const driver = data.drivers.find(d =>
+                        d.assignedOrders && d.assignedOrders.some(o => o._id === orderId || o.id === orderId)
+                    );
+                    if (driver) {
+                        setAssignedDriver({
+                            id: driver.id,
+                            name: driver.name,
+                            phone: driver.phone,
+                            vehicle: driver.vehicleNumber || 'Not Assigned',
+                            vehicleType: driver.vehicleType || 'Not Specified',
+                            rating: driver.rating || 0,
+                            totalDeliveries: driver.totalDeliveries || 0
+                        });
+                    } else {
+                        setAssignedDriver(null);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching driver for order:', error);
+            setAssignedDriver(null);
         }
     };
 
@@ -264,7 +344,7 @@ const ShippingTracking = () => {
             const statusMap = {
                 'pending': 'pending',
                 'processing': 'processing',
-                'packed': 'processing', 
+                'packed': 'processing',
                 'shipped': 'shipped',
                 'delivered': 'delivered',
                 'cancelled': 'cancelled',
@@ -521,15 +601,15 @@ const ShippingTracking = () => {
                                             </div>
                                         </div>
 
-                                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 hover:border-slate-300 transition-colors">
+                                        {/* <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 hover:border-slate-300 transition-colors">
                                             <div className="p-3 bg-blue-50 rounded-lg text-blue-600">
                                                 <Package className="w-5 h-5" />
                                             </div>
                                             <div className="min-w-0 flex-1">
                                                 <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Tracking ID</p>
-                                                <p className="text-sm font-semibold text-slate-900 truncate font-mono">{shipment.trackingId}</p>
+                                                <p className="text-sm font-semibold text-slate-900 truncate font-mono">{shipment.name}</p>
                                             </div>
-                                        </div>
+                                        </div> */}
 
                                         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 hover:border-slate-300 transition-colors">
                                             <div className="p-3 bg-emerald-50 rounded-lg text-emerald-600">
@@ -719,6 +799,11 @@ const ShippingTracking = () => {
                                                 <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-3 border-b border-slate-100">
                                                     <Edit3 className="w-5 h-5 text-indigo-600" />
                                                     Update Status
+                                                    {!isAssigned && (
+                                                        <span className="ml-2 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-200">
+                                                            <Lock /> Read Only
+                                                        </span>
+                                                    )}
                                                 </h3>
 
                                                 <div className="space-y-4">
@@ -730,16 +815,13 @@ const ShippingTracking = () => {
                                                             value={selectedStatus}
                                                             onChange={(e) => setSelectedStatus(e.target.value)}
                                                             className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500 focus:bg-white focus:outline-none transition-all"
-                                                            disabled={shipment.status === 'delivered' || shipment.status === 'cancelled' || shipment.status === 'refunded'}
+                                                            disabled={!isAssigned || shipment.status === 'delivered' || shipment.status === 'cancelled' || shipment.status === 'refunded'}
                                                         >
                                                             {trackingHistory.map((h, idx) => {
                                                                 const statusKey = h.status.toLowerCase();
                                                                 const completedCount = trackingHistory.filter(s => s.completed).length;
                                                                 const isDisabled = idx < completedCount || shipment.status === 'delivered' || shipment.status === 'cancelled' || shipment.status === 'refunded';
-
-                                                                // Skip 'packed' as it's not valid in backend
                                                                 if (statusKey === 'packed') return null;
-
                                                                 return (
                                                                     <option key={idx} value={statusKey} disabled={isDisabled}>
                                                                         {h.status} {isDisabled && idx < completedCount ? '✓' : ''}
@@ -747,6 +829,11 @@ const ShippingTracking = () => {
                                                                 );
                                                             })}
                                                         </select>
+                                                        {!isAssigned && (
+                                                            <p className="text-xs text-amber-600 mt-1.5">
+                                                                This order is not assigned to your drivers. Status cannot be changed.
+                                                            </p>
+                                                        )}
                                                     </div>
 
                                                     <div>
@@ -759,14 +846,15 @@ const ShippingTracking = () => {
                                                             onChange={(e) => setLocationNote(e.target.value)}
                                                             placeholder="e.g. Arrived at Regional Hub"
                                                             className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:bg-white focus:outline-none transition-all placeholder:text-slate-400"
-                                                            disabled={shipment.status === 'delivered' || shipment.status === 'cancelled' || shipment.status === 'refunded'}
+                                                            disabled={!isAssigned || shipment.status === 'delivered' || shipment.status === 'cancelled' || shipment.status === 'refunded'}
                                                         />
                                                     </div>
 
                                                     <button
                                                         onClick={handleUpdateStatus}
-                                                        disabled={isUpdating || selectedStatus === shipment.status || shipment.status === 'delivered' || shipment.status === 'cancelled' || shipment.status === 'refunded'}
-                                                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:shadow"
+                                                        disabled={!isAssigned || isUpdating || selectedStatus === shipment.status || shipment.status === 'delivered' || shipment.status === 'cancelled' || shipment.status === 'refunded'}
+                                                        className={`w-full flex items-center justify-center gap-2 py-2.5 text-white rounded-lg text-sm font-semibold shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:shadow ${isAssigned ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-gray-400 cursor-not-allowed'
+                                                            }`}
                                                     >
                                                         {isUpdating ? (
                                                             <>
@@ -776,47 +864,95 @@ const ShippingTracking = () => {
                                                         ) : (
                                                             <>
                                                                 <Save className="w-4 h-4" />
-                                                                Save Update
+                                                                {isAssigned ? 'Save Update' : 'Read Only'}
                                                             </>
                                                         )}
                                                     </button>
                                                 </div>
                                             </div>
 
-                                            {/* Delivery Agent */}
+                                            {/* Assigned Delivery Agent / Driver */}
                                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                                                 <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-3 border-b border-slate-100">
                                                     <User className="w-5 h-5 text-indigo-600" />
-                                                    Assigned Delivery Agent
+                                                    {isAssigned && assignedDriver ? 'Assigned Driver' : 'Delivery Agent'}
+                                                    {!isAssigned && (
+                                                        <span className="ml-2 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-200">
+                                                            Not Assigned
+                                                        </span>
+                                                    )}
                                                 </h3>
 
-                                                <div className="space-y-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-11 h-11 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-sm ring-2 ring-indigo-100">
-                                                            {shipment.agent.name.split(' ').map(n => n[0]).join('')}
+                                                {isAssigned && assignedDriver ? (
+                                                    <div className="space-y-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-11 h-11 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-sm ring-2 ring-indigo-100">
+                                                                {assignedDriver.name?.split(' ').map(n => n[0]).join('') || 'D'}
+                                                            </div>
+                                                            <div className="min-w-0 flex-1">
+                                                                <p className="font-bold text-slate-900 text-sm">{assignedDriver.name}</p>
+                                                                <p className="text-xs text-slate-500 flex items-center gap-2">
+                                                                    <span className="flex items-center gap-1">
+                                                                        <Phone className="w-3 h-3 text-slate-400" />
+                                                                        {assignedDriver.phone || 'N/A'}
+                                                                    </span>
+                                                                </p>
+                                                            </div>
+                                                            {assignedDriver.rating > 0 && (
+                                                                <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-200">
+                                                                    {assignedDriver.rating}
+                                                                </span>
+                                                            )}
                                                         </div>
-                                                        <div className="min-w-0 flex-1">
-                                                            <p className="font-bold text-slate-900 text-sm">{shipment.agent.name}</p>
-                                                            <a
-                                                                href={`tel:${shipment.agent.phone}`}
-                                                                className="inline-flex items-center gap-1 text-xs text-indigo-600 font-medium hover:underline mt-0.5"
-                                                            >
-                                                                <Phone className="w-3 h-3" />
-                                                                {shipment.agent.phone}
-                                                            </a>
-                                                        </div>
-                                                    </div>
 
-                                                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                                                        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                                                            Last Known Location
-                                                        </p>
-                                                        <p className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                                                            <MapPin className="w-3.5 h-3.5 text-rose-500 animate-pulse" />
-                                                            {shipment.agent.currentLocation}
-                                                        </p>
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                                                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                                                                    Vehicle
+                                                                </p>
+                                                                <p className="text-xs font-semibold text-slate-700">
+                                                                    {assignedDriver.vehicle || 'Not Assigned'}
+                                                                </p>
+                                                                {assignedDriver.vehicleType && (
+                                                                    <p className="text-[10px] text-slate-400 capitalize">{assignedDriver.vehicleType}</p>
+                                                                )}
+                                                            </div>
+                                                            <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                                                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                                                                    Total Deliveries
+                                                                </p>
+                                                                <p className="text-xs font-semibold text-slate-700">
+                                                                    {assignedDriver.totalDeliveries || 0}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                                            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                                                                Status
+                                                            </p>
+                                                            <p className="text-xs font-semibold text-slate-700 capitalize">
+                                                                {assignedDriver.status || 'Offline'}
+                                                            </p>
+                                                        </div>
+
+                                                        <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                                            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                                                                Last Known Location
+                                                            </p>
+                                                            <p className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                                                                <MapPin className="w-3.5 h-3.5 text-rose-500 animate-pulse" />
+                                                                {shipment?.agent?.currentLocation || 'Unknown'}
+                                                            </p>
+                                                        </div>
                                                     </div>
-                                                </div>
+                                                ) : (
+                                                    <div className="text-center py-6">
+                                                        <User className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+                                                        <p className="text-sm text-slate-500">No driver assigned to this order</p>
+                                                        <p className="text-xs text-slate-400 mt-1">This order is not assigned to any driver</p>
+                                                    </div>
+                                                )}
                                             </div>
 
                                         </div>

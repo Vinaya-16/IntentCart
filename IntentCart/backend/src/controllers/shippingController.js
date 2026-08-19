@@ -92,7 +92,6 @@ const triggerShipperAssignedNotification = async (orderId, customerName, shipper
 // @access  Private (Shipper only)
 export const getShippingOrders = async (req, res) => {
     try {
-        // Check if user is authenticated and is a shipper
         if (!req.user) {
             return res.status(401).json({
                 success: false,
@@ -111,7 +110,6 @@ export const getShippingOrders = async (req, res) => {
 
         let query = {};
 
-        // Filter by status - only apply if status is provided
         if (status && status !== 'all') {
             query.status = status;
         }
@@ -128,6 +126,22 @@ export const getShippingOrders = async (req, res) => {
                 .limit(parseInt(limit)),
             Order.countDocuments(query)
         ]);
+
+        // Get all drivers for this shipper to check assignment
+        const drivers = await Driver.find({
+            shipperId: req.user._id,
+            isActive: true
+        }).select('assignedOrders');
+
+        // Get all order IDs assigned to this shipper's drivers
+        const assignedOrderIds = [];
+        drivers.forEach(driver => {
+            if (driver.assignedOrders) {
+                driver.assignedOrders.forEach(orderId => {
+                    assignedOrderIds.push(orderId.toString());
+                });
+            }
+        });
 
         const formattedOrders = orders.map(order => ({
             id: order._id,
@@ -157,7 +171,9 @@ export const getShippingOrders = async (req, res) => {
             estimatedDelivery: order.estimatedDelivery || '',
             deliveredAt: order.deliveredAt || '',
             merchantId: order.merchantId?._id || null,
-            merchantName: order.merchantId?.businessName || order.merchantId?.username || 'Unknown Merchant'
+            merchantName: order.merchantId?.businessName || order.merchantId?.username || 'Unknown Merchant',
+            // Add flag to check if order is assigned to this shipper's driver
+            isAssignedToMyDriver: assignedOrderIds.includes(order._id.toString())
         }));
 
         res.status(200).json({
@@ -225,6 +241,43 @@ export const getShippingOrderById = async (req, res) => {
             });
         }
 
+        // Find driver assigned to this order
+        const drivers = await Driver.find({
+            shipperId: req.user._id,
+            isActive: true
+        });
+
+        // Check if any driver has this order assigned
+        let assignedDriver = null;
+        let isAssigned = false;
+
+        for (const driver of drivers) {
+            if (driver.assignedOrders && driver.assignedOrders.length > 0) {
+                // Convert to string for comparison
+                const assignedOrderIds = driver.assignedOrders.map(oId => oId.toString());
+                if (assignedOrderIds.includes(order._id.toString())) {
+                    isAssigned = true;
+                    assignedDriver = {
+                        id: driver._id,
+                        name: driver.name || 'Unknown Driver',
+                        phone: driver.phone || 'N/A',
+                        vehicle: driver.vehicleNumber || 'Not Assigned',
+                        vehicleType: driver.vehicleType || 'Not Specified',
+                        rating: driver.rating || 0,
+                        totalDeliveries: driver.totalDeliveries || 0,
+                        licenseNumber: driver.licenseNumber || 'N/A',
+                        status: driver.status || 'offline',
+                        experience: driver.experience || 0
+                    };
+                    break;
+                }
+            }
+        }
+
+        // console.log('Order ID:', order._id.toString());
+        // console.log('Is Assigned:', isAssigned);
+        // console.log('Assigned Driver:', assignedDriver);
+
         const formattedOrder = {
             id: order._id,
             orderId: order.orderId || `ORD-${order._id.toString().slice(-6).toUpperCase()}`,
@@ -269,7 +322,13 @@ export const getShippingOrderById = async (req, res) => {
             merchant: order.merchantId?.businessName || order.merchantId?.username || 'Unknown Merchant',
             merchantId: order.merchantId?._id || null,
             couponCode: order.couponCode || '',
-            discountAmount: order.discountAmount || 0
+            discountAmount: order.discountAmount || 0,
+            paidAt: order.paidAt || null,
+            refundedAt: order.refundedAt || null,
+            refundAmount: order.refundAmount || 0,
+            // Add assignment flag and driver details
+            isAssignedToMyDriver: isAssigned,
+            assignedDriver: assignedDriver
         };
 
         res.status(200).json({
@@ -328,6 +387,23 @@ export const updateShippingStatus = async (req, res) => {
             });
         }
 
+        // Check if this order is assigned to the shipper's driver
+        const drivers = await Driver.find({
+            shipperId: req.user._id,
+            isActive: true,
+            assignedOrders: { $in: [order._id] }
+        });
+
+        const isAssigned = drivers.length > 0;
+
+        // If order is not assigned to this shipper, deny access
+        if (!isAssigned) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: This order is not assigned to your drivers'
+            });
+        }
+
         const previousStatus = order.status;
         const orderId = order.orderId || order._id.toString().slice(-6).toUpperCase();
         const customerName = order.customerId?.username || 'Customer';
@@ -354,11 +430,8 @@ export const updateShippingStatus = async (req, res) => {
         // 3. When order is marked as DELIVERED
         if (status === 'delivered' && previousStatus !== 'delivered') {
             order.deliveredAt = new Date();
+            order.paymentStatus = 'paid';
 
-            // Process payment when delivered
-            await processOrderPayment(order);
-
-            // Send payment confirmation notification
             await createShipperNotification(
                 'Payment Processed',
                 `Payment of Rs.${order.total} for order #${orderId} has been successfully processed.`,
@@ -377,7 +450,6 @@ export const updateShippingStatus = async (req, res) => {
                 order.cancellationReason = notes;
             }
 
-            // If order was paid, process refund
             if (order.paymentStatus === 'paid') {
                 await processOrderRefund(order);
             }
@@ -614,9 +686,12 @@ export const getShippingStats = async (req, res) => {
             refunded: await Order.countDocuments({ paymentStatus: 'refunded' })
         };
 
+        // Only count DELIVERED orders for revenue
         const revenueAgg = await Order.aggregate([
             {
-                $match: { status: { $in: ['delivered', 'shipped'] } }
+                $match: {
+                    status: 'delivered'  // Only delivered orders
+                }
             },
             {
                 $group: {
@@ -1029,13 +1104,37 @@ export const searchOrderByOrderId = async (req, res) => {
             });
         }
 
-        // console.log('Order found:', {
-        //     orderId: order.orderId,
-        //     total: order.total,
-        //     subtotal: order.subtotal,
-        //     items: order.items?.length,
-        //     paymentStatus: order.paymentStatus
-        // });
+        // Find driver assigned to this order
+        const drivers = await Driver.find({
+            shipperId: req.user._id,
+            isActive: true
+        });
+
+        // Check if any driver has this order assigned
+        let assignedDriver = null;
+        let isAssigned = false;
+
+        for (const driver of drivers) {
+            if (driver.assignedOrders && driver.assignedOrders.length > 0) {
+                const assignedOrderIds = driver.assignedOrders.map(oId => oId.toString());
+                if (assignedOrderIds.includes(order._id.toString())) {
+                    isAssigned = true;
+                    assignedDriver = {
+                        id: driver._id,
+                        name: driver.name || 'Unknown Driver',
+                        phone: driver.phone || 'N/A',
+                        vehicle: driver.vehicleNumber || 'Not Assigned',
+                        vehicleType: driver.vehicleType || 'Not Specified',
+                        rating: driver.rating || 0,
+                        totalDeliveries: driver.totalDeliveries || 0,
+                        licenseNumber: driver.licenseNumber || 'N/A',
+                        status: driver.status || 'offline',
+                        experience: driver.experience || 0
+                    };
+                    break;
+                }
+            }
+        }
 
         const formattedOrder = {
             id: order._id,
@@ -1084,10 +1183,11 @@ export const searchOrderByOrderId = async (req, res) => {
             discountAmount: order.discountAmount || 0,
             paidAt: order.paidAt || null,
             refundedAt: order.refundedAt || null,
-            refundAmount: order.refundAmount || 0
+            refundAmount: order.refundAmount || 0,
+            // Add assignment flag and driver details
+            isAssignedToMyDriver: isAssigned,
+            assignedDriver: assignedDriver
         };
-
-        // console.log('Formatted order total:', formattedOrder.total);
 
         res.status(200).json({
             success: true,
@@ -1137,29 +1237,54 @@ export const getAllDrivers = async (req, res) => {
             .sort({ createdAt: -1 });
 
         // Format drivers with proper order details
-        const formattedDrivers = drivers.map(driver => ({
-            id: driver._id,
-            driverId: driver.driverId,
-            name: driver.name,
-            email: driver.email,
-            phone: driver.phone,
-            vehicleType: driver.vehicleType,
-            vehicleNumber: driver.vehicleNumber,
-            status: driver.status,
-            currentLoad: driver.assignedOrders?.length || 0,
-            maxCapacity: driver.maxCapacity || 10,
-            rating: driver.rating || 0,
-            totalDeliveries: driver.totalDeliveries || 0,
-            successfulDeliveries: driver.successfulDeliveries || 0,
-            failedDeliveries: driver.failedDeliveries || 0,
-            zone: driver.address?.city || 'Not Assigned',
-            assignedOrders: driver.assignedOrders || [],
-            assignedOrdersCount: driver.assignedOrders?.length || 0,
-            createdAt: driver.createdAt,
-            isActive: driver.isActive,
-            licenseNumber: driver.licenseNumber,
-            experience: driver.experience
-        }));
+        const formattedDrivers = drivers.map(driver => {
+            // Count delivered orders from assignedOrders
+            const deliveredOrders = driver.assignedOrders?.filter(
+                order => order.status === 'delivered'
+            ) || [];
+
+            // Count total orders
+            const totalOrders = driver.assignedOrders?.length || 0;
+
+            // Get successful deliveries count
+            const successfulDeliveries = deliveredOrders.length;
+
+            // Calculate failed deliveries (if any)
+            const failedDeliveries = driver.failedDeliveries || 0;
+
+            return {
+                id: driver._id,
+                driverId: driver.driverId,
+                name: driver.name,
+                email: driver.email,
+                phone: driver.phone,
+                vehicleType: driver.vehicleType,
+                vehicleNumber: driver.vehicleNumber,
+                status: driver.status,
+                currentLoad: totalOrders,
+                maxCapacity: driver.maxCapacity || 10,
+                rating: driver.rating || 0,
+                // Set totalDeliveries from successful deliveries
+                totalDeliveries: successfulDeliveries,
+                successfulDeliveries: successfulDeliveries,
+                failedDeliveries: failedDeliveries,
+                zone: driver.address?.city || 'Not Assigned',
+                assignedOrders: driver.assignedOrders || [],
+                assignedOrdersCount: totalOrders,
+                createdAt: driver.createdAt,
+                isActive: driver.isActive,
+                licenseNumber: driver.licenseNumber,
+                experience: driver.experience,
+                // Include delivery stats
+                deliveryStats: {
+                    total: totalOrders,
+                    completed: successfulDeliveries,
+                    pending: totalOrders - successfulDeliveries,
+                    failed: failedDeliveries,
+                    successRate: totalOrders > 0 ? Math.round((successfulDeliveries / totalOrders) * 100) : 0
+                }
+            };
+        });
 
         res.status(200).json({
             success: true,
@@ -1372,7 +1497,7 @@ export const updateDriverStatus = async (req, res) => {
     }
 };
 
-// @desc    Delete driver
+// @desc    Delete driver (hard delete - permanent)
 // @route   DELETE /api/shipping/drivers/:id
 // @access  Private (Shipper/Admin)
 export const deleteDriver = async (req, res) => {
@@ -1384,7 +1509,16 @@ export const deleteDriver = async (req, res) => {
             });
         }
 
-        const driver = await Driver.findById(req.params.id);
+        if (req.user.role !== 'admin' && req.user.role !== 'shipper') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        const { id } = req.params;
+
+        const driver = await Driver.findById(id);
         if (!driver) {
             return res.status(404).json({
                 success: false,
@@ -1392,7 +1526,6 @@ export const deleteDriver = async (req, res) => {
             });
         }
 
-        // Check if shipper has access
         if (req.user.role === 'shipper' && driver.shipperId.toString() !== req.user._id.toString()) {
             return res.status(403).json({
                 success: false,
@@ -1400,13 +1533,18 @@ export const deleteDriver = async (req, res) => {
             });
         }
 
-        // Soft delete
-        driver.isActive = false;
-        await driver.save();
+        await Driver.findByIdAndDelete(id);
+
+        // console.log(`Driver ${driver.name} (${driver.driverId}) permanently deleted`);
 
         res.status(200).json({
             success: true,
-            message: 'Driver deactivated successfully'
+            message: `Driver ${driver.name} permanently deleted`,
+            deletedDriver: {
+                id: driver._id,
+                name: driver.name,
+                driverId: driver.driverId
+            }
         });
     } catch (error) {
         console.error('Error deleting driver:', error);
@@ -1455,6 +1593,14 @@ export const assignOrderToDriver = async (req, res) => {
             });
         }
 
+        // Check if order is already assigned to this driver
+        if (driver.assignedOrders && driver.assignedOrders.includes(orderId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Order already assigned to this driver'
+            });
+        }
+
         if (!driver.canAcceptOrder()) {
             return res.status(400).json({
                 success: false,
@@ -1470,13 +1616,30 @@ export const assignOrderToDriver = async (req, res) => {
             });
         }
 
-        driver.assignOrder(orderId);
+        // Assign order to driver
+        if (!driver.assignedOrders) {
+            driver.assignedOrders = [];
+        }
+        driver.assignedOrders.push(orderId);
+        driver.currentLoad = driver.assignedOrders.length;
+
+        // Update status if at max capacity
+        if (driver.currentLoad >= driver.maxCapacity) {
+            driver.status = 'busy';
+        }
+
         await driver.save();
 
         res.status(200).json({
             success: true,
             message: 'Order assigned to driver successfully',
-            driver
+            driver: {
+                id: driver._id,
+                name: driver.name,
+                currentLoad: driver.currentLoad,
+                assignedOrdersCount: driver.assignedOrders.length,
+                status: driver.status
+            }
         });
     } catch (error) {
         console.error('Error assigning order to driver:', error);

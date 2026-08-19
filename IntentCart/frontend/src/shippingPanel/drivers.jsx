@@ -32,7 +32,6 @@ const ShippingDrivers = () => {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
-    const [filterStatus, setFilterStatus] = useState('All');
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     // Modals & Selected Driver States
@@ -43,18 +42,23 @@ const ShippingDrivers = () => {
 
     // Form States
     const [newDriver, setNewDriver] = useState({
-        username: '',
+        name: '',
         email: '',
         phone: '',
-        branch: 'Mumbai Zone 1',
+        zone: 'Mumbai Zone 1',
         vehicleNumber: '',
+        vehicleType: 'bike',
         experience: 0,
+        maxCapacity: 10,
+        licenseNumber: '',
         status: 'available'
     });
 
     const [editDriverData, setEditDriverData] = useState(null);
     const [selectedOrdersToAssign, setSelectedOrdersToAssign] = useState([]);
     const [availableOrders, setAvailableOrders] = useState([]);
+    const [orderSearchQuery, setOrderSearchQuery] = useState('');
+    const [orderFilterStatus, setOrderFilterStatus] = useState('all');
 
     const getToken = () => localStorage.getItem('token');
 
@@ -71,7 +75,6 @@ const ShippingDrivers = () => {
                 return;
             }
 
-            // Fetch all shippers (drivers)
             const response = await fetch(`${API_URL}/drivers`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -91,11 +94,8 @@ const ShippingDrivers = () => {
             }
 
             const data = await response.json();
-            // console.log('Drivers data:', data); 
 
             if (data.success) {
-                // Format drivers for display
-                // Format drivers for display - Updated
                 const formattedDrivers = (data.drivers || []).map(driver => ({
                     id: driver.id || driver._id,
                     driverId: driver.driverId || driver.id?.slice(-6),
@@ -132,7 +132,7 @@ const ShippingDrivers = () => {
             const token = getToken();
             if (!token) return;
 
-            const response = await fetch(`${API_URL}/orders?status=pending`, {
+            const response = await fetch(`${API_URL}/orders?limit=1000`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -146,7 +146,10 @@ const ShippingDrivers = () => {
                         id: order.id || order._id,
                         orderId: order.orderId,
                         type: 'Standard Delivery',
-                        location: order.address || 'Unknown'
+                        location: order.address || 'Unknown',
+                        status: order.status || 'pending',
+                        customer: order.customer || 'Unknown',
+                        total: order.total || 0
                     }));
                     setAvailableOrders(orders);
                 }
@@ -156,12 +159,30 @@ const ShippingDrivers = () => {
         }
     };
 
-    // Add new driver (shipper)
+    // Filter orders for assign modal
+    const filteredAvailableOrders = useMemo(() => {
+        let result = availableOrders;
+
+        if (orderFilterStatus !== 'all') {
+            result = result.filter(order => order.status === orderFilterStatus);
+        }
+
+        if (orderSearchQuery) {
+            const query = orderSearchQuery.toLowerCase().trim();
+            result = result.filter(order =>
+                (order.orderId || '').toLowerCase().includes(query) ||
+                (order.customer || '').toLowerCase().includes(query) ||
+                (order.location || '').toLowerCase().includes(query)
+            );
+        }
+
+        return result;
+    }, [availableOrders, orderSearchQuery, orderFilterStatus]);
+
     // Add new driver
     const handleAddDriver = async (e) => {
         e.preventDefault();
 
-        // Use name instead of username
         if (!newDriver.name || !newDriver.email || !newDriver.phone) {
             setError('Please fill in all required fields');
             return;
@@ -179,13 +200,12 @@ const ShippingDrivers = () => {
                 return;
             }
 
-            // Include all required fields including licenseExpiry
             const driverData = {
                 name: newDriver.name,
                 email: newDriver.email,
                 phone: newDriver.phone,
                 licenseNumber: newDriver.licenseNumber || 'DL-' + Date.now().toString().slice(-8),
-                licenseExpiry: new Date(Date.now() + 5 * 365 * 24 * 60 * 60 * 1000), // 5 years from now
+                licenseExpiry: new Date(Date.now() + 5 * 365 * 24 * 60 * 60 * 1000),
                 vehicleType: newDriver.vehicleType || 'bike',
                 vehicleNumber: newDriver.vehicleNumber || 'KA-01-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
                 maxCapacity: parseInt(newDriver.maxCapacity) || 10,
@@ -196,8 +216,6 @@ const ShippingDrivers = () => {
                 },
                 status: 'available'
             };
-
-            // console.log('Creating driver:', driverData);
 
             const response = await fetch(`${API_URL}/drivers`, {
                 method: 'POST',
@@ -219,7 +237,6 @@ const ShippingDrivers = () => {
                 setSuccess('Driver added successfully!');
                 await fetchDrivers();
                 setShowAddDriverModal(false);
-                // Reset form with correct field names
                 setNewDriver({
                     name: '',
                     email: '',
@@ -243,7 +260,7 @@ const ShippingDrivers = () => {
         }
     };
 
-    // Update driver (shipper) status
+    // Update driver status
     const updateDriverStatus = async (driverId, status) => {
         try {
             const token = getToken();
@@ -272,9 +289,19 @@ const ShippingDrivers = () => {
         }
     };
 
-    // Delete driver (shipper) - Admin only
+    // Delete driver
     const handleDeleteDriver = async (driverId) => {
-        if (!window.confirm('Are you sure you want to remove this driver?')) return;
+        // Get the driver name for the confirmation message
+        const driverToDelete = drivers.find(d => d.id === driverId);
+
+        if (!driverToDelete) {
+            setError('Driver not found');
+            return;
+        }
+
+        if (!window.confirm(`Are you sure you want to remove "${driverToDelete.name}"? This action cannot be undone.`)) {
+            return;
+        }
 
         try {
             setLoading(true);
@@ -288,7 +315,8 @@ const ShippingDrivers = () => {
                 return;
             }
 
-            // Note: This requires admin permissions
+            // console.log(`Deleting driver: ${driverToDelete.name} (${driverId})`);
+
             const response = await fetch(`${API_URL}/drivers/${driverId}`, {
                 method: 'DELETE',
                 headers: {
@@ -297,13 +325,29 @@ const ShippingDrivers = () => {
                 }
             });
 
+            const data = await response.json();
+            // console.log('Delete response:', data);
+
             if (!response.ok) {
-                throw new Error('Failed to delete driver');
+                throw new Error(data.message || 'Failed to delete driver');
             }
 
-            setSuccess('Driver removed successfully!');
-            await fetchDrivers();
-            setTimeout(() => setSuccess(''), 3000);
+            if (data.success) {
+                // Remove the driver from the local state
+                setDrivers(prev => prev.filter(d => d.id !== driverId));
+                setSuccess(data.message || 'Driver removed successfully!');
+
+                // Close any open modals
+                setShowEditDriverModal(false);
+                setShowAssignModal(false);
+
+                // Refresh the list after a short delay
+                setTimeout(async () => {
+                    await fetchDrivers();
+                }, 1000);
+
+                setTimeout(() => setSuccess(''), 3000);
+            }
         } catch (err) {
             console.error('Error deleting driver:', err);
             setError(err.message);
@@ -313,7 +357,7 @@ const ShippingDrivers = () => {
         }
     };
 
-    // Assign order to driver - Updated
+    // Assign order to driver
     const handleAssignOrdersSubmit = async () => {
         if (!selectedDriver || selectedOrdersToAssign.length === 0) return;
 
@@ -322,7 +366,6 @@ const ShippingDrivers = () => {
             const token = getToken();
             if (!token) return;
 
-            // Assign each order to the driver
             for (const orderId of selectedOrdersToAssign) {
                 const response = await fetch(`${API_URL}/drivers/${selectedDriver.id}/assign-order`, {
                     method: 'PUT',
@@ -339,11 +382,13 @@ const ShippingDrivers = () => {
             }
 
             setSuccess(`Assigned ${selectedOrdersToAssign.length} orders to ${selectedDriver.name}`);
-            await fetchDrivers(); // Refresh drivers list
-            await fetchAvailableOrders(); // Refresh available orders
+            await fetchDrivers();
+            await fetchAvailableOrders();
             setShowAssignModal(false);
             setSelectedOrdersToAssign([]);
             setSelectedDriver(null);
+            setOrderSearchQuery('');
+            setOrderFilterStatus('all');
             setTimeout(() => setSuccess(''), 3000);
         } catch (err) {
             console.error('Error assigning orders:', err);
@@ -366,27 +411,56 @@ const ShippingDrivers = () => {
         fetchAvailableOrders();
     }, []);
 
-    // Driver Search & Filter Logic
+    // Driver Search Logic (No status filter)
     const filteredDrivers = useMemo(() => {
-        return drivers.filter(driver => {
-            const matchesStatus = filterStatus === 'All' ? true : driver.status.toLowerCase() === filterStatus.toLowerCase();
-            const matchesSearch =
-                driver.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                driver.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                driver.zone.toLowerCase().includes(searchQuery.toLowerCase());
-            return matchesStatus && matchesSearch;
-        });
-    }, [drivers, searchQuery, filterStatus]);
+        if (!searchQuery) return drivers;
 
-    // Dynamic Summary Stats Calculation
-    const stats = useMemo(() => [
-        { label: 'Total Drivers', value: drivers.length, icon: User, color: 'blue' },
-        { label: 'Active / On Route', value: drivers.filter(d => d.status !== 'offline' && d.status !== 'Offline').length, icon: Truck, color: 'emerald' },
-        { label: 'Offline', value: drivers.filter(d => d.status === 'offline' || d.status === 'Offline').length, icon: XCircle, color: 'red' },
-        { label: 'Total Deliveries', value: drivers.reduce((sum, d) => sum + (d.totalDeliveries || 0), 0), icon: Package, color: 'purple' }
-    ], [drivers]);
+        const query = searchQuery.toLowerCase().trim();
+        return drivers.filter(driver =>
+            driver.name.toLowerCase().includes(query) ||
+            driver.id.toLowerCase().includes(query) ||
+            driver.zone.toLowerCase().includes(query)
+        );
+    }, [drivers, searchQuery]);
 
-    const statusFilters = ['All', 'Active', 'On Route', 'Offline'];
+    // Stats
+    const stats = useMemo(() => {
+        const totalDrivers = drivers.length;
+        const activeDrivers = drivers.filter(d => d.status !== 'offline' && d.status !== 'Offline' && d.status !== 'unavailable').length;
+        const availableDrivers = drivers.filter(d => d.status === 'available' || d.status === 'Active').length;
+        const totalDeliveries = drivers.reduce((sum, d) => sum + (d.totalDeliveries || 0), 0);
+
+        return [
+            {
+                label: 'Total Drivers',
+                value: totalDrivers,
+                icon: User,
+                color: 'blue',
+                subtext: 'All drivers'
+            },
+            {
+                label: 'Available',
+                value: availableDrivers,
+                icon: CheckCircle,
+                color: 'emerald',
+                subtext: 'Ready for assignments'
+            },
+            {
+                label: 'Active Drivers',
+                value: activeDrivers,
+                icon: Truck,
+                color: 'purple',
+                subtext: 'Online now'
+            },
+            {
+                label: 'Total Deliveries',
+                value: totalDeliveries,
+                icon: Package,
+                color: 'orange',
+                subtext: 'All time deliveries'
+            }
+        ];
+    }, [drivers]);
 
     const STATUS_CONFIG = {
         'Active': { color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200/80', dot: 'bg-emerald-500', icon: CheckCircle },
@@ -453,6 +527,9 @@ const ShippingDrivers = () => {
                     {driver.rating > 0 && (
                         <div className="text-xs text-amber-600">⭐ {driver.rating} / 5</div>
                     )}
+                    <div className="text-xs text-slate-500">
+                        Deliveries: {driver.totalDeliveries || 0}
+                    </div>
                 </div>
 
                 <div className="flex justify-end gap-1 mt-3 pt-3 border-t border-slate-200/60">
@@ -461,6 +538,8 @@ const ShippingDrivers = () => {
                             setSelectedDriver(driver);
                             setSelectedOrdersToAssign([]);
                             setShowAssignModal(true);
+                            setOrderSearchQuery('');
+                            setOrderFilterStatus('all');
                         }}
                         className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                         title="Assign Orders"
@@ -478,8 +557,11 @@ const ShippingDrivers = () => {
                         <Edit3 className="w-4 h-4" />
                     </button>
                     <button
-                        onClick={() => handleDeleteDriver(driver.id)}
-                        className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                        onClick={() => {
+                            console.log('🗑️ Delete button clicked for driver:', driver.name, driver.id);
+                            handleDeleteDriver(driver.id);
+                        }}
+                        className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                         title="Remove Driver"
                     >
                         <Trash2 className="w-4 h-4" />
@@ -556,19 +638,32 @@ const ShippingDrivers = () => {
                             {stats.map((stat, index) => {
                                 const Icon = stat.icon;
                                 const colorMap = {
-                                    blue: { bg: 'bg-blue-500/10', text: 'text-blue-600' },
-                                    emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-600' },
-                                    red: { bg: 'bg-rose-500/10', text: 'text-rose-600' },
-                                    purple: { bg: 'bg-purple-500/10', text: 'text-purple-600' }
+                                    blue: { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-100' },
+                                    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100' },
+                                    purple: { bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-100' },
+                                    orange: { bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-100' }
                                 };
+                                const colors = colorMap[stat.color] || colorMap.blue;
+
                                 return (
-                                    <div key={index} className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
-                                        <div className="min-w-0">
-                                            <p className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider truncate">{stat.label}</p>
-                                            <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1">{stat.value}</p>
-                                        </div>
-                                        <div className={`p-2.5 sm:p-3 rounded-xl flex-shrink-0 ${colorMap[stat.color].bg} ${colorMap[stat.color].text}`}>
-                                            <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
+                                    <div key={index} className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-all">
+                                        <div className="flex items-center justify-between">
+                                            <div className="min-w-0">
+                                                <p className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider truncate">
+                                                    {stat.label}
+                                                </p>
+                                                <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1">
+                                                    {stat.value}
+                                                </p>
+                                                {stat.subtext && (
+                                                    <p className="text-[10px] text-slate-400 mt-0.5 truncate">
+                                                        {stat.subtext}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div className={`p-2.5 sm:p-3 rounded-xl flex-shrink-0 ${colors.bg} ${colors.text} border ${colors.border}`}>
+                                                <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
+                                            </div>
                                         </div>
                                     </div>
                                 );
@@ -578,7 +673,7 @@ const ShippingDrivers = () => {
                         {/* DRIVER TABLE CONTAINER */}
                         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
 
-                            {/* SEARCH & FILTERS ROW */}
+                            {/* SEARCH ROW - Filters removed */}
                             <div className="p-3 sm:p-5 border-b border-slate-200/80 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 sm:gap-4 bg-slate-50/50">
                                 <div className="relative flex-1 max-w-full md:max-w-md">
                                     <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -589,20 +684,6 @@ const ShippingDrivers = () => {
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         className="w-full bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 pl-10 pr-4 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                                     />
-                                </div>
-                                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none flex-wrap">
-                                    {statusFilters.map((status) => (
-                                        <button
-                                            key={status}
-                                            onClick={() => setFilterStatus(status)}
-                                            className={`px-2.5 sm:px-3 py-1.5 text-[10px] sm:text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${filterStatus === status
-                                                ? 'bg-slate-900 text-white shadow-sm'
-                                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                                                }`}
-                                        >
-                                            {status}
-                                        </button>
-                                    ))}
                                 </div>
                             </div>
 
@@ -667,6 +748,8 @@ const ShippingDrivers = () => {
                                                                         setSelectedDriver(driver);
                                                                         setSelectedOrdersToAssign([]);
                                                                         setShowAssignModal(true);
+                                                                        setOrderSearchQuery('');
+                                                                        setOrderFilterStatus('all');
                                                                     }}
                                                                     className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                                                                     title="Assign Orders"
@@ -698,7 +781,7 @@ const ShippingDrivers = () => {
                                         ) : (
                                             <tr>
                                                 <td colSpan="7" className="py-12 text-center text-slate-400 text-sm">
-                                                    No drivers found matching your active filters.
+                                                    No drivers found matching your search.
                                                 </td>
                                             </tr>
                                         )}
@@ -712,7 +795,7 @@ const ShippingDrivers = () => {
                                     filteredDrivers.map(driver => renderMobileDriverCard(driver))
                                 ) : (
                                     <div className="py-12 text-center text-slate-400 text-sm">
-                                        No drivers found matching your active filters.
+                                        No drivers found matching your search.
                                     </div>
                                 )}
                             </div>
@@ -724,7 +807,7 @@ const ShippingDrivers = () => {
             {/* MODAL: Assign Orders */}
             {showAssignModal && selectedDriver && (
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-hidden shadow-xl border border-slate-100">
+                    <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-hidden shadow-xl border border-slate-100">
                         <div className="p-4 sm:p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                             <div>
                                 <h3 className="text-lg font-bold text-slate-900">Assign Orders</h3>
@@ -747,7 +830,7 @@ const ShippingDrivers = () => {
                                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
                                         Currently Assigned Orders ({selectedDriver.assignedOrders.length})
                                     </p>
-                                    <div className="space-y-2 mb-4">
+                                    <div className="space-y-2 mb-4 max-h-32 overflow-y-auto">
                                         {selectedDriver.assignedOrders.map((order, idx) => (
                                             <div key={idx} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-200">
                                                 <div>
@@ -767,49 +850,129 @@ const ShippingDrivers = () => {
                                 </div>
                             )}
 
-                            {/* Available orders to assign */}
-                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                                Available Orders for Pickup
-                            </p>
-                            <div className="space-y-2">
-                                {availableOrders.length > 0 ? (
-                                    availableOrders.map((order) => (
-                                        <label key={order.id} className="flex items-start sm:items-center gap-3 p-3 border border-slate-200/80 rounded-xl hover:bg-slate-50/80 cursor-pointer transition">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedOrdersToAssign.includes(order.id)}
-                                                onChange={() => toggleOrderSelection(order.id)}
-                                                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mt-1 sm:mt-0"
-                                            />
-                                            <div className="flex-1 min-w-0">
-                                                <span className="text-sm font-semibold text-slate-800 block">{order.orderId || order.id?.slice(-6)}</span>
-                                                <span className="text-xs text-slate-400">{order.type} • {order.location}</span>
-                                            </div>
-                                            <span className="text-[10px] sm:text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-full flex-shrink-0">
-                                                Unassigned
-                                            </span>
-                                        </label>
-                                    ))
+                            {/* Search and Filter for Available Orders */}
+                            <div className="space-y-3">
+                                <div className="flex flex-col sm:flex-row gap-2">
+                                    <div className="relative flex-1">
+                                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Search by Order ID, Customer, or Location..."
+                                            value={orderSearchQuery}
+                                            onChange={(e) => setOrderSearchQuery(e.target.value)}
+                                            className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-800 placeholder-slate-400 pl-9 pr-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                                        />
+                                    </div>
+                                    <select
+                                        value={orderFilterStatus}
+                                        onChange={(e) => setOrderFilterStatus(e.target.value)}
+                                        className="bg-slate-50 border border-slate-200 text-sm text-slate-800 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                                    >
+                                        <option value="all">All Status</option>
+                                        <option value="pending">Pending</option>
+                                        <option value="processing">Processing</option>
+                                        <option value="shipped">Shipped</option>
+                                        <option value="delivered">Delivered</option>
+                                    </select>
+                                </div>
+
+                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                    Available Orders ({filteredAvailableOrders.length})
+                                </p>
+                            </div>
+
+                            {/* Available orders list */}
+                            <div className="space-y-2 max-h-60 overflow-y-auto">
+                                {filteredAvailableOrders.length > 0 ? (
+                                    filteredAvailableOrders.map((order) => {
+                                        const isAlreadyAssigned = selectedDriver.assignedOrders?.some(
+                                            o => o._id === order.id || o.id === order.id
+                                        );
+
+                                        return (
+                                            <label
+                                                key={order.id}
+                                                className={`flex items-start sm:items-center gap-3 p-3 border rounded-xl transition ${isAlreadyAssigned
+                                                    ? 'border-green-200 bg-green-50/50 cursor-not-allowed opacity-60'
+                                                    : 'border-slate-200/80 hover:bg-slate-50/80 cursor-pointer'
+                                                    }`}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedOrdersToAssign.includes(order.id)}
+                                                    onChange={() => {
+                                                        if (!isAlreadyAssigned) {
+                                                            toggleOrderSelection(order.id);
+                                                        }
+                                                    }}
+                                                    disabled={isAlreadyAssigned}
+                                                    className={`w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mt-1 sm:mt-0 ${isAlreadyAssigned ? 'opacity-50' : ''
+                                                        }`}
+                                                />
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <span className="text-sm font-semibold text-slate-800">
+                                                            {order.orderId || order.id?.slice(-6)}
+                                                        </span>
+                                                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${order.status === 'pending' ? 'bg-yellow-50 text-yellow-700 border border-yellow-200' :
+                                                            order.status === 'processing' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                                                                order.status === 'shipped' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
+                                                                    order.status === 'delivered' ? 'bg-green-50 text-green-700 border border-green-200' :
+                                                                        'bg-gray-50 text-gray-700 border border-gray-200'
+                                                            }`}>
+                                                            {order.status || 'Pending'}
+                                                        </span>
+                                                        {isAlreadyAssigned && (
+                                                            <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full border border-green-200">
+                                                                Already Assigned
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-3 mt-1">
+                                                        <span className="text-xs text-slate-400">{order.customer || 'Unknown'}</span>
+                                                        <span className="text-xs text-slate-400">•</span>
+                                                        <span className="text-xs text-slate-400">{order.location || 'N/A'}</span>
+                                                        <span className="text-xs font-medium text-[#1e2356]">Rs.{order.total?.toLocaleString() || 0}</span>
+                                                    </div>
+                                                </div>
+                                            </label>
+                                        );
+                                    })
                                 ) : (
-                                    <p className="text-center text-slate-400 text-sm py-4">No orders available for assignment</p>
+                                    <div className="text-center py-8">
+                                        <Package className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                                        <p className="text-sm text-slate-400">No orders available</p>
+                                        <p className="text-xs text-slate-400 mt-1">Try adjusting your search or filters</p>
+                                    </div>
                                 )}
                             </div>
                         </div>
 
-                        <div className="p-4 sm:p-5 border-t border-slate-100 flex flex-col sm:flex-row justify-end gap-2 bg-slate-50/50">
-                            <button
-                                onClick={() => setShowAssignModal(false)}
-                                className="px-4 py-2 text-slate-600 hover:bg-slate-200/60 rounded-xl text-sm font-medium transition"
-                            >
-                                Close
-                            </button>
-                            <button
-                                onClick={handleAssignOrdersSubmit}
-                                disabled={selectedOrdersToAssign.length === 0}
-                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition shadow-sm"
-                            >
-                                Assign Selected ({selectedOrdersToAssign.length})
-                            </button>
+                        <div className="p-4 sm:p-5 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-2 bg-slate-50/50">
+                            <div className="text-xs text-slate-500">
+                                Selected: <span className="font-semibold text-indigo-600">{selectedOrdersToAssign.length}</span> orders
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => {
+                                        setShowAssignModal(false);
+                                        setSelectedOrdersToAssign([]);
+                                        setSelectedDriver(null);
+                                        setOrderSearchQuery('');
+                                        setOrderFilterStatus('all');
+                                    }}
+                                    className="px-4 py-2 text-slate-600 hover:bg-slate-200/60 rounded-xl text-sm font-medium transition"
+                                >
+                                    Close
+                                </button>
+                                <button
+                                    onClick={handleAssignOrdersSubmit}
+                                    disabled={selectedOrdersToAssign.length === 0}
+                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition shadow-sm"
+                                >
+                                    Assign Selected ({selectedOrdersToAssign.length})
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -826,7 +989,6 @@ const ShippingDrivers = () => {
                             </button>
                         </div>
                         <form onSubmit={handleAddDriver} className="p-4 sm:p-5 space-y-4 overflow-y-auto max-h-[60vh]">
-                            {/* Name */}
                             <div>
                                 <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name *</label>
                                 <input
@@ -838,8 +1000,6 @@ const ShippingDrivers = () => {
                                     className="w-full bg-white border border-slate-200 text-sm text-slate-800 px-3 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                                 />
                             </div>
-
-                            {/* Email */}
                             <div>
                                 <label className="block text-xs font-semibold text-slate-700 mb-1">Email *</label>
                                 <input
@@ -851,8 +1011,6 @@ const ShippingDrivers = () => {
                                     className="w-full bg-white border border-slate-200 text-sm text-slate-800 px-3 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                                 />
                             </div>
-
-                            {/* Phone */}
                             <div>
                                 <label className="block text-xs font-semibold text-slate-700 mb-1">Phone Number *</label>
                                 <input
@@ -864,8 +1022,6 @@ const ShippingDrivers = () => {
                                     className="w-full bg-white border border-slate-200 text-sm text-slate-800 px-3 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                                 />
                             </div>
-
-                            {/* License Number */}
                             <div>
                                 <label className="block text-xs font-semibold text-slate-700 mb-1">License Number *</label>
                                 <input
@@ -877,8 +1033,6 @@ const ShippingDrivers = () => {
                                     className="w-full bg-white border border-slate-200 text-sm text-slate-800 px-3 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                                 />
                             </div>
-
-                            {/* Zone */}
                             <div>
                                 <label className="block text-xs font-semibold text-slate-700 mb-1">Assigned Zone</label>
                                 <input
@@ -888,8 +1042,6 @@ const ShippingDrivers = () => {
                                     className="w-full bg-white border border-slate-200 text-sm text-slate-800 px-3 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                                 />
                             </div>
-
-                            {/* Vehicle Type & Number */}
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-xs font-semibold text-slate-700 mb-1">Vehicle Type</label>
@@ -917,8 +1069,6 @@ const ShippingDrivers = () => {
                                     />
                                 </div>
                             </div>
-
-                            {/* Experience & Max Capacity */}
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-xs font-semibold text-slate-700 mb-1">Experience (Years)</label>
@@ -941,8 +1091,6 @@ const ShippingDrivers = () => {
                                     />
                                 </div>
                             </div>
-
-                            {/* Submit Buttons */}
                             <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
                                 <button
                                     type="button"

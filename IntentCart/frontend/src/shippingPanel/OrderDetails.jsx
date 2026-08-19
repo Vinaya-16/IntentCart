@@ -13,7 +13,8 @@ import {
     Calendar,
     IndianRupee,
     Box,
-    ClipboardList
+    ClipboardList,
+    Lock
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from './components/sidebar.jsx';
@@ -482,6 +483,7 @@ const ShippingDashboard = () => {
                                                 <th className="py-3.5 px-4">Amount</th>
                                                 <th className="py-3.5 px-4">Payment</th>
                                                 <th className="py-3.5 px-4">Status</th>
+                                                <th className="py-3.5 px-4">Driver Assigned</th>
                                                 <th className="py-3.5 px-4">Date</th>
                                                 <th className="py-3.5 px-4 text-center">Actions</th>
                                             </tr>
@@ -492,6 +494,7 @@ const ShippingDashboard = () => {
                                                 const StatusIcon = getStatusIcon(orderStatus);
                                                 const orderId = order.id || order._id;
                                                 const isActionLoading = actionLoading === orderId;
+                                                const isAssigned = order.isAssignedToMyDriver || false;
 
                                                 return (
                                                     <tr key={orderId} className="hover:bg-slate-50/80 transition-colors">
@@ -539,82 +542,106 @@ const ShippingDashboard = () => {
                                                                 {orderStatus.charAt(0).toUpperCase() + orderStatus.slice(1) || 'Pending'}
                                                             </span>
                                                         </td>
+                                                        <td className="py-3.5 px-4">
+                                                            {isAssigned ? (
+                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 text-xs rounded-full border border-green-200">
+                                                                    <CheckCircle className="w-3 h-3" />
+                                                                    Yes
+                                                                </span>
+                                                            ) : (
+                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-50 text-gray-500 text-xs rounded-full border border-gray-200">
+                                                                    <AlertCircle className="w-3 h-3" />
+                                                                    No
+                                                                </span>
+                                                            )}
+                                                        </td>
                                                         <td className="py-3.5 px-4 text-slate-500 text-xs">
                                                             <div className="flex items-center gap-1">
                                                                 <Calendar className="w-3 h-3" />
                                                                 {order.date}
                                                             </div>
                                                         </td>
+                                                        {/* Actions Column with conditional buttons */}
                                                         <td className="py-3.5 px-4">
                                                             <div className="flex items-center justify-center gap-1.5">
-                                                                {orderStatus === 'pending' && (
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            if (orderId) updateOrderStatus(orderId, 'processing');
-                                                                        }}
-                                                                        disabled={isActionLoading}
-                                                                        className="p-1.5 rounded-md text-blue-500 hover:text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
-                                                                        title="Start Processing"
-                                                                    >
-                                                                        {isActionLoading ? (
-                                                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                                                        ) : (
-                                                                            <Package className="w-4 h-4" />
-                                                                        )}
-                                                                    </button>
-                                                                )}
 
-                                                                {orderStatus === 'processing' && (
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            if (orderId) updateOrderStatus(orderId, 'shipped');
-                                                                        }}
-                                                                        disabled={isActionLoading}
-                                                                        className="p-1.5 rounded-md text-purple-500 hover:text-purple-600 hover:bg-purple-50 transition-colors disabled:opacity-50"
-                                                                        title="Mark as Shipped"
-                                                                    >
-                                                                        {isActionLoading ? (
-                                                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                                                        ) : (
-                                                                            <Truck className="w-4 h-4" />
+                                                                {isAssigned ? (
+                                                                    <>
+                                                                        {orderStatus === 'pending' && (
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    if (orderId) updateOrderStatus(orderId, 'processing');
+                                                                                }}
+                                                                                disabled={isActionLoading}
+                                                                                className="p-1.5 rounded-md text-blue-500 hover:text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
+                                                                                title="Start Processing"
+                                                                            >
+                                                                                {isActionLoading ? (
+                                                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                                                ) : (
+                                                                                    <Package className="w-4 h-4" />
+                                                                                )}
+                                                                            </button>
                                                                         )}
-                                                                    </button>
-                                                                )}
 
-                                                                {orderStatus === 'shipped' && (
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            if (orderId) updateOrderStatus(orderId, 'delivered');
-                                                                        }}
-                                                                        disabled={isActionLoading}
-                                                                        className="p-1.5 rounded-md text-green-500 hover:text-green-600 hover:bg-green-50 transition-colors disabled:opacity-50"
-                                                                        title="Mark as Delivered"
-                                                                    >
-                                                                        {isActionLoading ? (
-                                                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                                                        ) : (
-                                                                            <CheckCircle className="w-4 h-4" />
+                                                                        {orderStatus === 'processing' && (
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    if (orderId) updateOrderStatus(orderId, 'shipped');
+                                                                                }}
+                                                                                disabled={isActionLoading}
+                                                                                className="p-1.5 rounded-md text-purple-500 hover:text-purple-600 hover:bg-purple-50 transition-colors disabled:opacity-50"
+                                                                                title="Mark as Shipped"
+                                                                            >
+                                                                                {isActionLoading ? (
+                                                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                                                ) : (
+                                                                                    <Truck className="w-4 h-4" />
+                                                                                )}
+                                                                            </button>
                                                                         )}
-                                                                    </button>
-                                                                )}
 
-                                                                {!['delivered', 'cancelled', 'refunded'].includes(orderStatus) && (
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            if (window.confirm('Are you sure you want to cancel this order?')) {
-                                                                                if (orderId) updateOrderStatus(orderId, 'cancelled');
-                                                                            }
-                                                                        }}
-                                                                        disabled={isActionLoading}
-                                                                        className="p-1.5 rounded-md text-red-500 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-                                                                        title="Cancel Order"
-                                                                    >
-                                                                        {isActionLoading ? (
-                                                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                                                        ) : (
-                                                                            <AlertCircle className="w-4 h-4" />
+                                                                        {orderStatus === 'shipped' && (
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    if (orderId) updateOrderStatus(orderId, 'delivered');
+                                                                                }}
+                                                                                disabled={isActionLoading}
+                                                                                className="p-1.5 rounded-md text-green-500 hover:text-green-600 hover:bg-green-50 transition-colors disabled:opacity-50"
+                                                                                title="Mark as Delivered"
+                                                                            >
+                                                                                {isActionLoading ? (
+                                                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                                                ) : (
+                                                                                    <CheckCircle className="w-4 h-4" />
+                                                                                )}
+                                                                            </button>
                                                                         )}
-                                                                    </button>
+
+                                                                        {!['delivered', 'cancelled', 'refunded'].includes(orderStatus) && (
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    if (window.confirm('Are you sure you want to cancel this order?')) {
+                                                                                        if (orderId) updateOrderStatus(orderId, 'cancelled');
+                                                                                    }
+                                                                                }}
+                                                                                disabled={isActionLoading}
+                                                                                className="p-1.5 rounded-md text-red-500 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                                                                                title="Cancel Order"
+                                                                            >
+                                                                                {isActionLoading ? (
+                                                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                                                ) : (
+                                                                                    <AlertCircle className="w-4 h-4" />
+                                                                                )}
+                                                                            </button>
+                                                                        )}
+                                                                    </>
+                                                                ) : (
+                                                                    <span className="text-xs text-slate-400 flex items-center gap-1 px-2 py-1 bg-slate-100 rounded-md">
+                                                                        <span className="text-xs"><Lock size={12}/></span>
+                                                                        Not assigned
+                                                                    </span>
                                                                 )}
                                                             </div>
                                                         </td>

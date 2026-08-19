@@ -582,7 +582,7 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            {/* ✅ Coupon Display - Shows only if discount > 0 */}
+            {/*  Coupon Display - Shows only if discount > 0 */}
             {appliedCoupon && couponDiscount > 0 && (
               <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs">
                 <div className="flex items-center justify-between">
@@ -612,7 +612,7 @@ export default function CheckoutPage() {
                   </button>
                 </div>
                 <div className="mt-2 text-xs text-emerald-600 font-medium">
-                  ✅ Discount applied: -Rs.{couponDiscount.toLocaleString()}
+                   Discount applied: -Rs.{couponDiscount.toLocaleString()}
                 </div>
               </div>
             )}
@@ -743,7 +743,7 @@ function OrderSummary({ items, subtotal, deliveryFee, tax, couponDiscount, coupo
           <span>Rs.{tax.toLocaleString()}</span>
         </div>
 
-        {/* ✅ Show coupon discount */}
+        {/*  Show coupon discount */}
         {couponDiscount > 0 && (
           <div className="flex justify-between text-emerald-600 font-medium">
             <span>Coupon Discount ({couponCode || 'Applied'})</span>
@@ -753,7 +753,7 @@ function OrderSummary({ items, subtotal, deliveryFee, tax, couponDiscount, coupo
       </div>
 
       <div className="border-t border-slate-200 mt-4 pt-4">
-        {/* ✅ Show original price with strikethrough */}
+        {/*  Show original price with strikethrough */}
         {couponDiscount > 0 && (
           <div className="flex justify-between text-sm text-slate-400 mb-1">
             <span>Original Total</span>
@@ -768,7 +768,7 @@ function OrderSummary({ items, subtotal, deliveryFee, tax, couponDiscount, coupo
           </span>
         </div>
 
-        {/* ✅ Show savings */}
+        {/*  Show savings */}
         {couponDiscount > 0 && (
           <div className="mt-1 text-right">
             <span className="text-xs font-semibold text-emerald-600">
