@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
     ArrowLeft,
     RotateCcw,
@@ -18,7 +18,8 @@ import {
     Eye,
     Check,
     XCircle,
-    Calendar
+    Calendar,
+    ShoppingBag
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from './components/sidebar.jsx';
@@ -44,11 +45,31 @@ const ShippingReturns = () => {
     const [selectedReturn, setSelectedReturn] = useState(null);
     const [showActionModal, setShowActionModal] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
+    // Track selected status in modal separately
+    const [selectedStatus, setSelectedStatus] = useState('');
 
     const getToken = () => localStorage.getItem('token');
 
+    // STATUS CONFIG - Match backend statuses
+    const STATUS_CONFIG = {
+        'pending': { color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200/80', dot: 'bg-amber-500', label: 'Pending' },
+        'approved': { color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200/80', dot: 'bg-blue-500', label: 'Approved' },
+        'rejected': { color: 'text-rose-700', bg: 'bg-rose-50', border: 'border-rose-200/80', dot: 'bg-rose-500', label: 'Rejected' },
+        'pickup_scheduled': { color: 'text-indigo-700', bg: 'bg-indigo-50', border: 'border-indigo-200/80', dot: 'bg-indigo-500', label: 'Pickup Scheduled' },
+        'picked_up': { color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200/80', dot: 'bg-purple-500', label: 'Picked Up' },
+        'quality_inspection': { color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200/80', dot: 'bg-orange-500', label: 'Quality Inspection' },
+        'refund_processed': { color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200/80', dot: 'bg-emerald-500', label: 'Refund Processed' },
+        'completed': { color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200/80', dot: 'bg-green-500', label: 'Completed' }
+    };
+
+    // Status flow for progression
+    const STATUS_FLOW = ['pending', 'approved', 'pickup_scheduled', 'picked_up', 'quality_inspection', 'refund_processed', 'completed'];
+
+    // Status filters - all backend statuses
+    const statusFilters = ['All', 'Pending', 'Approved', 'Rejected', 'Pickup Scheduled', 'Picked Up', 'Quality Inspection', 'Refund Processed', 'Completed'];
+
     // Fetch returns from backend
-    const fetchReturns = async () => {
+    const fetchReturns = useCallback(async () => {
         try {
             setLoading(true);
             setError('');
@@ -63,7 +84,7 @@ const ShippingReturns = () => {
 
             const params = new URLSearchParams();
             if (filterStatus !== 'All') {
-                params.append('status', filterStatus.toLowerCase());
+                params.append('status', filterStatus.toLowerCase().replace(' ', '_'));
             }
             const url = `${API_URL}${params.toString() ? `?${params.toString()}` : ''}`;
 
@@ -85,67 +106,58 @@ const ShippingReturns = () => {
             if (returnsRes.status === 401 || statsRes.status === 401) {
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');
-                window.location.href = '/intentCart-auth';
+                navigate('/intentCart-auth');
                 return;
             }
 
             if (!returnsRes.ok) {
-                const errorData = await returnsRes.json();
+                const errorData = await returnsRes.json().catch(() => ({}));
                 throw new Error(errorData.message || 'Failed to fetch returns');
             }
 
             const returnsData = await returnsRes.json();
 
             if (returnsData.success) {
-                const formattedReturns = (returnsData.returns || []).map(ret => {
-                    let refundAmount = ret.refundAmount || 0;
-                    if (refundAmount === 0 && ret.items && ret.items.length > 0) {
-                        refundAmount = ret.items.reduce((sum, item) => {
-                            const price = item.price || 0;
-                            return sum + (price * (item.quantity || 1));
-                        }, 0);
-                    }
-
-                    const firstItem = ret.items && ret.items.length > 0 ? ret.items[0] : null;
-                    const productName = firstItem?.productName ||
-                        firstItem?.productId?.name ||
-                        'Unknown Product';
-
-                    return {
-                        _id: ret._id,
-                        returnId: ret.returnId || ret._id?.slice(-6),
-                        orderNumber: ret.orderNumber || ret.orderId?.orderId || 'N/A',
-                        customerId: ret.customerId || { username: 'Unknown', email: '' },
-                        items: (ret.items || []).map(item => ({
-                            ...item,
-                            productName: item.productName || item.productId?.name || 'Unknown Product',
-                            price: item.price || item.productId?.price || 0
-                        })),
-                        productName: productName,
-                        itemCount: ret.items?.length || 0,
-                        reason: ret.reason || 'other',
-                        reasonDescription: ret.reasonDescription || '',
-                        status: ret.status || 'pending',
-                        refundMethod: ret.refundMethod || 'original_payment',
-                        refundAmount: refundAmount,
-                        pickupAddress: ret.pickupAddress || {},
-                        createdAt: ret.createdAt || new Date(),
-                        notes: ret.notes || '',
-                        rejectionReason: ret.rejectionReason || '',
-                        qualityCheckNotes: ret.qualityCheckNotes || '',
-                        pickupScheduledAt: ret.pickupScheduledAt,
-                        pickedUpAt: ret.pickedUpAt,
-                        refundProcessedAt: ret.refundProcessedAt
-                    };
-                });
+                const formattedReturns = (returnsData.returns || []).map(ret => ({
+                    _id: ret._id,
+                    returnId: ret.returnId || ret._id?.slice(-6) || 'N/A',
+                    orderNumber: ret.orderNumber || ret.orderId?.orderId || 'N/A',
+                    customerId: ret.customerId || { username: 'Unknown', email: '' },
+                    items: (ret.items || []).map(item => ({
+                        ...item,
+                        productName: item.productName || item.productId?.name || 'Unknown Product',
+                        price: item.price || item.productId?.price || 0
+                    })),
+                    productName: ret.items?.[0]?.productName || ret.items?.[0]?.productId?.name || 'Multiple Items',
+                    itemCount: ret.items?.length || 0,
+                    reason: ret.reason || 'other',
+                    reasonDescription: ret.reasonDescription || '',
+                    status: ret.status || 'pending',
+                    refundMethod: ret.refundMethod || 'original_payment',
+                    refundAmount: ret.refundAmount || 0,
+                    pickupAddress: ret.pickupAddress || {},
+                    createdAt: ret.createdAt || new Date(),
+                    notes: ret.notes || '',
+                    rejectionReason: ret.rejectionReason || '',
+                    qualityCheckNotes: ret.qualityCheckNotes || '',
+                    pickupScheduledAt: ret.pickupScheduledAt,
+                    pickedUpAt: ret.pickedUpAt,
+                    refundProcessedAt: ret.refundProcessedAt
+                }));
                 setReturns(formattedReturns);
+            } else {
+                setReturns([]);
             }
 
             if (statsRes.ok) {
                 const statsData = await statsRes.json();
                 if (statsData.success) {
                     setStats(statsData.stats);
+                } else {
+                    setStats(null);
                 }
+            } else {
+                setStats(null);
             }
 
         } catch (err) {
@@ -154,15 +166,17 @@ const ShippingReturns = () => {
                 setIsServerDown(true);
                 setError('Cannot connect to server. Please make sure the backend is running.');
             } else {
-                setError(err.message);
+                setError(err.message || 'Failed to load returns');
             }
+            setReturns([]);
+            setStats(null);
         } finally {
             setLoading(false);
         }
-    };
+    }, [filterStatus, navigate]);
 
     // Update return status
-    const updateReturnStatus = async (returnId, status, notes = '') => {
+    const updateReturnStatus = useCallback(async (returnId, status, notes = '') => {
         try {
             setActionLoading(true);
             setError('');
@@ -185,43 +199,46 @@ const ShippingReturns = () => {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData = await response.json().catch(() => ({}));
                 throw new Error(errorData.message || 'Failed to update return status');
             }
 
             const data = await response.json();
             if (data.success) {
-                setSuccess(`Return status updated to ${status.replace('_', ' ')}`);
+                const statusDisplay = STATUS_CONFIG[status]?.label || status.replace('_', ' ');
+                setSuccess(`Return status updated to ${statusDisplay}`);
                 await fetchReturns();
                 setShowActionModal(false);
                 setSelectedReturn(null);
+                setSelectedStatus('');
                 setTimeout(() => setSuccess(''), 3000);
             }
         } catch (err) {
             console.error('Error updating return:', err);
-            setError(err.message);
+            setError(err.message || 'Failed to update status');
             setTimeout(() => setError(''), 3000);
         } finally {
             setActionLoading(false);
         }
-    };
+    }, [fetchReturns]);
 
+    // Fetch returns on mount and filter change
     useEffect(() => {
         fetchReturns();
-    }, [filterStatus]);
+    }, [fetchReturns]);
 
     // Filter Logic
     const filteredReturns = useMemo(() => {
-        let result = returns;
+        let result = returns || [];
 
         if (searchQuery) {
             const query = searchQuery.toLowerCase().trim();
             result = result.filter(ret =>
-                ret.returnId?.toLowerCase().includes(query) ||
-                ret.orderNumber?.toLowerCase().includes(query) ||
-                ret.customerId?.username?.toLowerCase().includes(query) ||
-                ret.productName?.toLowerCase().includes(query) ||
-                ret.items?.some(item => item.productName?.toLowerCase().includes(query))
+                (ret.returnId?.toLowerCase().includes(query) || false) ||
+                (ret.orderNumber?.toLowerCase().includes(query) || false) ||
+                (ret.customerId?.username?.toLowerCase().includes(query) || false) ||
+                (ret.productName?.toLowerCase().includes(query) || false) ||
+                (ret.items?.some(item => item.productName?.toLowerCase().includes(query)) || false)
             );
         }
 
@@ -230,18 +247,23 @@ const ShippingReturns = () => {
 
     // Stats Cards
     const statsCards = useMemo(() => {
-        if (!stats) return [];
+        if (!stats) {
+            const total = returns.length || 0;
+            const pending = returns.filter(r => r.status === 'pending').length;
+            const refundProcessed = returns.filter(r => r.status === 'refund_processed' || r.status === 'completed').length;
+            const rejected = returns.filter(r => r.status === 'rejected').length;
+            const totalRefund = returns
+                .filter(r => r.status === 'refund_processed' || r.status === 'completed')
+                .reduce((sum, r) => sum + (r.refundAmount || 0), 0);
+            const refundedOrders = returns.filter(r => r.status === 'refund_processed' || r.status === 'completed').length;
 
-        let totalRefund = stats.totalRefund || 0;
-        let refundedOrders = stats.refundedOrders || 0;
-
-        // If totalRefund is 0, calculate from returns array
-        if (totalRefund === 0 && returns.length > 0) {
-            const refundedReturns = returns.filter(r =>
-                r.status === 'refund_processed' || r.status === 'completed'
-            );
-            refundedOrders = refundedReturns.length;
-            totalRefund = refundedReturns.reduce((sum, r) => sum + (r.refundAmount || 0), 0);
+            return [
+                { label: 'Total Returns', value: total, icon: RotateCcw, color: 'purple' },
+                { label: 'Pending', value: pending, icon: Clock, color: 'amber' },
+                { label: 'Refund Processed', value: refundProcessed, icon: CheckCircle, color: 'emerald' },
+                { label: 'Rejected', value: rejected, icon: XCircle, color: 'red' },
+                { label: 'Total Refund', value: `₹${(totalRefund || 0).toLocaleString()}`, icon: ShoppingBag, color: 'indigo', subtext: `${refundedOrders || 0} orders refunded` }
+            ];
         }
 
         return [
@@ -259,7 +281,7 @@ const ShippingReturns = () => {
             },
             {
                 label: 'Refund Processed',
-                value: stats.refundProcessed || 0,
+                value: stats.refundProcessed || stats.completed || 0,
                 icon: CheckCircle,
                 color: 'emerald'
             },
@@ -271,27 +293,15 @@ const ShippingReturns = () => {
             },
             {
                 label: 'Total Refund',
-                value: `₹${(totalRefund || 0).toLocaleString()}`,
-                icon: Package,
+                value: `₹${(stats.totalRefund || 0).toLocaleString()}`,
+                icon: ShoppingBag,
                 color: 'indigo',
-                subtext: `${refundedOrders || 0} orders refunded`
+                subtext: `${stats.refundedOrders || 0} orders refunded`
             }
         ];
     }, [stats, returns]);
 
-    const STATUS_CONFIG = {
-        'pending': { color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200/80', dot: 'bg-amber-500', label: 'Pending' },
-        'approved': { color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200/80', dot: 'bg-blue-500', label: 'Approved' },
-        'rejected': { color: 'text-rose-700', bg: 'bg-rose-50', border: 'border-rose-200/80', dot: 'bg-rose-500', label: 'Rejected' },
-        'pickup_scheduled': { color: 'text-indigo-700', bg: 'bg-indigo-50', border: 'border-indigo-200/80', dot: 'bg-indigo-500', label: 'Pickup Scheduled' },
-        'picked_up': { color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200/80', dot: 'bg-purple-500', label: 'Picked Up' },
-        'quality_inspection': { color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200/80', dot: 'bg-orange-500', label: 'Quality Inspection' },
-        'refund_processed': { color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200/80', dot: 'bg-emerald-500', label: 'Refund Processed' },
-        'completed': { color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200/80', dot: 'bg-green-500', label: 'Completed' }
-    };
-
-    const statusFilters = ['All', 'Pending', 'Approved', 'Rejected', 'Pickup Scheduled', 'Picked Up', 'Quality Inspection', 'Refund Processed', 'Completed'];
-
+    // Helper functions
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount || 0);
     };
@@ -305,10 +315,66 @@ const ShippingReturns = () => {
         return STATUS_CONFIG[status]?.label || status?.replace('_', ' ') || 'Unknown';
     };
 
-    const getStatusBadge = (status) => {
-        const config = STATUS_CONFIG[status];
-        if (!config) return 'bg-gray-50 text-gray-700 border-gray-200';
-        return `${config.bg} ${config.color} ${config.border}`;
+    // Handle modal open
+    const handleOpenModal = (ret) => {
+        setSelectedReturn(ret);
+        setSelectedStatus(ret.status);
+        setShowActionModal(true);
+    };
+
+    // Handle modal close
+    const handleModalClose = () => {
+        if (actionLoading) return;
+        setShowActionModal(false);
+        setSelectedReturn(null);
+        setSelectedStatus('');
+    };
+
+    // Handle status selection change
+    const handleStatusChange = (e) => {
+        setSelectedStatus(e.target.value);
+    };
+
+    // Handle status update from modal - using the selected status
+    const handleApplyStatusUpdate = async () => {
+        if (!selectedReturn || !selectedStatus) return;
+        if (selectedStatus === selectedReturn.status) {
+            setError('Status is already set to this value');
+            setTimeout(() => setError(''), 3000);
+            return;
+        }
+        await updateReturnStatus(selectedReturn._id, selectedStatus, `Status updated to ${selectedStatus}`);
+    };
+
+    // Handle reject with confirmation
+    const handleReject = async () => {
+        if (!selectedReturn) return;
+        if (window.confirm('Are you sure you want to reject this return?')) {
+            await updateReturnStatus(selectedReturn._id, 'rejected', 'Rejected by shipper');
+        }
+    };
+
+    // Handle approve & next step - uses status flow
+    const handleApproveAndNext = async () => {
+        if (!selectedReturn) return;
+
+        const currentStatus = selectedReturn.status;
+
+        // If rejected, move to pending to reconsider
+        if (currentStatus === 'rejected') {
+            await updateReturnStatus(selectedReturn._id, 'pending', 'Reconsidered from rejected');
+            return;
+        }
+
+        // Find next status in flow
+        const currentIndex = STATUS_FLOW.indexOf(currentStatus);
+        if (currentIndex < STATUS_FLOW.length - 1) {
+            const nextStatus = STATUS_FLOW[currentIndex + 1];
+            await updateReturnStatus(selectedReturn._id, nextStatus, `Auto-progress to ${nextStatus}`);
+        } else {
+            setError('Return is already completed');
+            setTimeout(() => setError(''), 3000);
+        }
     };
 
     if (loading && returns.length === 0) {
@@ -399,36 +465,34 @@ const ShippingReturns = () => {
                         )}
 
                         {/* STATS CARDS */}
-                        {stats && (
-                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-                                {statsCards.map((stat, index) => {
-                                    const Icon = stat.icon;
-                                    const colorMap = {
-                                        purple: { bg: 'bg-purple-50', text: 'text-purple-600', ring: 'ring-purple-100' },
-                                        amber: { bg: 'bg-amber-50', text: 'text-amber-600', ring: 'ring-amber-100' },
-                                        emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', ring: 'ring-emerald-100' },
-                                        red: { bg: 'bg-red-50', text: 'text-red-600', ring: 'ring-red-100' },
-                                        indigo: { bg: 'bg-indigo-50', text: 'text-indigo-600', ring: 'ring-indigo-100' }
-                                    };
-                                    const colors = colorMap[stat.color] || colorMap.purple;
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+                            {statsCards.map((stat, index) => {
+                                const Icon = stat.icon;
+                                const colorMap = {
+                                    purple: { bg: 'bg-purple-50', text: 'text-purple-600', ring: 'ring-purple-100' },
+                                    amber: { bg: 'bg-amber-50', text: 'text-amber-600', ring: 'ring-amber-100' },
+                                    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', ring: 'ring-emerald-100' },
+                                    red: { bg: 'bg-red-50', text: 'text-red-600', ring: 'ring-red-100' },
+                                    indigo: { bg: 'bg-indigo-50', text: 'text-indigo-600', ring: 'ring-indigo-100' }
+                                };
+                                const colors = colorMap[stat.color] || colorMap.purple;
 
-                                    return (
-                                        <div key={index} className="bg-white p-3.5 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-xs transition-shadow">
-                                            <div>
-                                                <p className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider">{stat.label}</p>
-                                                <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-0.5 sm:mt-1">{stat.value}</p>
-                                                {stat.subtext && (
-                                                    <p className="text-[10px] text-slate-400 mt-0.5">{stat.subtext}</p>
-                                                )}
-                                            </div>
-                                            <div className={`mt-2 sm:mt-0 p-2.5 sm:p-3 rounded-lg sm:rounded-xl ring-1 ${colors.ring} ${colors.bg} ${colors.text} inline-block`}>
-                                                <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
-                                            </div>
+                                return (
+                                    <div key={index} className="bg-white p-3.5 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-xs transition-shadow">
+                                        <div>
+                                            <p className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider">{stat.label}</p>
+                                            <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-0.5 sm:mt-1">{stat.value}</p>
+                                            {stat.subtext && (
+                                                <p className="text-[10px] text-slate-400 mt-0.5">{stat.subtext}</p>
+                                            )}
                                         </div>
-                                    );
-                                })}
-                            </div>
-                        )}
+                                        <div className={`mt-2 sm:mt-0 p-2.5 sm:p-3 rounded-lg sm:rounded-xl ring-1 ${colors.ring} ${colors.bg} ${colors.text} inline-block`}>
+                                            <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
 
                         {/* RETURNS CONTAINER */}
                         <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
@@ -466,9 +530,10 @@ const ShippingReturns = () => {
                                         <Filter className="w-3.5 h-3.5" /> Filter:
                                     </span>
                                     {statusFilters.map((status) => {
+                                        const statusKey = status === 'All' ? 'total' : status.toLowerCase().replace(' ', '_');
                                         const count = status === 'All'
-                                            ? stats?.total || 0
-                                            : stats?.[status.toLowerCase().replace(' ', '_')] || 0;
+                                            ? stats?.total || returns.length || 0
+                                            : stats?.[statusKey] || returns.filter(r => r.status === statusKey).length || 0;
                                         const isActive = filterStatus === status;
 
                                         return (
@@ -536,10 +601,7 @@ const ShippingReturns = () => {
                                                             <p className="font-bold text-sm text-slate-900">{formatCurrency(ret.refundAmount)}</p>
                                                         </div>
                                                         <button
-                                                            onClick={() => {
-                                                                setSelectedReturn(ret);
-                                                                setShowActionModal(true);
-                                                            }}
+                                                            onClick={() => handleOpenModal(ret)}
                                                             className="px-3 py-1.5 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-all active:scale-95"
                                                         >
                                                             Manage
@@ -631,10 +693,7 @@ const ShippingReturns = () => {
 
                                                         <td className="py-4 px-4 sm:px-6 text-right whitespace-nowrap">
                                                             <button
-                                                                onClick={() => {
-                                                                    setSelectedReturn(ret);
-                                                                    setShowActionModal(true);
-                                                                }}
+                                                                onClick={() => handleOpenModal(ret)}
                                                                 className="px-3.5 py-1.5 text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-900 hover:text-white rounded-xl transition-all shadow-xs"
                                                             >
                                                                 Manage
@@ -680,8 +739,8 @@ const ShippingReturns = () => {
 
             {/* ACTION MODAL */}
             {showActionModal && selectedReturn && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4">
-                    <div className="bg-white rounded-2xl sm:rounded-3xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4" onClick={handleModalClose}>
+                    <div className="bg-white rounded-2xl sm:rounded-3xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-150" onClick={(e) => e.stopPropagation()}>
 
                         {/* Modal Header */}
                         <div className="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
@@ -695,8 +754,9 @@ const ShippingReturns = () => {
                                 <p className="text-xs text-slate-500 mt-0.5">Order: <span className="font-semibold text-slate-700">{selectedReturn.orderNumber}</span></p>
                             </div>
                             <button
-                                onClick={() => setShowActionModal(false)}
+                                onClick={handleModalClose}
                                 className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition-all"
+                                disabled={actionLoading}
                             >
                                 <X className="w-5 h-5" />
                             </button>
@@ -748,55 +808,57 @@ const ShippingReturns = () => {
                                 </div>
                             </div>
 
-                            {/* Status Update */}
+                            {/* Status Update - FIXED */}
                             <div>
                                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">Update Status</label>
-                                <select
-                                    onChange={(e) => {
-                                        const newStatus = e.target.value;
-                                        setSelectedReturn({ ...selectedReturn, status: newStatus });
-                                    }}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                                >
-                                    {statusFilters.filter(s => s !== 'All').map(status => (
-                                        <option key={status} value={status.toLowerCase().replace(' ', '_')}>
-                                            {status}
-                                        </option>
-                                    ))}
-                                </select>
+                                <div className="flex gap-2">
+                                    <select
+                                        value={selectedStatus}
+                                        onChange={handleStatusChange}
+                                        className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                                        disabled={actionLoading}
+                                    >
+                                        {statusFilters.filter(s => s !== 'All').map(status => {
+                                            const statusKey = status.toLowerCase().replace(' ', '_');
+                                            return (
+                                                <option key={statusKey} value={statusKey}>
+                                                    {status}
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
+                                    <button
+                                        onClick={handleApplyStatusUpdate}
+                                        disabled={actionLoading || selectedStatus === selectedReturn.status}
+                                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                                    >
+                                        Apply
+                                    </button>
+                                </div>
+                                {selectedStatus === selectedReturn.status && (
+                                    <p className="text-xs text-amber-600 mt-1">Current status selected</p>
+                                )}
                             </div>
                         </div>
 
                         {/* Modal Footer */}
                         <div className="p-4 sm:p-5 border-t border-slate-100 bg-slate-50/30 flex flex-col sm:flex-row justify-end gap-2.5 shrink-0">
                             <button
-                                onClick={() => {
-                                    if (window.confirm('Are you sure you want to reject this return?')) {
-                                        updateReturnStatus(selectedReturn._id, 'rejected', 'Rejected by admin');
-                                    }
-                                }}
-                                disabled={actionLoading}
-                                className="w-full sm:w-auto px-4 py-2.5 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-semibold transition-all disabled:opacity-50"
+                                onClick={handleReject}
+                                disabled={actionLoading || selectedReturn.status === 'rejected' || selectedReturn.status === 'completed' || selectedReturn.status === 'refund_processed'}
+                                className="w-full sm:w-auto px-4 py-2.5 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Reject Return'}
                             </button>
                             <button
-                                onClick={() => {
-                                    const currentStatus = selectedReturn.status;
-                                    let nextStatus = '';
-                                    const statusFlow = ['pending', 'approved', 'pickup_scheduled', 'picked_up', 'quality_inspection', 'refund_processed', 'completed'];
-                                    const currentIndex = statusFlow.indexOf(currentStatus);
-                                    if (currentIndex < statusFlow.length - 1) {
-                                        nextStatus = statusFlow[currentIndex + 1];
-                                    } else {
-                                        nextStatus = 'completed';
-                                    }
-                                    updateReturnStatus(selectedReturn._id, nextStatus, `Status updated to ${nextStatus}`);
-                                }}
-                                disabled={actionLoading}
-                                className="w-full sm:w-auto px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold shadow-xs transition-all disabled:opacity-50"
+                                onClick={handleApproveAndNext}
+                                disabled={actionLoading || selectedReturn.status === 'completed'}
+                                className="w-full sm:w-auto px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold shadow-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Approve & Next Step'}
+                                {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> :
+                                    selectedReturn.status === 'rejected' ? 'Reconsider Return' :
+                                        selectedReturn.status === 'completed' ? 'Already Completed' :
+                                            'Approve & Next Step'}
                             </button>
                         </div>
                     </div>

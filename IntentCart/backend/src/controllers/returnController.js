@@ -1,8 +1,8 @@
-// controllers/returnController.js
 import Return from '../models/Return.js';
 import Order from '../models/Order.js';
 import User from '../models/User.js';
 import mongoose from 'mongoose';
+import Notification from '../models/Notifications.js';
 
 // @desc    Create a return request
 // @route   POST /api/returns
@@ -115,7 +115,7 @@ export const getAllReturns = async (req, res) => {
         const returns = await Return.find(query)
             .populate('customerId', 'username email phone')
             .populate('orderId', 'orderId total shippingAddress')
-            .populate('items.productId', 'name price images') 
+            .populate('items.productId', 'name price images')
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(parseInt(limit));
@@ -153,7 +153,7 @@ export const getAllReturns = async (req, res) => {
                 reasonDescription: ret.reasonDescription || '',
                 status: ret.status || 'pending',
                 refundMethod: ret.refundMethod || 'original_payment',
-                refundAmount: refundAmount,  
+                refundAmount: refundAmount,
                 pickupAddress: ret.pickupAddress || {},
                 pickupScheduledAt: ret.pickupScheduledAt,
                 pickedUpAt: ret.pickedUpAt,
@@ -268,7 +268,16 @@ export const updateReturnStatus = async (req, res) => {
             });
         }
 
-        // Update based on status
+        // Get the associated order
+        const order = await Order.findById(returnData.orderId);
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: 'Associated order not found'
+            });
+        }
+
+        // Update return status
         returnData.status = status;
 
         if (notes) returnData.notes = notes;
@@ -281,16 +290,72 @@ export const updateReturnStatus = async (req, res) => {
         if (status === 'picked_up') {
             returnData.pickedUpAt = new Date();
         }
-        if (status === 'refund_processed') {
+
+        // ONLY when return is COMPLETED, update order status to 'returned'
+        if (status === 'refund_processed' || status === 'completed') {
             returnData.refundProcessedAt = new Date();
+
+            order.status = 'returned';
+            order.paymentStatus = 'refunded';
+
+            if (order.deliveredAt) {
+                order.returnedAt = new Date();
+            }
+
+            await order.save();
+            // console.log(`Order ${order.orderId} status updated to 'returned' (return completed)`);
         }
 
+        // When return is rejected, revert order status if it was changed
+        if (status === 'rejected') {
+            if (order.status === 'returned') {
+                order.status = 'delivered';
+                order.paymentStatus = 'paid';
+                await order.save();
+                // console.log(`Order ${order.orderId} status reverted to 'delivered'`);
+            }
+        }
+
+        // For statuses like 'picked_up', 'quality_inspection', etc.
+        // The order status remains unchanged (stays as 'delivered')
+
         await returnData.save();
+
+        // Create notification for customer
+        if (returnData.customerId) {
+            try {
+                if (Notification) {
+                    await Notification.create({
+                        title: status === 'completed' || status === 'refund_processed'
+                            ? 'Return Completed & Refund Processed'
+                            : status === 'rejected'
+                                ? 'Return Request Rejected'
+                                : `Return Status Updated: ${status.replace('_', ' ')}`,
+                        message: status === 'completed' || status === 'refund_processed'
+                            ? `Your return for order #${order.orderId} has been completed and refund of ₹${returnData.refundAmount} has been processed.`
+                            : status === 'rejected'
+                                ? `Your return request for order #${order.orderId} has been rejected. Reason: ${rejectionReason || 'No reason provided'}`
+                                : `Your return request for order #${order.orderId} is now ${status.replace('_', ' ')}.`,
+                        type: status === 'rejected' ? 'alert' : 'success',
+                        category: 'Orders',
+                        panel: 'customer',
+                        customerId: returnData.customerId,
+                        isGlobal: false,
+                        actionLink: `/orders/${order._id}`,
+                        actionLabel: 'View Order',
+                        metadata: { orderId: order._id, returnId: returnData._id, status }
+                    });
+                }
+            } catch (err) {
+                console.error('Error creating notification:', err.message);
+            }
+        }
 
         res.status(200).json({
             success: true,
             message: 'Return status updated successfully',
-            return: returnData
+            return: returnData,
+            orderStatus: order.status
         });
     } catch (error) {
         console.error('Error updating return:', error);
@@ -330,7 +395,6 @@ export const getReturnStats = async (req, res) => {
         let refundedOrders = 0;
 
         allRefunded.forEach(ret => {
-            // Calculate refund amount from items if not set
             let refundAmount = ret.refundAmount || 0;
             if (refundAmount === 0 && ret.items && ret.items.length > 0) {
                 refundAmount = ret.items.reduce((sum, item) => {
@@ -371,6 +435,43 @@ export const getReturnStats = async (req, res) => {
         });
     } catch (error) {
         console.error('Error fetching return stats:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Get order by ID for return
+// @route   GET /api/customer/orders/:id
+// @access  Private
+export const getOrderById = async (req, res) => {
+    try {
+        const order = await Order.findById(req.params.id)
+            .populate('items.productId', 'name price images');
+
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        // Check if order belongs to user
+        if (order.customerId.toString() !== req.user._id.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Unauthorized'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            order
+        });
+    } catch (error) {
+        console.error('Error fetching order:', error);
         res.status(500).json({
             success: false,
             message: 'Server error',

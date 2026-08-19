@@ -3,6 +3,7 @@ import User from '../models/User.js';
 import mongoose from 'mongoose';
 import Notification from '../models/Notifications.js';
 import Driver from '../models/Driver.js';
+import Return from '../models/Return.js';
 
 // ==================== NOTIFICATION HELPERS ====================
 
@@ -367,7 +368,7 @@ export const updateShippingStatus = async (req, res) => {
         const { id } = req.params;
         const { status, notes } = req.body;
 
-        const validStatuses = ['pending', 'processing', 'packed', 'shipped', 'delivered', 'cancelled', 'refunded'];
+        const validStatuses = ['pending', 'processing', 'packed', 'shipped', 'delivered', 'cancelled', 'refunded', 'returned'];
 
         if (!validStatuses.includes(status)) {
             return res.status(400).json({
@@ -669,15 +670,34 @@ export const getShippingStats = async (req, res) => {
             });
         }
 
-        const stats = {
+        // Order stats
+        const orderStats = {
             total: await Order.countDocuments(),
             pending: await Order.countDocuments({ status: 'pending' }),
             processing: await Order.countDocuments({ status: 'processing' }),
             shipped: await Order.countDocuments({ status: 'shipped' }),
             delivered: await Order.countDocuments({ status: 'delivered' }),
             cancelled: await Order.countDocuments({ status: 'cancelled' }),
+            returned: await Order.countDocuments({ status: 'returned' }),
             refunded: await Order.countDocuments({ status: 'refunded' })
         };
+
+        // Return stats with all statuses
+        const returnStats = {
+            total: await Return.countDocuments({ isActive: true }),
+            pending: await Return.countDocuments({ status: 'pending', isActive: true }),
+            approved: await Return.countDocuments({ status: 'approved', isActive: true }),
+            rejected: await Return.countDocuments({ status: 'rejected', isActive: true }),
+            pickup_scheduled: await Return.countDocuments({ status: 'pickup_scheduled', isActive: true }),
+            picked_up: await Return.countDocuments({ status: 'picked_up', isActive: true }),
+            quality_inspection: await Return.countDocuments({ status: 'quality_inspection', isActive: true }),
+            refund_processed: await Return.countDocuments({ status: 'refund_processed', isActive: true }),
+            // ONLY this counts as returned
+            completed: await Return.countDocuments({ status: 'completed', isActive: true })
+        };
+
+        // Total returned = returned orders + completed returns ONLY
+        const totalReturned = (orderStats.returned || 0) + (returnStats.completed || 0);
 
         const paymentStats = {
             paid: await Order.countDocuments({ paymentStatus: 'paid' }),
@@ -686,20 +706,9 @@ export const getShippingStats = async (req, res) => {
             refunded: await Order.countDocuments({ paymentStatus: 'refunded' })
         };
 
-        // Only count DELIVERED orders for revenue
         const revenueAgg = await Order.aggregate([
-            {
-                $match: {
-                    status: 'delivered'  // Only delivered orders
-                }
-            },
-            {
-                $group: {
-                    _id: null,
-                    totalRevenue: { $sum: '$total' },
-                    totalOrders: { $sum: 1 }
-                }
-            }
+            { $match: { status: 'delivered' } },
+            { $group: { _id: null, totalRevenue: { $sum: '$total' }, totalOrders: { $sum: 1 } } }
         ]);
 
         const revenue = revenueAgg[0]?.totalRevenue || 0;
@@ -708,7 +717,9 @@ export const getShippingStats = async (req, res) => {
         res.status(200).json({
             success: true,
             stats: {
-                ...stats,
+                ...orderStats,
+                totalReturned: totalReturned,
+                returns: returnStats,  // Send all return stats
                 payment: paymentStats,
                 revenue: {
                     total: revenue,
