@@ -537,20 +537,6 @@ const OrderManagement = () => {
                                                     </td>
                                                     <td className="py-4 px-4">
                                                         <div className="flex items-center justify-center gap-2">
-                                                            {/* Status Update Dropdown */}
-                                                            <select
-                                                                value={order.status}
-                                                                onChange={(e) => handleUpdateStatus(order._id, e.target.value)}
-                                                                disabled={actionLoading === order._id}
-                                                                className="text-xs border border-slate-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-800 disabled:opacity-50"
-                                                            >
-                                                                <option value="pending">Pending</option>
-                                                                <option value="processing">Processing</option>
-                                                                <option value="shipped">Shipped</option>
-                                                                <option value="delivered">Delivered</option>
-                                                                <option value="cancelled">Cancelled</option>
-                                                            </select>
-
                                                             {/* View Button */}
                                                             <button
                                                                 onClick={() => fetchOrderDetails(order._id)}
@@ -746,8 +732,8 @@ const OrderManagement = () => {
                                         key={timeframe}
                                         onClick={() => runPrediction(timeframe)}
                                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${selectedTimeframe === timeframe
-                                                ? 'bg-[#1e3a6a] text-white shadow-md'
-                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                            ? 'bg-[#1e3a6a] text-white shadow-md'
+                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                             }`}
                                     >
                                         {timeframe === 'tomorrow' && <Calendar className="w-4 h-4" />}

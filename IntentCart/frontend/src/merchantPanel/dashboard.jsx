@@ -16,8 +16,8 @@ import {
     Menu
 } from 'lucide-react';
 import {
-    LineChart,
-    Line,
+    BarChart,
+    Bar,
     XAxis,
     YAxis,
     CartesianGrid,
@@ -56,13 +56,12 @@ const DashboardContent = () => {
             shipped: 0,
             delivered: 0
         },
-        monthlyData: [],
+        dailyData: [],
         chartConfig: {
             yAxisMax: 1000
         }
     });
 
-    // Add recent orders state
     const [recentOrders, setRecentOrders] = useState([]);
     const [recentProducts, setRecentProducts] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
@@ -81,7 +80,6 @@ const DashboardContent = () => {
         window.location.href = '/intentCart-auth';
     }, []);
 
-    //  Fetch dashboard stats with better error handling
     const fetchDashboardStats = useCallback(async (showRefresh = false) => {
         try {
             if (showRefresh) {
@@ -140,7 +138,7 @@ const DashboardContent = () => {
                         shipped: statsData.orderStatus?.shipped || 0,
                         delivered: statsData.orderStatus?.delivered || 0
                     },
-                    monthlyData: statsData.monthlyData || [],
+                    dailyData: statsData.dailyData || [],
                     chartConfig: statsData.chartConfig || { yAxisMax: 1000 }
                 });
             } else {
@@ -159,7 +157,6 @@ const DashboardContent = () => {
         }
     }, [getAuthHeaders, handleAuthError]);
 
-    // Fetch unread notifications count
     const fetchUnreadCount = useCallback(async () => {
         try {
             const token = localStorage.getItem('token');
@@ -180,7 +177,6 @@ const DashboardContent = () => {
         }
     }, [getAuthHeaders]);
 
-    // Fetch recent orders
     const fetchRecentOrders = useCallback(async () => {
         try {
             const token = localStorage.getItem('token');
@@ -201,7 +197,6 @@ const DashboardContent = () => {
         }
     }, [getAuthHeaders]);
 
-    // Fetch recent products
     const fetchRecentProducts = useCallback(async () => {
         try {
             const token = localStorage.getItem('token');
@@ -222,7 +217,6 @@ const DashboardContent = () => {
         }
     }, [getAuthHeaders]);
 
-    // Refresh all data
     const refreshAll = useCallback(async () => {
         await Promise.all([
             fetchDashboardStats(true),
@@ -239,7 +233,6 @@ const DashboardContent = () => {
         fetchRecentProducts();
     }, [fetchDashboardStats, fetchUnreadCount, fetchRecentOrders, fetchRecentProducts]);
 
-    // Auto-refresh every 60 seconds
     useEffect(() => {
         const interval = setInterval(() => {
             if (!loading && !refreshing) {
@@ -250,7 +243,6 @@ const DashboardContent = () => {
         return () => clearInterval(interval);
     }, [loading, refreshing, refreshAll]);
 
-    // Handle logout
     const handleLogout = () => {
         if (window.confirm('Are you sure you want to logout?')) {
             localStorage.removeItem('token');
@@ -259,7 +251,6 @@ const DashboardContent = () => {
         }
     };
 
-    // Prepare pie chart data
     const getPieData = () => {
         const os = stats.orderStatus || {};
         const total = (os.completed || 0) + (os.delivered || 0) + (os.pending || 0) +
@@ -312,7 +303,7 @@ const DashboardContent = () => {
                 bg: 'bg-blue-50'
             },
             {
-                title: 'Orders',
+                title: 'Total Orders',
                 value: (stats.totalOrders || 0).toLocaleString(),
                 subtitle: `${totalCompleted} fulfilled`,
                 icon: CheckCircle,
@@ -353,7 +344,6 @@ const DashboardContent = () => {
     const pieData = getPieData();
     const metrics = getMetrics();
 
-    //  Loading Skeleton
     const LoadingSkeleton = () => (
         <div className="animate-pulse">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
@@ -376,7 +366,6 @@ const DashboardContent = () => {
         </div>
     );
 
-    //  Error Display
     const ErrorDisplay = ({ message, onRetry }) => (
         <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-lg border border-red-200 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
@@ -394,10 +383,8 @@ const DashboardContent = () => {
         </div>
     );
 
-    //  Recent Activity Section
     const RecentActivity = () => (
         <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Recent Orders */}
             <div className="border border-slate-200 rounded-2xl p-6 shadow-xs">
                 <h3 className="text-lg font-bold text-[#1e3a6a] mb-4">Recent Orders</h3>
                 {recentOrders.length === 0 ? (
@@ -430,15 +417,10 @@ const DashboardContent = () => {
                     </div>
                 )}
                 <button className="mt-4 text-sm text-blue-600 hover:text-blue-800 font-medium">
-                    <NavLink
-                        to="/merchant-OrderM"
-                    >
-                        View All Orders -
-                    </NavLink>
+                    <NavLink to="/merchant-OrderM">View All Orders -</NavLink>
                 </button>
             </div>
 
-            {/* Recent Products */}
             <div className="border border-slate-200 rounded-2xl p-6 shadow-xs">
                 <h3 className="text-lg font-bold text-[#1e3a6a] mb-4">Recent Products</h3>
                 {recentProducts.length === 0 ? (
@@ -471,11 +453,7 @@ const DashboardContent = () => {
                     </div>
                 )}
                 <button className="mt-4 text-sm text-blue-600 hover:text-blue-800 font-medium">
-                    <NavLink
-                        to="/merchant-ProductM"
-                    >
-                        View All Products -
-                    </NavLink>
+                    <NavLink to="/merchant-ProductM">View All Products -</NavLink>
                 </button>
             </div>
         </div>
@@ -512,12 +490,10 @@ const DashboardContent = () => {
 
                 <div className="flex-1 overflow-y-auto">
                     <main className="flex-1 bg-white p-4 sm:p-6 lg:p-8 overflow-y-auto">
-                        {/* Error Display */}
                         {error && (
                             <ErrorDisplay message={error} onRetry={() => refreshAll()} />
                         )}
 
-                        {/* Header Section */}
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                             <div>
                                 <h2 className="text-xl sm:text-2xl font-bold text-[#1e3a6a]">
@@ -534,7 +510,6 @@ const DashboardContent = () => {
                             </div>
                         </div>
 
-                        {/* Top Metric Cards */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-8">
                             {metrics.map((m, idx) => {
                                 const Icon = m.icon;
@@ -560,34 +535,33 @@ const DashboardContent = () => {
                             })}
                         </div>
 
-                        {/* Visualizations Section */}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            {/* Line Chart */}
                             <div className="lg:col-span-2 border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col">
                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-6">
-                                    <h3 className="text-lg font-bold text-[#1e3a6a]">Sales & Revenue Trend</h3>
+                                    <h3 className="text-lg font-bold text-[#1e3a6a]">Daily Sales & Revenue</h3>
                                     <div className="flex items-center gap-4 text-xs font-semibold text-[#1e3a6a]">
                                         <div className="flex items-center gap-1.5">
-                                            <span className="w-6 h-0.5 bg-[#1e3a6a] inline-block"></span>
+                                            <span className="w-3 h-3 bg-[#1e3a6a] inline-block rounded-sm"></span>
                                             <span>Revenue</span>
                                         </div>
                                         <div className="flex items-center gap-1.5">
-                                            <span className="w-6 h-0.5 bg-sky-400 inline-block"></span>
+                                            <span className="w-3 h-3 bg-sky-400 inline-block rounded-sm"></span>
                                             <span>Sales</span>
                                         </div>
                                     </div>
                                 </div>
 
                                 <div className="h-56 sm:h-64 w-full">
-                                    {stats.monthlyData && stats.monthlyData.length > 0 ? (
+                                    {stats.dailyData && stats.dailyData.length > 0 ? (
                                         <ResponsiveContainer width="100%" height="100%">
-                                            <LineChart data={stats.monthlyData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                                                <CartesianGrid strokeDasharray="0" vertical={false} stroke="#e2e8f0" />
+                                            <BarChart data={stats.dailyData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                                 <XAxis
-                                                    dataKey="month"
+                                                    dataKey="date"
                                                     tickLine={false}
                                                     axisLine={false}
-                                                    tick={{ fontSize: 11 }}
+                                                    tick={{ fontSize: 10 }}
+                                                    minTickGap={10}
                                                 />
                                                 <YAxis
                                                     tickLine={false}
@@ -605,35 +579,30 @@ const DashboardContent = () => {
                                                         fontSize: '12px'
                                                     }}
                                                 />
-                                                <Line
-                                                    type="monotone"
+                                                <Bar
                                                     dataKey="Revenue"
-                                                    stroke="#1e3a6a"
-                                                    strokeWidth={3}
-                                                    dot={false}
-                                                    activeDot={{ r: 6 }}
+                                                    fill="#1e3a6a"
+                                                    radius={[4, 4, 0, 0]}
+                                                    barSize={20}
                                                 />
-                                                <Line
-                                                    type="monotone"
+                                                <Bar
                                                     dataKey="Sales"
-                                                    stroke="#38bdf8"
-                                                    strokeWidth={3}
-                                                    dot={false}
-                                                    activeDot={{ r: 6 }}
+                                                    fill="#38bdf8"
+                                                    radius={[4, 4, 0, 0]}
+                                                    barSize={20}
                                                 />
-                                            </LineChart>
+                                            </BarChart>
                                         </ResponsiveContainer>
                                     ) : (
                                         <div className="h-full flex flex-col items-center justify-center text-gray-400">
                                             <TrendingUp className="w-12 h-12 text-gray-300 mb-2" />
-                                            <p className="text-sm">No trend data available</p>
-                                            <p className="text-xs">Sales data will appear here</p>
+                                            <p className="text-sm">No daily data available</p>
+                                            <p className="text-xs">Daily sales data will appear here</p>
                                         </div>
                                     )}
                                 </div>
                             </div>
 
-                            {/* Donut Chart */}
                             <div className="border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col justify-between">
                                 <h3 className="text-lg font-bold text-[#1e3a6a]">Order Status</h3>
 
@@ -667,7 +636,6 @@ const DashboardContent = () => {
                                     </ResponsiveContainer>
                                 </div>
 
-                                {/* Dynamic Legend displaying percentages */}
                                 <div className="flex flex-col gap-2 mt-2">
                                     {pieData.map((item, idx) => (
                                         <div key={idx} className="flex items-center justify-between text-xs font-semibold text-gray-700">
@@ -682,7 +650,6 @@ const DashboardContent = () => {
                             </div>
                         </div>
 
-                        {/* Recent Activity Section */}
                         <RecentActivity />
                     </main>
                 </div>

@@ -799,7 +799,6 @@ export const getDashboard = async (req, res) => {
             merchantId: merchantId,
             eventType: 'recovery_email_sent'
         });
-        // ==========================================
 
         // Dynamic rate calculations
         const totalCartsCreated = statsData.totalOrders + totalAbandonments;
@@ -816,6 +815,37 @@ export const getDashboard = async (req, res) => {
         sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
         sixMonthsAgo.setDate(1);
         sixMonthsAgo.setHours(0, 0, 0, 0);
+
+        const dailyTrend = await Order.aggregate([
+            {
+                $match: {
+                    merchantId,
+                    createdAt: { $gte: sixMonthsAgo }
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        year: { $year: "$createdAt" },
+                        month: { $month: "$createdAt" },
+                        day: { $dayOfMonth: "$createdAt" }
+                    },
+                    Sales: {
+                        $sum: { $ifNull: ["$totalAmount", { $ifNull: ["$total", { $ifNull: ["$amount", 0] }] }] }
+                    },
+                    Revenue: {
+                        $sum: {
+                            $cond: [
+                                { $in: [{ $toLower: "$status" }, ["completed", "delivered"]] },
+                                { $ifNull: ["$totalAmount", { $ifNull: ["$total", { $ifNull: ["$amount", 0] }] }] },
+                                0
+                            ]
+                        }
+                    }
+                }
+            },
+            { $sort: { "_id.year": 1, "_id.month": 1, "_id.day": 1 } }
+        ]);
 
         const monthlyTrend = await Order.aggregate([
             {
@@ -846,6 +876,15 @@ export const getDashboard = async (req, res) => {
             },
             { $sort: { "_id.year": 1, "_id.month": 1 } }
         ]);
+
+        const dailyData = dailyTrend.map(item => {
+            const dateObj = new Date(item._id.year, item._id.month - 1, item._id.day);
+            return {
+                date: dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), // e.g. "Aug 14"
+                Sales: item.Sales,
+                Revenue: item.Revenue
+            };
+        });
 
         const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         const monthlyData = monthlyTrend.map(item => ({
@@ -879,7 +918,7 @@ export const getDashboard = async (req, res) => {
                     processing: statsData.processing,
                     shipped: statsData.shipped
                 },
-                monthlyData,
+                dailyData, 
                 chartConfig: { yAxisMax }
             }
         });
