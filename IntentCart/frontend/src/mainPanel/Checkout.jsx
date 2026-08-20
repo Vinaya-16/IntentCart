@@ -24,7 +24,7 @@ import Footer from '../components/Footer.jsx';
 import eventTracker from '../utils/eventTracker.js';
 import { toast, Toaster } from 'react-hot-toast';
 
-const API_BASE_URI = import.meta.env.REACT_APP_API_URL;
+const API_BASE_URI = import.meta.env.VITE_APP_URL;
 
 const API_URL = `${API_BASE_URI}/customer` || 'http://localhost:5000/api/customer';
 const MERCHANT_API_URL = `${API_BASE_URI}/merchant` || 'http://localhost:5000/api/merchant';

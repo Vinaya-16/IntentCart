@@ -69,7 +69,7 @@ import { toast, Toaster } from 'react-hot-toast';
 import Sidebar from './components/sidebar.jsx';
 import Header from './components/header.jsx';
 
-const API_BASE_URI = import.meta.env.REACT_APP_API_URL;
+const API_BASE_URI = import.meta.env.VITE_APP_URL;
 const API_URL = `${API_BASE_URI}/merchant` || 'http://localhost:5000/api/merchant';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
