@@ -8,6 +8,8 @@
 
 **Organization:** Krewlancer
 
+Check Live: https://intent-cart-delta.vercel.app/
+
 ---
 
 ## Overview
