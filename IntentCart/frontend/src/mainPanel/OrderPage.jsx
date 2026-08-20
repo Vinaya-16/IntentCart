@@ -20,7 +20,7 @@ import {
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 
-const API_BASE_URI = import.meta.env.VITE_APP_URL;
+const API_BASE_URI = import.meta.env.VITE_API_URL;
 
 const API_URL = `${API_BASE_URI}/customer` || 'http://localhost:5000/api/customer';
 const RETURN_API_URL = `${API_BASE_URI}/returns` || 'http://localhost:5000/api/returns';
