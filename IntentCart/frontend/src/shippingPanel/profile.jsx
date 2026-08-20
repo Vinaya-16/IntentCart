@@ -11,8 +11,8 @@ import toast from 'react-hot-toast';
 import Header from './components/header.jsx';
 import Sidebar from './components/sidebar.jsx';
 
-const API_BASE_URI = import.meta.env.VITE_API_URL;
-const API_URL = `${API_BASE_URI}/shipping` || 'http://localhost:5000/api/shipping';
+const API = import.meta.env.VITE_API_URL;
+const API_BASE_URL = `${API}/shipping` || 'http://localhost:5000/api/shipping';
 
 const ShipperProfile = () => {
     const navigate = useNavigate();
