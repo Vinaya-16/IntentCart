@@ -25,7 +25,8 @@ import { useNavigate } from 'react-router-dom';
 import Sidebar from './components/sidebar.jsx';
 import Header from './components/header.jsx';
 
-const API_URL = 'http://localhost:5000/api/returns';
+const API_BASE_URI = import.meta.env.VITE_API_URL;
+const API_URL = `${API_BASE_URI}/shipping` || 'http://localhost:5000/api/shipping';
 
 const ShippingReturns = () => {
     const navigate = useNavigate();

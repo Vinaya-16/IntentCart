@@ -1,5 +1,6 @@
 // Event tracking utility for customer panel
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URI = import.meta.env.VITE_API_URL;
+const API_URL = `${API_BASE_URI}` || 'http://localhost:5000/api';
 
 class EventTracker {
     constructor() {

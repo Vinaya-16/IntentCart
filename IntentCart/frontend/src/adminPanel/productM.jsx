@@ -17,7 +17,8 @@ import {
 import Sidebar from './components/sidebar.jsx';
 import Header from './components/header.jsx';
 
-const API_URL = 'http://localhost:5000/api/admin';
+const API_BASE_URI = import.meta.env.VITE_API_URL;
+const API_URL = `${API_BASE_URI}/admin` || 'http://localhost:5000/api/admin';
 
 const ProductM = () => {
     const [activeTab, setActiveTab] = useState('Product Moderation');

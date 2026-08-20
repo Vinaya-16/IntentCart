@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Bell, Menu, ChevronDown, LogOut, User, Check, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-const API_URL = 'http://localhost:5000/api/shipping';
+const API_BASE_URI = import.meta.env.VITE_API_URL;
+const API_URL = `${API_BASE_URI}/shipping` || 'http://localhost:5000/api/shipping';
 
 const Header = ({ onMenuClick }) => {
     const navigate = useNavigate();

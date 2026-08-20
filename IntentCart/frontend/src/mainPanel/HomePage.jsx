@@ -16,7 +16,8 @@ import Categories from '../components/CategoryBar.jsx';
 import Footer from '../components/Footer.jsx';
 
 // API Configuration
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URI = import.meta.env.VITE_API_URL;
+const API_BASE_URL = `${API_BASE_URI}` || 'http://localhost:5000/api';
 
 export default function HomePage() {
   // State Management

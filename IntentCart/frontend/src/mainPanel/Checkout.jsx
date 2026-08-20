@@ -24,8 +24,10 @@ import Footer from '../components/Footer.jsx';
 import eventTracker from '../utils/eventTracker.js';
 import { toast, Toaster } from 'react-hot-toast';
 
-const API_URL = 'http://localhost:5000/api/customer';
-const MERCHANT_API_URL = 'http://localhost:5000/api/merchant';
+const API_BASE_URI = import.meta.env.VITE_API_URL;
+
+const API_URL = `${API_BASE_URI}/customer` || 'http://localhost:5000/api/customer';
+const MERCHANT_API_URL = `${API_BASE_URI}/merchant` || 'http://localhost:5000/api/merchant';
 
 export default function CheckoutPage() {
   const navigate = useNavigate();

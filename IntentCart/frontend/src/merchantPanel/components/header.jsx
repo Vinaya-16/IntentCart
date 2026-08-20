@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, User, ChevronDown, UserCircle, LogOut, LayoutDashboard, Settings, Store } from 'lucide-react';
 
-const API_URL = 'http://localhost:5000/api/merchant';
+const API_BASE_URI = import.meta.env.VITE_API_URL;
+const API_URL = `${API_BASE_URI}/merchant` || 'http://localhost:5000/api/merchant';
 
 const Header = () => {
   const navigate = useNavigate();

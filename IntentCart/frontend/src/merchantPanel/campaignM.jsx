@@ -30,7 +30,8 @@ import Header from './components/header.jsx';
 import Modal from './components/Modal.jsx';
 import CampaignForm from './components/CampaignForm.jsx';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URI = import.meta.env.VITE_API_URL;
+const API_BASE_URL =`${API_BASE_URI}` || 'http://localhost:5000/api';
 
 // Color palette for charts
 const COLORS = ['#2a1a6f', '#0284c7', '#38bdf8', '#64748b', '#f59e0b', '#10b981', '#ef4444'];

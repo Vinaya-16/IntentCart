@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { ChevronDown, ChevronRight, Settings, Target, Users, Image as ImageIcon, Loader2 } from 'lucide-react';
 
-const API_URL = 'http://localhost:5000/api';
+const API_BASE_URI = import.meta.env.VITE_API_URL;
+const API_URL = `${API_BASE_URI}` || 'http://localhost:5000/api';
 
 const CampaignForm = ({ initialData, onSubmit, onCancel, isEdit, isSubmitting }) => {
     const [formData, setFormData] = useState({

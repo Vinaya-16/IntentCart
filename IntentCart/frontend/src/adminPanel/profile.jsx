@@ -15,7 +15,8 @@ import {
 import Sidebar from './components/sidebar.jsx';
 import Header from './components/header.jsx';
 
-const API_URL = 'http://localhost:5000/api/admin';
+const API_BASE_URI = import.meta.env.VITE_API_URL;
+const API_URL = `${API_BASE_URI}/admin` || 'http://localhost:5000/api/admin';
 
 const Profile = () => {
     const [activeTab, setActiveTab] = useState('Profile');
@@ -41,7 +42,7 @@ const Profile = () => {
         account: '',
         totalRevenue: '$ 0',
         avgRevenueSize: '$ 0',
-        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250',
+        avatarUrl: '',
     });
 
     // Modal States

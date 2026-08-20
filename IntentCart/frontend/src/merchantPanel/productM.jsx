@@ -50,7 +50,8 @@ import Header from './components/header.jsx';
 import Sidebar from './components/sidebar.jsx';
 import { toast, Toaster } from 'react-hot-toast';
 
-const API_URL = 'http://localhost:5000/api/merchant';
+const API_BASE_URI = import.meta.env.VITE_API_URL;
+const API_URL = `${API_BASE_URI}/merchant` || 'http://localhost:5000/api/merchant';
 
 const Dashboard = () => {
     const [searchTerm, setSearchTerm] = useState('');
