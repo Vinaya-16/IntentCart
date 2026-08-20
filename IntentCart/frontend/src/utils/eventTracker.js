@@ -99,6 +99,11 @@ class EventTracker {
                 'Content-Type': 'application/json'
             };
 
+            if (!token) {
+                console.log('No auth token, skipping event tracking');
+                return;
+            }
+
             if (token) {
                 headers['Authorization'] = `Bearer ${token}`;
             }
