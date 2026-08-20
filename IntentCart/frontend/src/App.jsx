@@ -7,7 +7,7 @@ import CategoryPage from "./mainPanel/CategoryPage.jsx";
 import Auth from "./components/Auth.jsx";
 import NotificationsPage from "./mainPanel/Notifications.jsx";
 import WishlistPage from "./mainPanel/Wishlist.jsx";
-import CartPage from "./mainPanel/cart.jsx";
+import CartPage from "./mainPanel/Cart.jsx";
 import ProductDetail from "./mainPanel/productDetail.jsx";
 import CustProfile from './mainPanel/Profile.jsx';
 import CheckoutPage from "./mainPanel/Checkout.jsx";
