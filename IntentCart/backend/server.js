@@ -36,11 +36,52 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(helmet());
+
+// Define allowed origins
+const allowedOrigins = [
+  'http://localhost:5173',           // Local Vite dev
+  'http://localhost:3000',           // Local React dev
+  'http://localhost:5000',           // Local backend
+  process.env.CLIENT_URL,            // From Render env (optional)
+  'https://intent-cart-delta.vercel.app',  // Your Vercel preview
+  'https://intent-cart.vercel.app',        // Your Vercel production
+  'https://intent-cart-nu.vercel.app',     // Your other Vercel URL
+  /\.vercel\.app$/,                  // ALL Vercel previews (wildcard)
+].filter(Boolean);  // Remove undefined values
+
+// CORS middleware - MUST be BEFORE routes
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
-  credentials: true
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, Postman, curl)
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    // Check if origin is allowed
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (typeof allowed === 'string') {
+        return allowed === origin;
+      }
+      if (allowed instanceof RegExp) {
+        return allowed.test(origin);
+      }
+      return false;
+    });
+
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      console.warn(`CORS blocked: ${origin}`);
+      callback(null, true);
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
+
+app.use(helmet());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
