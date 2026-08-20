@@ -8,8 +8,8 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import Header from './components/header';
-import Sidebar from './components/sidebar';
+import Header from './components/header.jsx';
+import Sidebar from './components/sidebar.jsx';
 
 const API_BASE_URL = 'http://localhost:5000/api/shipping';
 

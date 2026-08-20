@@ -27,8 +27,8 @@ import axios from 'axios';
 import { toast, Toaster } from 'react-hot-toast';
 import Sidebar from './components/sidebar.jsx';
 import Header from './components/header.jsx';
-import Modal from './components/Modal';
-import CampaignForm from './components/CampaignForm';
+import Modal from './components/Modal.jsx';
+import CampaignForm from './components/CampaignForm.jsx';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 

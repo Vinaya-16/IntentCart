@@ -53,7 +53,7 @@ import {
     Legend
 } from 'recharts';
 import Sidebar from './components/sidebar.jsx';
-import Header from './components/Header.jsx';
+import Header from './components/header.jsx';
 
 const API_URL = 'http://localhost:5000/api/merchant';
 

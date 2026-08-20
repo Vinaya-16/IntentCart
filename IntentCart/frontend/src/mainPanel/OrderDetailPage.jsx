@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
-import eventTracker from '../utils/eventTracker';
+import eventTracker from '../utils/eventTracker.js';
 
 const API_URL = 'http://localhost:5000/api/customer';
 

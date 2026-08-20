@@ -5,8 +5,8 @@ import {
   Award, ChevronRight, Camera, Loader2, WifiOff, RefreshCw,
   Check, ShoppingBag, Heart, Trash2, Lock, Mail, Phone, Map, Eye, Calendar, Link2, Image
 } from 'lucide-react';
-import Header from '../components/Header';
-import Footer from '../components/Footer';
+import Header from '../components/Header.jsx';
+import Footer from '../components/Footer.jsx';
 import { useNavigate, Link } from 'react-router-dom';
 
 const API_URL = 'http://localhost:5000/api/customer';

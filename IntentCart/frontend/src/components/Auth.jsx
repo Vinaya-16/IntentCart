@@ -458,7 +458,6 @@ export default function AuthPage() {
                       value={formData.shipperDetails.experience}
                       placeholder="Experiance"
                       onChange={handleChange}
-                      placeholder="Years of Experience"
                       min="0"
                       max="50"
                       className="w-full pl-4 pr-4 py-3.5 border border-gray-300 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4B2EC2]/20 focus:border-[#4B2EC2] transition-all text-sm sm:text-base bg-white"
