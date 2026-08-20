@@ -4,9 +4,9 @@
 
 ---
 
-**Developer:** Vinaya Patole (24203A0060)
+**Developer:** Vinaya Patole
 
-**Organization / Team:** Krewlancer
+**Organization:** Krewlancer
 
 ---
 
