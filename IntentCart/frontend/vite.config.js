@@ -6,7 +6,7 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [
     react(),
-    tailwindcss(), // ← This replaces PostCSS + Tailwind
+    tailwindcss(),
   ],
   resolve: {
     alias: {
@@ -14,7 +14,13 @@ export default defineConfig({
       'react-dom': path.resolve('./node_modules/react-dom'),
     },
   },
+  // REMOVE the entire build section OR just remove cssMinify
   build: {
-    cssMinify: 'esbuild', // ← IMPORTANT: Use esbuild instead of lightningcss
+    outDir: 'dist',
+    rollupOptions: {
+      output: {
+        manualChunks: undefined,
+      },
+    },
   },
 })
