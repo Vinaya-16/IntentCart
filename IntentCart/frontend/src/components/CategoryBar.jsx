@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Image as ImageIcon, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-const API_BASE_URI = import.meta.env.VITE_API_URL;
+const API_BASE_URI = import.meta.env.REACT_APP_API_URL;
 const API_URL = `${API_BASE_URI}` || 'http://localhost:5000/api';
 
 // Fallback images using placeholder service

@@ -9,7 +9,7 @@ const Header = ({ onMenuClick }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
 
-  const API_BASE_URI = import.meta.env.VITE_API_URI;
+  const API_BASE_URI = import.meta.env.REACT_APP_API_URL;
   const API_URL = `${API_BASE_URI}/admin` || 'http://localhost:5000/api/admin';
 
   // Check authentication status

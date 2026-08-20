@@ -20,7 +20,7 @@ import {
 import Header from './components/header.jsx';
 import Sidebar from './components/sidebar.jsx';
 
-const API_BASE_URI = import.meta.env.VITE_API_URL;
+const API_BASE_URI = import.meta.env.REACT_APP_API_URL;
 const API_BASE_URL = `${API_BASE_URI}/admin` || 'http://localhost:5000/api/admin';
 
 const MerchantRiskList = () => {

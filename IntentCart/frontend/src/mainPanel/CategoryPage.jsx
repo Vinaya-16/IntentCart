@@ -23,7 +23,7 @@ import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import eventTracker from '../utils/eventTracker.js';
 
-const API_BASE_URI = import.meta.env.VITE_API_URL;
+const API_BASE_URI = import.meta.env.REACT_APP_API_URL;
 const API_URL = `${API_BASE_URI}` || 'http://localhost:5000/api';
 
 export default function CategoryPage() {
